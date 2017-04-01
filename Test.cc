@@ -18,7 +18,12 @@ int main(int argc, char* argv[])
     auto opt_i  = cmd.Add(cl::Value(i), "i", cl::Opt::ZeroOrMore, cl::Arg::Required, cl::CommaSeparatedArg::Yes);
     auto opt_in = cmd.AddList(input_files, "input-files", cl::Opt::OneOrMore, cl::Positional::Yes, cl::Arg::Required);
 
-    if (!cmd.Parse(argv + 1, argv + argc, cl::CheckMissing::Yes, cl::IgnoreUnknown::No))
+    auto sink = [&](auto curr, int index) {
+        std::cerr << "note(" << index << "): unknown option '" << *curr << "'\n";
+        return true; // continue
+    };
+
+    if (!cmd.Parse(argv + 1, argv + argc, cl::CheckMissing::Yes, sink))
         return -1;
 
     std::cout << "opt_f: " << opt_f->count() << "\n";

@@ -120,21 +120,6 @@ enum class CheckMissing : unsigned char {
     Yes,
 };
 
-// Controls whether the Parse() methods should ignore unknown options.
-enum class IgnoreUnknown : unsigned char {
-    // Don't ignore unknown options (default).
-    No,
-    // Ignore unknown options.
-    Yes,
-
-    //
-    // XXX:
-    //
-    // There should be a way to collect ignored options...
-    // Or rotate the input range...
-    //
-};
-
 template <typename T = void>
 struct ParseValue
 {
@@ -353,13 +338,19 @@ public:
     // Reset the parser.
     void Reset();
 
-    // Parse the command line arguments in [first, last)
+    // Parse the command line arguments in [first, last).
+    // Emits an error for unknown options.
     template <typename It>
-    bool Parse(
-        It first,
-        It last,
-        CheckMissing check_missing = CheckMissing::Yes,
-        IgnoreUnknown ignore_unknown = IgnoreUnknown::No);
+    bool Parse(It first, It last, CheckMissing check_missing = CheckMissing::Yes);
+
+    // Parse the command line arguments in [first, last).
+    // Calls sink() for unknown options.
+    //
+    // Sink must have signature "bool sink(It, int)" and should
+    // return false if the parser should stop or true to continue parsing
+    // command line arguments.
+    template <typename It, typename Sink>
+    bool Parse(It first, It last, CheckMissing check_missing, Sink sink);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
@@ -374,8 +365,8 @@ private:
 
     void DoAdd(std::unique_ptr<OptionBase> opt);
 
-    template <typename It>
-    bool DoParse(It& curr, It last, IgnoreUnknown ignore_unknown);
+    template <typename It, typename Sink>
+    bool DoParse(It& curr, It last, Sink sink);
 
     template <typename It>
     Result Handle1(It& curr, It last);
@@ -475,9 +466,21 @@ inline void Cmdline::Reset()
 }
 
 template <typename It>
-bool Cmdline::Parse(It first, It last, CheckMissing check_missing, IgnoreUnknown ignore_unknown)
+bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
-    if (!DoParse(first, last, ignore_unknown))
+    auto sink = [&](It curr, int index) {
+        if (diag_)
+            *diag_ << "error(" << index << "): unkown option '" << *curr << "'\n";
+        return false; // i.e., do not continue parsing arguments.
+    };
+
+    return Parse(first, last, check_missing, sink);
+}
+
+template <typename It, typename Sink>
+bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
+{
+    if (!DoParse(first, last, sink))
         return false;
 
     if (check_missing == CheckMissing::Yes)
@@ -528,8 +531,8 @@ inline void Cmdline::DoAdd(std::unique_ptr<OptionBase> opt)
     options_.push_back(std::move(opt));
 }
 
-template <typename It>
-bool Cmdline::DoParse(It& curr, It last, IgnoreUnknown ignore_unknown)
+template <typename It, typename Sink>
+bool Cmdline::DoParse(It& curr, It last, Sink sink)
 {
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
@@ -541,12 +544,8 @@ bool Cmdline::DoParse(It& curr, It last, IgnoreUnknown ignore_unknown)
         if (res == Result::Error)
             return false;
 
-        if (res == Result::Ignored && ignore_unknown == IgnoreUnknown::No)
-        {
-            if (diag_)
-                *diag_ << "error(" << curr_index_ << "): unkown option '" << *curr << "'\n";
+        if (res == Result::Ignored && !sink(curr, curr_index_))
             return false;
-        }
 
         // Handle1 might have changed CURR.
         // Need to recheck if we're done.
