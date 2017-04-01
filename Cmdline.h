@@ -39,7 +39,7 @@ enum class Opt : unsigned char {
 // Flags controling the number of arguments the option accepts.
 enum class Arg : unsigned char {
     // An argument is not allowed
-    Disallowed,
+    None,
     // An argument is optional.
     Optional,
     // An argument is required.
@@ -227,7 +227,7 @@ class OptionBase
     std::string_view const name_;
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::Optional;
-    Arg               num_args_            = Arg::Disallowed;
+    Arg               num_args_            = Arg::None;
     JoinArg           join_arg_            = JoinArg::No;
     MayGroup          may_group_           = MayGroup::No;
     Positional        positional_          = Positional::No;
@@ -708,7 +708,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
 
         // We have a single letter option which does not accept an argument.
         // This is ok.
-        if (opt->num_args_ == Arg::Disallowed)
+        if (opt->num_args_ == Arg::None)
         {
             group.push_back(opt);
             continue;
@@ -751,7 +751,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
         auto const opt = group[n];
         auto const name = optstr.substr(n, 1);
 
-        if (opt->num_args_ == Arg::Disallowed || n + 1 == optstr.size())
+        if (opt->num_args_ == Arg::None || n + 1 == optstr.size())
         {
             if (Result::Success != HandleOccurrence(opt, name, curr, last))
                 return Result::Error;
@@ -814,7 +814,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 {
     // An argument was specified for OPT.
 
-    if (opt->num_args_ == Arg::Disallowed)
+    if (opt->num_args_ == Arg::None)
     {
         if (diag_)
             *diag_ << "error(" << curr_index_ << ": option '" << name << "' does not accept an argument\n";

@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
     cl::Cmdline cmd { &std::cerr };
 
     auto opt_f  = cmd.AddValue(flag, "f", cl::Opt::Optional, cl::Arg::Optional, cl::MayGroup::No);
+    auto opt_F  = cmd.AddValue(flag, "F", cl::Opt::Optional, cl::Arg::None, cl::MayGroup::Yes);
     auto opt_i  = cmd.Add(cl::Value(i), "i", cl::Opt::ZeroOrMore, cl::Arg::Required, cl::CommaSeparatedArg::Yes);
     auto opt_in = cmd.AddList(input_files, "input-files", cl::Opt::OneOrMore, cl::Positional::Yes, cl::Arg::Required);
 
@@ -21,6 +22,7 @@ int main(int argc, char* argv[])
         return -1;
 
     std::cout << "opt_f: " << opt_f->count() << "\n";
+    std::cout << "opt_F: " << opt_F->count() << "\n";
     std::cout << "opt_i: " << opt_i->count() << "\n";
     std::cout << "opt_in: " << opt_in->count() << "\n";
 
