@@ -208,16 +208,10 @@ class OptionBase
 {
     friend class Cmdline;
 
-    //
-    // XXX:
-    //
-    // Everything but count_ should be const...
-    //
-
     // The name of the option.
-    std::string_view const name_;
+    std::string_view name_;
     // The description of this option
-    std::string_view descr_;
+    std::string_view help_text_;
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::Optional;
     Arg               num_args_            = Arg::None;
@@ -241,7 +235,7 @@ private:
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
     void Apply(SeparateArg       v) { separate_arg_ = v; }
-    void Apply(HelpText          v) { descr_ = v.s; }
+    void Apply(HelpText          v) { help_text_ = v.s; }
 
 protected:
     template <typename ...Args>
@@ -260,7 +254,7 @@ public:
     std::string_view name() const { return name_; }
 
     // Returns the description of this option
-    std::string_view help_text() const { return descr_; }
+    std::string_view help_text() const { return help_text_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -322,14 +316,6 @@ public:
     // List of options. Includes the positional options (in order).
     Options const& options() const { return options_; }
 
-    //
-    // XXX:
-    //
-    //  - Return the actual Option<...>* instead of OptionBase* ???
-    //    Would allow accessing the stored parser...
-    //  - Some enable_if-magic to check the parser is callable?
-    //
-
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     template <typename ParserT, typename ...Args>
@@ -377,7 +363,6 @@ public:
 private:
     enum class Result { Success, Error, Ignored };
 
-    // O(n)
     OptionBase* FindOption(std::string_view name) const;
 
     void DoAdd(std::unique_ptr<OptionBase> opt);
@@ -510,7 +495,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
 inline bool Cmdline::CheckMissingOptions()
 {
     bool res = true;
-    for (auto&& opt : options_)
+    for (auto& opt : options_)
     {
         if (opt->IsOccurrenceRequired())
         {
@@ -562,7 +547,7 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
             auto const len = sopt.size() - s0;
 
             sopt.append(len >= kDescrIndent ? 1u : kDescrIndent - len, ' ');
-            sopt.append(opt->descr_.data(), opt->descr_.size());
+            sopt.append(opt->help_text_.data(), opt->help_text_.size());
 
             sopt += '\n'; // One option per line
         }
@@ -926,17 +911,11 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
             // Don't skip empty arguments: "1," => ["1", ""]
 
             auto const p = arg.find(',');
-            if (p == std::string_view::npos)
-            {
-                // Last argument. Result checked below.
-                res = Parse1(arg);
-                break;
-            }
-
             res = Parse1(arg.substr(0, p));
             if (res != Result::Success)
                 break;
-
+            if (p == std::string_view::npos)
+                break;
             arg.remove_prefix(p + 1); // +1 = comma
         }
     }
