@@ -309,7 +309,7 @@ class Cmdline
     // The current positional argument - if any
     int curr_positional_ = 0;
     // Index of the current argument
-    int curr_index_ = -1;
+    int curr_index_ = 0;
     // "--" seen?
     bool dashdash_ = false;
 
@@ -470,7 +470,7 @@ inline Cmdline::~Cmdline()
 inline void Cmdline::Reset()
 {
     curr_positional_ = 0;
-    curr_index_      = -1;
+    curr_index_      = 0;
     dashdash_        = false;
 }
 
@@ -531,6 +531,9 @@ inline void Cmdline::DoAdd(std::unique_ptr<OptionBase> opt)
 template <typename It>
 bool Cmdline::DoParse(It& curr, It last, IgnoreUnknown ignore_unknown)
 {
+    assert(curr_positional_ >= 0);
+    assert(curr_index_ >= 0);
+
     while (curr != last)
     {
         Result const res = Handle1(curr, last);
@@ -610,6 +613,7 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
 inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
+    assert(curr_positional_ <= E);
 
     for ( ; curr_positional_ != E; ++curr_positional_)
     {
@@ -817,7 +821,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
     if (opt->num_args_ == Arg::None)
     {
         if (diag_)
-            *diag_ << "error(" << curr_index_ << ": option '" << name << "' does not accept an argument\n";
+            *diag_ << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
         return Result::Error;
     }
 
