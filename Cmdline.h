@@ -120,6 +120,12 @@ enum class CheckMissing : unsigned char {
     Yes,
 };
 
+// Contains a description for an option.
+struct Descr {
+    char const* s;
+    explicit Descr(char const* s) : s(s) {}
+};
+
 template <typename T = void>
 struct ParseValue
 {
@@ -210,6 +216,8 @@ class OptionBase
 
     // The name of the option.
     std::string_view const name_;
+    // The description of this option
+    std::string_view descr_;
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::Optional;
     Arg               num_args_            = Arg::None;
@@ -233,13 +241,14 @@ private:
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
     void Apply(SeparateArg       v) { separate_arg_ = v; }
+    void Apply(Descr             v) { descr_ = v.s; }
 
 protected:
-    template <typename ...Flags>
-    explicit OptionBase(char const* name, Flags&&... flags)
+    template <typename ...Args>
+    explicit OptionBase(char const* name, Args&&... args)
         : name_(name)
     {
-        int const unused[] = { (Apply(flags), 0)..., 0 };
+        int const unused[] = { (Apply(args), 0)..., 0 };
         static_cast<void>(unused);
     }
 
@@ -249,6 +258,9 @@ public:
 public:
     // Returns the name of this option
     std::string_view name() const { return name_; }
+
+    // Returns the description of this option
+    std::string_view descr() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -268,9 +280,9 @@ class Option : public OptionBase
     ParserT const parser_;
 
 public:
-    template <typename P, typename ...Flags>
-    Option(P&& parser, char const* name, Flags&&... flags)
-        : OptionBase(name, std::forward<Flags>(flags)...)
+    template <typename P, typename ...Args>
+    Option(P&& parser, char const* name, Args&&... args)
+        : OptionBase(name, std::forward<Args>(args)...)
         , parser_(std::forward<P>(parser))
     {
     }
@@ -320,22 +332,22 @@ public:
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
-    template <typename ParserT, typename ...Flags>
-    OptionBase* Add(ParserT&& parser, char const* name, Flags&&... flags);
+    template <typename ParserT, typename ...Args>
+    OptionBase* Add(ParserT&& parser, char const* name, Args&&... args);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     //
     // Same as for Add(Value(target), name, args...)
-    template <typename T, typename ...Flags>
-    OptionBase* AddValue(T& target, char const* name, Flags&&... flags);
+    template <typename T, typename ...Args>
+    OptionBase* AddValue(T& target, char const* name, Args&&... args);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     //
     // Same as for Add(List(target), name, Opt::ZeroOrMore, args...)
-    template <typename T, typename ...Flags>
-    OptionBase* AddList(T& target, char const* name, Flags&&... flags);
+    template <typename T, typename ...Args>
+    OptionBase* AddList(T& target, char const* name, Args&&... args);
 
     // Reset the parser.
     void Reset();
@@ -358,6 +370,9 @@ public:
     // to Parse() and emits errors for all missing options.
     // Returns true if all required options have been (successfully) parsed.
     bool CheckMissingOptions();
+
+    // Prints a short help message
+    void ShowHelp(std::ostream& os, char const* program_name) const;
 
 private:
     enum class Result { Success, Error, Ignored };
@@ -402,27 +417,27 @@ private:
     Result ParseOptionArgument(OptionBase* opt, std::string_view name, std::string_view arg);
 };
 
-template <typename ParserT, typename ...Flags>
-OptionBase* Cmdline::Add(ParserT&& parser, char const* name, Flags&&... flags)
+template <typename ParserT, typename ...Args>
+OptionBase* Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
 {
     auto opt = std::make_unique<Option<std::decay_t<ParserT>>>(
-        std::forward<ParserT>(parser), name, std::forward<Flags>(flags)...);
+        std::forward<ParserT>(parser), name, std::forward<Args>(args)...);
 
     auto const res = opt.get();
     DoAdd(std::move(opt));
     return res;
 }
 
-template <typename T, typename ...Flags>
-OptionBase* Cmdline::AddValue(T& target, char const* name, Flags&&... flags)
+template <typename T, typename ...Args>
+OptionBase* Cmdline::AddValue(T& target, char const* name, Args&&... args)
 {
-    return Add(Value(target), name, std::forward<Flags>(flags)...);
+    return Add(Value(target), name, std::forward<Args>(args)...);
 }
 
-template <typename T, typename ...Flags>
-OptionBase* Cmdline::AddList(T& target, char const* name, Flags&&... flags)
+template <typename T, typename ...Args>
+OptionBase* Cmdline::AddList(T& target, char const* name, Args&&... args)
 {
-    return Add(List(target), name, Opt::ZeroOrMore, std::forward<Flags>(flags)...);
+    return Add(List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
 }
 
 //------------------------------------------------------------------------------
@@ -506,6 +521,57 @@ inline bool Cmdline::CheckMissingOptions()
     }
 
     return res;
+}
+
+inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
+{
+    static size_t const kIndent = 2;
+    static size_t const kDescrIndent = 16;
+
+    std::string spos;
+    std::string sopt;
+
+    for (auto& opt : options_)
+    {
+        if (opt->positional_ == Positional::Yes)
+        {
+            spos += ' ';
+            spos.append(opt->name_.data(), opt->name_.size());
+        }
+        else
+        {
+            auto const s0 = sopt.size();
+
+            sopt.append(kIndent, ' ');
+
+            sopt += '-';
+            sopt.append(opt->name_.data(), opt->name_.size());
+            switch (opt->num_args_)
+            {
+            case Arg::None:
+                break;
+            case Arg::Optional:
+                sopt += "=<arg>";
+                break;
+            case Arg::Required:
+                sopt += " <arg>";
+                break;
+            }
+
+            // Length of: indent + option usage
+            auto const len = sopt.size() - s0;
+
+            sopt.append(len >= kDescrIndent ? 1u : kDescrIndent - len, ' ');
+            sopt.append(opt->descr_.data(), opt->descr_.size());
+
+            sopt += '\n'; // One option per line
+        }
+    }
+
+    if (sopt.empty())
+        os << "Usage: " << program_name << spos << "\n";
+    else
+        os << "Usage: " << program_name << " [options]" << spos << "\nOptions:\n" << sopt;
 }
 
 inline OptionBase* Cmdline::FindOption(std::string_view name) const
