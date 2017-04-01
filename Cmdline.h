@@ -307,7 +307,7 @@ class Cmdline
     // Maximum length of the names of all prefix options
     int max_prefix_len_ = 0;
     // The current positional argument - if any
-    Options::iterator curr_positional_ = options_.begin();
+    int curr_positional_ = 0;
     // Index of the current argument
     int curr_index_ = -1;
     // "--" seen?
@@ -469,8 +469,8 @@ inline Cmdline::~Cmdline()
 
 inline void Cmdline::Reset()
 {
-    curr_positional_ = options_.begin();
-    curr_index_      = 0;
+    curr_positional_ = 0;
+    curr_index_      = -1;
     dashdash_        = false;
 }
 
@@ -525,11 +525,7 @@ inline void Cmdline::DoAdd(std::unique_ptr<OptionBase> opt)
             max_prefix_len_ = n;
     }
 
-    auto const curr_pos = curr_positional_ - options_.begin();
-
     options_.push_back(std::move(opt));
-
-    curr_positional_ = options_.begin() + curr_pos;
 }
 
 template <typename It>
@@ -613,9 +609,11 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
 
 inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 {
-    for (auto E = options_.end(); curr_positional_ != E; ++curr_positional_)
+    int const E = static_cast<int>(options_.size());
+
+    for ( ; curr_positional_ != E; ++curr_positional_)
     {
-        auto&& opt = *curr_positional_;
+        auto& opt = options_[curr_positional_];
 
         if (opt->positional_ == Positional::Yes && opt->IsOccurrenceAllowed())
         {
