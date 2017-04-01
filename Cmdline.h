@@ -223,6 +223,8 @@ class OptionBase
     int count_ = 0;
 
 private:
+    template <typename T> void Apply(T) = delete;
+
     void Apply(Opt               v) { num_occurrences_ = v; }
     void Apply(Arg               v) { num_args_ = v; }
     void Apply(JoinArg           v) { join_arg_ = v; }
