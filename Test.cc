@@ -1,5 +1,5 @@
 #include "Cmdline.h"
-#include "CmdlineUtils.h"
+//#include "CmdlineUtils.h"
 
 #include <forward_list>
 #include <iostream>
@@ -17,26 +17,26 @@ int main(int argc, char* argv[])
     cl::Cmdline cmd { &std::cerr };
 
     /*auto opt_h =*/ cmd.AddValue(show_help, "h", // "h|help|?",   <===  TODO
-        cl::Descr("Display this message"),
+        cl::HelpText("Display this message"),
         cl::Opt::Optional,
         cl::Arg::None);
     auto opt_f = cmd.AddValue(flag, "f",
-        cl::Descr("Some flags"),
+        cl::HelpText("Some flags"),
         cl::Opt::Optional,
         cl::Arg::Optional,
         cl::MayGroup::No);
     auto opt_F = cmd.AddValue(flag, "F",
-        cl::Descr("A boolean flag"),
-        cl::Opt::Optional,
+        cl::HelpText("A boolean flag"),
+        cl::Opt::Required,
         cl::Arg::None,
         cl::MayGroup::Yes);
     auto opt_i = cmd.Add(cl::Value(i), "i",
-        cl::Descr("Some ints"),
+        cl::HelpText("Some ints"),
         cl::Opt::ZeroOrMore,
         cl::Arg::Required,
         cl::CommaSeparatedArg::Yes);
     auto opt_in = cmd.AddList(input_files, "input-files",
-        cl::Descr("List of input files"),
+        cl::HelpText("List of input files"),
         cl::Opt::OneOrMore,
         cl::Positional::Yes,
         cl::Arg::Required);

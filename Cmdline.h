@@ -120,10 +120,10 @@ enum class CheckMissing : unsigned char {
     Yes,
 };
 
-// Contains a description for an option.
-struct Descr {
+// Contains the help text for an option.
+struct HelpText {
     char const* s;
-    explicit Descr(char const* s) : s(s) {}
+    explicit HelpText(char const* s) : s(s) {}
 };
 
 template <typename T = void>
@@ -241,7 +241,7 @@ private:
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
     void Apply(SeparateArg       v) { separate_arg_ = v; }
-    void Apply(Descr             v) { descr_ = v.s; }
+    void Apply(HelpText          v) { descr_ = v.s; }
 
 protected:
     template <typename ...Args>
@@ -260,7 +260,7 @@ public:
     std::string_view name() const { return name_; }
 
     // Returns the description of this option
-    std::string_view descr() const { return descr_; }
+    std::string_view help_text() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -569,7 +569,7 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
     }
 
     if (sopt.empty())
-        os << "Usage: " << program_name << spos << "\n";
+        os << "Usage: " << program_name << spos << '\n';
     else
         os << "Usage: " << program_name << " [options]" << spos << "\nOptions:\n" << sopt;
 }
