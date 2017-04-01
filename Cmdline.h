@@ -303,11 +303,11 @@ class Cmdline
     // Output stream for error messages
     std::ostream* const diag_ = nullptr;
     // List of options. Includes the positional options (in order).
-    Options options_;
+    Options options_ {};
     // Maximum length of the names of all prefix options
     int max_prefix_len_ = 0;
     // The current positional argument - if any
-    Options::iterator curr_positional_;
+    Options::iterator curr_positional_ = options_.begin();
     // Index of the current argument
     int curr_index_ = -1;
     // "--" seen?
@@ -350,20 +350,15 @@ public:
     template <typename T, typename ...Flags>
     OptionBase* AddList(T& target, char const* name, Flags&&... flags);
 
+    // Reset the parser.
+    void Reset();
+
     // Parse the command line arguments in [first, last)
     template <typename It>
     bool Parse(
         It first,
         It last,
         CheckMissing check_missing = CheckMissing::Yes,
-        IgnoreUnknown ignore_unknown = IgnoreUnknown::No);
-
-    // Parse the command line arguments in [first, last)
-    template <typename It>
-    bool ContinueParse(
-        It first,
-        It last,
-        CheckMissing check_missing = CheckMissing::No,
         IgnoreUnknown ignore_unknown = IgnoreUnknown::No);
 
     // Returns whether all required options have been parsed since the last call
@@ -465,7 +460,6 @@ inline bool OptionBase::IsOccurrenceRequired() const
 
 inline Cmdline::Cmdline(std::ostream* diag)
     : diag_(diag)
-    , curr_positional_(options_.begin())
 {
 }
 
@@ -473,18 +467,15 @@ inline Cmdline::~Cmdline()
 {
 }
 
-template <typename It>
-bool Cmdline::Parse(It first, It last, CheckMissing check_missing, IgnoreUnknown ignore_unknown)
+inline void Cmdline::Reset()
 {
     curr_positional_ = options_.begin();
     curr_index_      = 0;
     dashdash_        = false;
-
-    return ContinueParse(first, last, check_missing, ignore_unknown);
 }
 
 template <typename It>
-bool Cmdline::ContinueParse(It first, It last, CheckMissing check_missing, IgnoreUnknown ignore_unknown)
+bool Cmdline::Parse(It first, It last, CheckMissing check_missing, IgnoreUnknown ignore_unknown)
 {
     if (!DoParse(first, last, ignore_unknown))
         return false;
@@ -534,9 +525,11 @@ inline void Cmdline::DoAdd(std::unique_ptr<OptionBase> opt)
             max_prefix_len_ = n;
     }
 
+    auto const curr_pos = curr_positional_ - options_.begin();
+
     options_.push_back(std::move(opt));
 
-    curr_positional_ = options_.begin();
+    curr_positional_ = options_.begin() + curr_pos;
 }
 
 template <typename It>
