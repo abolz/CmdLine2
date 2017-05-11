@@ -68,7 +68,7 @@ void TokenizeUnix(InpIt first, InpIt last, Rhs& out)
     {
         buffer.clear();
 
-        first = TokenizeSingleArgUnix(first, last, buffer);
+        first = cl::TokenizeSingleArgUnix(first, last, buffer);
 
         if (!buffer.empty())
             out.push_back(buffer);
@@ -218,7 +218,7 @@ void TokenizeWindows(InpIt first, InpIt last, Rhs& out, bool parse_program_name 
 
     if (parse_program_name)
     {
-        first = ParseProgramFilenameWindows(first, last, buffer);
+        first = cl::ParseProgramFilenameWindows(first, last, buffer);
         out.push_back(buffer);
     }
 
@@ -226,7 +226,7 @@ void TokenizeWindows(InpIt first, InpIt last, Rhs& out, bool parse_program_name 
     {
         int quoting = 0;
 
-        first = TokenizeSingleArgWindows(first, last, buffer, quoting);
+        first = cl::TokenizeSingleArgWindows(first, last, buffer, quoting);
 
         if (!buffer.empty() || quoting)
         {
@@ -312,7 +312,7 @@ InpIt QuoteArgsWindows(InpIt first, InpIt last, Buffer& buffer)
         }
 
         // Append the current argument
-        QuoteSingleArgWindows(I, E, buffer);
+        cl::QuoteSingleArgWindows(I, E, buffer);
 
         buffer.push_back(' ');
     }

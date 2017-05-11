@@ -25,7 +25,7 @@ namespace cl {
 //------------------------------------------------------------------------------
 
 // Flags controling how often an option may/must be specified.
-enum class Opt : unsigned char {
+enum Opt : unsigned char {
     // The option may appear at most once
     Optional,
     // The option must appear exactly once.
@@ -131,9 +131,8 @@ struct ParseValue
 {
     bool operator()(std::string_view /*name*/, std::string_view arg, int /*index*/, T& value) const
     {
-        std::stringstream stream;
+        std::stringstream stream { std::string(arg) };
 
-        stream.write(arg.data(), static_cast<std::streamsize>(arg.size()));
         stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
         stream >> value;
 
@@ -236,6 +235,7 @@ private:
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
     void Apply(SeparateArg       v) { separate_arg_ = v; }
     void Apply(HelpText          v) { help_text_ = v.s; }
+    void Apply(char const*       v) { help_text_ = v; }
 
 protected:
     template <typename ...Args>
@@ -473,13 +473,13 @@ auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
 template <typename T, typename ...Args>
 auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
 {
-    return Add(Value(target), name, std::forward<Args>(args)...);
+    return Add(cl::Value(target), name, std::forward<Args>(args)...);
 }
 
 template <typename T, typename ...Args>
 auto Cmdline::AddList(T& target, char const* name, Args&&... args)
 {
-    return Add(List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
+    return Add(cl::List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
 }
 
 inline void Cmdline::Reset()
@@ -495,7 +495,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
     auto sink = [&](It curr, int index)
     {
         diag() << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
-        return false; // i.e., do not continue parsing arguments.
+        return false;
     };
 
     return Parse(first, last, check_missing, sink);
@@ -637,7 +637,6 @@ bool Cmdline::DoParse(It& curr, It last, Sink sink)
         // Need to recheck if we're done.
         if (curr == last)
             break;
-
         ++curr;
         ++curr_index_;
     }
@@ -744,9 +743,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
 
             // Discard the equals sign if this option may NOT join its value.
             if (opt->join_arg_ == JoinArg::No)
-            {
                 ++arg_start;
-            }
 
             auto const arg = optstr.substr(arg_start);
             return HandleOccurrence(opt, name, arg);
@@ -795,27 +792,23 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         if (opt == nullptr || opt->may_group_ == MayGroup::No)
             return Result::Ignored;
 
-        // We have a single letter option which does not accept an argument.
-        // This is ok.
-        if (opt->num_args_ == Arg::None)
+        if (opt->num_args_ == Arg::None || n + 1 == optstr.size())
         {
             group.push_back(opt);
             continue;
         }
 
-        assert(opt->num_args_ == Arg::Optional || opt->num_args_ == Arg::Required);
-
         // The option accepts an argument. This terminates the option group.
-        // It is a valid option if it is the last option in the group, or if the
-        // next character is an equal sign, or if the option may join its
-        // argument.
-        if (n + 1 == optstr.size() || optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::No)
+        // It is a valid option if the next character is an equal sign, or if
+        // the option may join its argument.
+        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::No)
         {
             group.push_back(opt);
             break;
         }
 
-        diag() << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group (requires an argument)\n";
+        // The option accepts an argument, but may not join its argument.
+        diag() << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group\n";
         return Result::Error;
     }
 
@@ -853,9 +846,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
         if (optstr[arg_start] == '=' && opt->join_arg_ == JoinArg::No)
-        {
             ++arg_start;
-        }
 
         auto const arg = optstr.substr(arg_start);
         return HandleOccurrence(opt, name, arg);
@@ -901,7 +892,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 {
     // An argument was specified for OPT.
 
-    if (opt->num_args_ == Arg::None)
+    if (opt->positional_ == Positional::No && opt->num_args_ == Arg::None)
     {
         diag() << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
         return Result::Error;
@@ -950,9 +941,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
         // If the current option has the ConsumeRemaining flag set,
         // parse all following options as positional options.
         if (opt->consume_remaining_ == ConsumeRemaining::Yes)
-        {
             dashdash_ = true;
-        }
     }
 
     return res;

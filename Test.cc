@@ -1,69 +1,46 @@
 #include "Cmdline.h"
-#include "CmdlineUtils.h"
+//#include "CmdlineUtils.h"
 
 #include <iostream>
 
 int main(int argc, char* argv[])
 {
+    bool show_help = false;
     bool flag = false;
     int i = 0;
     std::vector<std::string> input_files;
 
     cl::Cmdline cmd;
 
-    auto on_help = [&](auto...)
-    {
+    auto opt_h = cmd.AddValue(show_help, "h|help|?", "Display this message");
+
+    auto opt_f = cmd.AddValue(flag, "f", "A boolean flag",
+        cl::ZeroOrMore, cl::MayGroup::Yes, cl::Arg::Optional);
+
+    auto opt_i = cmd.AddValue(i, "i|ints", "Some ints",
+        cl::ZeroOrMore, cl::Arg::Required, cl::CommaSeparatedArg::Yes);
+
+    auto opt_in = cmd.AddList(input_files, "input-files", "List of input files",
+        cl::OneOrMore, cl::Positional::Yes);
+
+    bool const ok = cmd.Parse(argv + 1, argv + argc);
+    if (show_help) {
         cmd.ShowHelp(std::cout, "Test");
-        exit(-1);
-    };
-
-    auto opt_h = cmd.Add(
-        on_help, "h|help|?",
-        cl::HelpText("Display this message"),
-        cl::Opt::Optional,
-        cl::Arg::None);
-    auto opt_f = cmd.AddValue(
-        flag, "f",
-        cl::HelpText("Some flags"),
-        cl::Opt::Optional,
-        cl::Arg::Optional,
-        cl::MayGroup::No);
-    auto opt_F = cmd.AddValue(
-        flag, "F",
-        cl::HelpText("A boolean flag"),
-        cl::Opt::Required,
-        cl::Arg::None,
-        cl::MayGroup::Yes);
-    auto opt_i = cmd.Add(
-        cl::Value(i), "i|ints",
-        cl::HelpText("Some ints"),
-        cl::Opt::ZeroOrMore,
-        cl::Arg::Required,
-        cl::CommaSeparatedArg::Yes);
-    auto opt_in = cmd.AddList(
-        input_files, "input-files",
-        cl::HelpText("List of input files"),
-        cl::Opt::OneOrMore,
-        cl::Positional::Yes,
-        cl::Arg::Required);
-
-    auto sink = [&](auto curr, int index)
-    {
-        cmd.diag() << "note(" << index << "): unknown option '" << std::string_view(*curr) << "'\n";
-        return true; // continue parsing
-    };
-
-    if (!cmd.Parse(argv + 1, argv + argc, cl::CheckMissing::Yes, sink))
-    {
+        return 0;
+    }
+    if (!ok) {
         std::cerr << cmd.diag().str() << "\n";
         std::cerr << "use '-" << opt_h->name() << "' for help\n";
         return -1;
     }
 
-    std::cout << "opt_f:  " << opt_f->count() << "\n";
-    std::cout << "opt_F:  " << opt_F->count() << "\n";
-    std::cout << "opt_i:  " << opt_i->count() << "\n";
+    std::cout << "opt_f: " << opt_f->count() << "\n";
+    std::cout << "  f = " << flag << "\n";
+    std::cout << "opt_i: " << opt_i->count() << "\n";
+    std::cout << "  i = " << i << "\n";
     std::cout << "opt_in: " << opt_in->count() << "\n";
+    for (auto& str : input_files)
+        std::cout << "  '" << str << "'\n";
 
     return 0;
 }
