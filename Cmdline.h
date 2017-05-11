@@ -308,8 +308,8 @@ class Cmdline
 
     using Options = std::vector<NameOptionPair>;
 
-    // Output stream for error messages
-    std::ostream* const diag_ = nullptr;
+    // Output stream for diagnostic messages
+    std::ostringstream diag_;
     // List of options. Includes the positional options (in order).
     Options options_ {};
     // Maximum length of the names of all prefix options
@@ -322,11 +322,17 @@ class Cmdline
     bool dashdash_ = false;
 
 public:
-    explicit Cmdline(std::ostream* diag = nullptr);
+    Cmdline();
     ~Cmdline();
 
     Cmdline(Cmdline const&) = delete;
     Cmdline& operator =(Cmdline const&) = delete;
+
+    // Returns the diagnostic messages
+    std::ostringstream const& diag() const { return diag_; }
+
+    // Returns the diagnostic messages
+    std::ostringstream& diag() { return diag_; }
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -367,7 +373,7 @@ public:
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
     // Returns true if all required options have been (successfully) parsed.
-    bool CheckMissingOptions() const;
+    bool CheckMissingOptions();
 
     // Prints a short help message
     void ShowHelp(std::ostream& os, char const* program_name) const;
@@ -421,27 +427,6 @@ private:
     static bool SplitString(std::string_view str, char sep, Func func);
 };
 
-template <typename ParserT, typename ...Args>
-auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
-{
-    auto opt = std::make_shared<Option<std::decay_t<ParserT>>>(
-        std::forward<ParserT>(parser), name, std::forward<Args>(args)...);
-    DoAdd(opt);
-    return opt;
-}
-
-template <typename T, typename ...Args>
-auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
-{
-    return Add(Value(target), name, std::forward<Args>(args)...);
-}
-
-template <typename T, typename ...Args>
-auto Cmdline::AddList(T& target, char const* name, Args&&... args)
-{
-    return Add(List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
-}
-
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
@@ -468,13 +453,33 @@ inline bool OptionBase::IsOccurrenceRequired() const
 //
 //------------------------------------------------------------------------------
 
-inline Cmdline::Cmdline(std::ostream* diag)
-    : diag_(diag)
+inline Cmdline::Cmdline()
 {
 }
 
 inline Cmdline::~Cmdline()
 {
+}
+
+template <typename ParserT, typename ...Args>
+auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
+{
+    auto opt = std::make_shared<Option<std::decay_t<ParserT>>>(
+        std::forward<ParserT>(parser), name, std::forward<Args>(args)...);
+    DoAdd(opt);
+    return opt;
+}
+
+template <typename T, typename ...Args>
+auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
+{
+    return Add(Value(target), name, std::forward<Args>(args)...);
+}
+
+template <typename T, typename ...Args>
+auto Cmdline::AddList(T& target, char const* name, Args&&... args)
+{
+    return Add(List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
 }
 
 inline void Cmdline::Reset()
@@ -487,9 +492,9 @@ inline void Cmdline::Reset()
 template <typename It>
 bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
-    auto sink = [&](It curr, int index) {
-        if (diag_)
-            *diag_ << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
+    auto sink = [&](It curr, int index)
+    {
+        diag() << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
         return false; // i.e., do not continue parsing arguments.
     };
 
@@ -509,7 +514,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
 }
 
 // Emit errors for ALL missing options.
-inline bool Cmdline::CheckMissingOptions() const
+inline bool Cmdline::CheckMissingOptions()
 {
     bool res = true;
 
@@ -517,8 +522,7 @@ inline bool Cmdline::CheckMissingOptions() const
     {
         if (opt->IsOccurrenceRequired())
         {
-            if (diag_)
-                *diag_ << "error: option '" << opt->name_ << "' missing\n";
+            diag() << "error: option '" << opt->name_ << "' missing\n";
             res = false;
         }
 
@@ -811,8 +815,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
             break;
         }
 
-        if (diag_)
-            *diag_ << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group (requires an argument)\n";
+        diag() << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group (requires an argument)\n";
         return Result::Error;
     }
 
@@ -887,8 +890,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 
     if (err)
     {
-        if (diag_)
-            *diag_ << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
+        diag() << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
         return Result::Error;
     }
 
@@ -901,8 +903,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 
     if (opt->num_args_ == Arg::None)
     {
-        if (diag_)
-            *diag_ << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
+        diag() << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
         return Result::Error;
     }
 
@@ -915,15 +916,13 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
     {
         if (!opt->IsOccurrenceAllowed())
         {
-            if (diag_)
-                *diag_ << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
+            diag() << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
             return Result::Error;
         }
 
         if (!opt->Parse(name, arg1, curr_index_))
         {
-            if (diag_)
-                *diag_ << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
+            diag() << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
             return Result::Error;
         }
 

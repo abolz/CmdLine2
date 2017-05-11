@@ -1,5 +1,5 @@
 #include "Cmdline.h"
-//#include "CmdlineUtils.h"
+#include "CmdlineUtils.h"
 
 #include <iostream>
 
@@ -9,7 +9,7 @@ int main(int argc, char* argv[])
     int i = 0;
     std::vector<std::string> input_files;
 
-    cl::Cmdline cmd { &std::cerr };
+    cl::Cmdline cmd;
 
     auto on_help = [&](auto...)
     {
@@ -49,14 +49,15 @@ int main(int argc, char* argv[])
 
     auto sink = [&](auto curr, int index)
     {
-        std::cerr << "note(" << index << "): unknown option '" << std::string_view(*curr) << "'\n";
+        cmd.diag() << "note(" << index << "): unknown option '" << std::string_view(*curr) << "'\n";
         return true; // continue parsing
     };
 
-    if (!cmd.Parse(argv + 1, argv + argc, cl::CheckMissing::Yes, sink)) {
-        //std::cerr << "Use " << opt_h->name() << " for help\n";
-        //return -1;
-        on_help(0/*for g++...*/);
+    if (!cmd.Parse(argv + 1, argv + argc, cl::CheckMissing::Yes, sink))
+    {
+        std::cerr << cmd.diag().str() << "\n";
+        std::cerr << "use '-" << opt_h->name() << "' for help\n";
+        return -1;
     }
 
     std::cout << "opt_f:  " << opt_f->count() << "\n";
