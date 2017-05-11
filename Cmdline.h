@@ -285,13 +285,28 @@ public:
 
 private:
     bool Parse(std::string_view name, std::string_view arg, int index) override {
+        return DoParse(name, arg, index, std::is_convertible<decltype(parser_(name, arg, index)), bool>{});
+    }
+
+    bool DoParse(std::string_view name, std::string_view arg, int index, std::true_type) {
         return parser_(name, arg, index);
+    }
+
+    bool DoParse(std::string_view name, std::string_view arg, int index, std::false_type) {
+        parser_(name, arg, index);
+        return true;
     }
 };
 
 class Cmdline
 {
-    using Options = std::vector<std::unique_ptr<OptionBase>>;
+    struct NameOptionPair
+    {
+        std::string_view name;
+        std::shared_ptr<OptionBase> option;
+    };
+
+    using Options = std::vector<NameOptionPair>;
 
     // Output stream for error messages
     std::ostream* const diag_ = nullptr;
@@ -313,27 +328,24 @@ public:
     Cmdline(Cmdline const&) = delete;
     Cmdline& operator =(Cmdline const&) = delete;
 
-    // List of options. Includes the positional options (in order).
-    Options const& options() const { return options_; }
-
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     template <typename ParserT, typename ...Args>
-    OptionBase* Add(ParserT&& parser, char const* name, Args&&... args);
+    auto Add(ParserT&& parser, char const* name, Args&&... args);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     //
     // Same as for Add(Value(target), name, args...)
     template <typename T, typename ...Args>
-    OptionBase* AddValue(T& target, char const* name, Args&&... args);
+    auto AddValue(T& target, char const* name, Args&&... args);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     //
     // Same as for Add(List(target), name, Opt::ZeroOrMore, args...)
     template <typename T, typename ...Args>
-    OptionBase* AddList(T& target, char const* name, Args&&... args);
+    auto AddList(T& target, char const* name, Args&&... args);
 
     // Reset the parser.
     void Reset();
@@ -355,7 +367,7 @@ public:
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
     // Returns true if all required options have been (successfully) parsed.
-    bool CheckMissingOptions();
+    bool CheckMissingOptions() const;
 
     // Prints a short help message
     void ShowHelp(std::ostream& os, char const* program_name) const;
@@ -365,7 +377,7 @@ private:
 
     OptionBase* FindOption(std::string_view name) const;
 
-    void DoAdd(std::unique_ptr<OptionBase> opt);
+    void DoAdd(std::shared_ptr<OptionBase> const& opt);
 
     template <typename It, typename Sink>
     bool DoParse(It& curr, It last, Sink sink);
@@ -400,27 +412,32 @@ private:
     Result HandleOccurrence(OptionBase* opt, std::string_view name, std::string_view arg);
 
     Result ParseOptionArgument(OptionBase* opt, std::string_view name, std::string_view arg);
+
+    template <typename Func>
+    bool ForEachUniqueOption(Func func) const;
+
+    // Does not skip empty tokens.
+    template <typename Func>
+    static bool SplitString(std::string_view str, char sep, Func func);
 };
 
 template <typename ParserT, typename ...Args>
-OptionBase* Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
+auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
 {
-    auto opt = std::make_unique<Option<std::decay_t<ParserT>>>(
+    auto opt = std::make_shared<Option<std::decay_t<ParserT>>>(
         std::forward<ParserT>(parser), name, std::forward<Args>(args)...);
-
-    auto const res = opt.get();
-    DoAdd(std::move(opt));
-    return res;
+    DoAdd(opt);
+    return opt;
 }
 
 template <typename T, typename ...Args>
-OptionBase* Cmdline::AddValue(T& target, char const* name, Args&&... args)
+auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
 {
     return Add(Value(target), name, std::forward<Args>(args)...);
 }
 
 template <typename T, typename ...Args>
-OptionBase* Cmdline::AddList(T& target, char const* name, Args&&... args)
+auto Cmdline::AddList(T& target, char const* name, Args&&... args)
 {
     return Add(List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
 }
@@ -472,7 +489,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index) {
         if (diag_)
-            *diag_ << "error(" << index << "): unkown option '" << *curr << "'\n";
+            *diag_ << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
         return false; // i.e., do not continue parsing arguments.
     };
 
@@ -492,10 +509,11 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
 }
 
 // Emit errors for ALL missing options.
-inline bool Cmdline::CheckMissingOptions()
+inline bool Cmdline::CheckMissingOptions() const
 {
     bool res = true;
-    for (auto& opt : options_)
+
+    ForEachUniqueOption([&](std::string_view /*name*/, OptionBase* opt)
     {
         if (opt->IsOccurrenceRequired())
         {
@@ -503,7 +521,9 @@ inline bool Cmdline::CheckMissingOptions()
                 *diag_ << "error: option '" << opt->name_ << "' missing\n";
             res = false;
         }
-    }
+
+        return true;
+    });
 
     return res;
 }
@@ -516,7 +536,7 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
     std::string spos;
     std::string sopt;
 
-    for (auto& opt : options_)
+    ForEachUniqueOption([&](std::string_view /*name*/, OptionBase* opt)
     {
         if (opt->positional_ == Positional::Yes)
         {
@@ -551,7 +571,9 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
 
             sopt += '\n'; // One option per line
         }
-    }
+
+        return true;
+    });
 
     if (sopt.empty())
         os << "Usage: " << program_name << spos << '\n';
@@ -563,25 +585,32 @@ inline OptionBase* Cmdline::FindOption(std::string_view name) const
 {
     for (auto&& p : options_)
     {
-        if (p->name_ == name)
-            return p.get();
+        if (p.name == name)
+            return p.option.get();
     }
 
     return nullptr;
 }
 
-inline void Cmdline::DoAdd(std::unique_ptr<OptionBase> opt)
+inline void Cmdline::DoAdd(std::shared_ptr<OptionBase> const& opt)
 {
     assert(!opt->name_.empty());
 
-    if (opt->join_arg_ != JoinArg::No)
+    SplitString(opt->name_, '|', [&](std::string_view name)
     {
-        int const n = static_cast<int>(opt->name_.size());
-        if (max_prefix_len_ < n)
-            max_prefix_len_ = n;
-    }
+        assert(!name.empty());
+        assert(FindOption(name) == nullptr); // option already exists?!
 
-    options_.push_back(std::move(opt));
+        if (opt->join_arg_ != JoinArg::No)
+        {
+            int const n = static_cast<int>(name.size());
+            if (max_prefix_len_ < n)
+                max_prefix_len_ = n;
+        }
+
+        options_.push_back({name, opt});
+        return true;
+    });
 }
 
 template <typename It, typename Sink>
@@ -669,7 +698,7 @@ inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 
     for ( ; curr_positional_ != E; ++curr_positional_)
     {
-        auto& opt = options_[curr_positional_];
+        auto&& opt = options_[curr_positional_].option;
 
         if (opt->positional_ == Positional::Yes && opt->IsOccurrenceAllowed())
         {
@@ -906,18 +935,11 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
 
     if (opt->comma_separated_arg_ == CommaSeparatedArg::Yes)
     {
-        for (;;)
+        SplitString(arg, ',', [&](std::string_view s)
         {
-            // Don't skip empty arguments: "1," => ["1", ""]
-
-            auto const p = arg.find(',');
-            res = Parse1(arg.substr(0, p));
-            if (res != Result::Success)
-                break;
-            if (p == std::string_view::npos)
-                break;
-            arg.remove_prefix(p + 1); // +1 = comma
-        }
+            res = Parse1(s);
+            return res == Result::Success;
+        });
     }
     else
     {
@@ -935,6 +957,38 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
     }
 
     return res;
+}
+
+template <typename Func>
+bool Cmdline::ForEachUniqueOption(Func func) const
+{
+    auto I = options_.begin();
+    auto E = options_.end();
+    while (I != E)
+    {
+        auto opt = I->option.get();
+        if (!func(I->name, opt))
+            return false;
+        while (++I != E && I->option.get() == opt)
+        {
+        }
+    }
+
+    return true;
+}
+
+template <typename Func>
+bool Cmdline::SplitString(std::string_view str, char sep, Func func)
+{
+    for (;;)
+    {
+        auto const p = str.find(sep);
+        if (!func(str.substr(0, p))) // p == npos is ok here
+            return false;
+        if (p == std::string_view::npos)
+            return true;
+        str.remove_prefix(p + 1);
+    }
 }
 
 } // namespace cl
