@@ -185,6 +185,17 @@ auto Value(T& value)
     };
 }
 
+template <typename T>
+auto Value(T& value, std::add_const_t<T> lower, std::add_const_t<T> upper)
+{
+    return [&value, lower, upper](std::string_view name, std::string_view arg, int index)
+    {
+        return ParseValue<>{}(name, arg, index, value)
+            && !(value < lower)
+            && !(upper < value);
+    };
+}
+
 // Default parser for list types.
 // Uses an instance of Parser<> to convert the string and then inserts the
 // converted value into the container.
@@ -382,6 +393,7 @@ private:
     enum class Result { Success, Error, Ignored };
 
     OptionBase* FindOption(std::string_view name) const;
+    OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
 
     void DoAdd(std::shared_ptr<OptionBase> const& opt);
 
@@ -596,6 +608,32 @@ inline OptionBase* Cmdline::FindOption(std::string_view name) const
     return nullptr;
 }
 
+inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) const
+{
+    ambiguous = false;
+
+    OptionBase* opt = nullptr;
+
+    for (auto&& p : options_)
+    {
+        if (p.name == name) // exact match
+        {
+            ambiguous = false;
+            return p.option.get();
+        }
+
+        if (p.name.size() > name.size() && p.name.substr(0, name.size()) == name)
+        {
+            if (opt == nullptr)
+                opt = p.option.get();
+            else
+                ambiguous = true;
+        }
+    }
+
+    return opt;
+}
+
 inline void Cmdline::DoAdd(std::shared_ptr<OptionBase> const& opt)
 {
     assert(!opt->name_.empty());
@@ -717,8 +755,15 @@ inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 template <typename It>
 Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr, It last)
 {
-    if (auto const opt = FindOption(optstr))
+    bool ambiguous = false;
+    if (auto const opt = FindOption(optstr, ambiguous))
     {
+        if (ambiguous)
+        {
+            diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+            return Result::Error;
+        }
+
         // OPTSTR is the name of an option, i.e. no argument was specified.
         // If the option requires an argument, steal one from the command line.
         return HandleOccurrence(opt, optstr, curr, last);
@@ -737,8 +782,15 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
 
-        if (auto opt = FindOption(name))
+        bool ambiguous = false;
+        if (auto const opt = FindOption(name, ambiguous))
         {
+            if (ambiguous)
+            {
+                diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+                return Result::Error;
+            }
+
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
