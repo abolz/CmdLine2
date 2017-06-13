@@ -2,6 +2,8 @@
 
 #pragma once
 
+#define CL_NO_ABBREV 1
+
 #include <cassert>
 #include <memory>
 #include <sstream>
@@ -612,6 +614,9 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
 {
     ambiguous = false;
 
+#if CL_NO_ABBREV
+    return FindOption(name);
+#else
     OptionBase* opt = nullptr;
 
     for (auto&& p : options_)
@@ -632,6 +637,7 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
     }
 
     return opt;
+#endif
 }
 
 inline void Cmdline::DoAdd(std::shared_ptr<OptionBase> const& opt)
