@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef COMMAND_LINE_WITH_ABBREVIATIONS
+#define COMMAND_LINE_WITH_ABBREVIATIONS 0
+#endif
+
 #include <cassert>
 #include <memory>
 #include <sstream>
@@ -585,9 +589,7 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
 {
     ambiguous = false;
 
-#if 1
-    return FindOption(name);
-#else
+#if COMMAND_LINE_WITH_ABBREVIATIONS
     OptionBase* opt = nullptr;
 
     for (auto&& p : options_)
@@ -608,6 +610,8 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
     }
 
     return opt;
+#else
+    return FindOption(name);
 #endif
 }
 
