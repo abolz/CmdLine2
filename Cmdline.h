@@ -165,42 +165,41 @@ struct ParseValue<void>
     }
 };
 
-// Default parser for scalar types.
-// Uses an instance of Parser<> to convert the string.
-template <typename T>
-auto Value(T& value)
+template <typename T, typename U>
+auto InRange(T lower, U upper)
 {
-    return [&](std::string_view name, std::string_view arg, int index) {
-        return ParseValue<>{}(name, arg, index, value);
+    return [=](auto const& value) {
+        return !(value < lower) && !(upper < value);
     };
 }
 
-template <typename T> // add_const to disable template argument deduction
-auto Value(T& value, std::add_const_t<T> lower, std::add_const_t<T> upper)
+// Default parser for scalar types.
+// Uses an instance of Parser<> to convert the string.
+template <typename T, typename ...Predicates>
+auto Value(T& value, Predicates... preds)
 {
-    return [&value, lower, upper](std::string_view name, std::string_view arg, int index)
-    {
-        return ParseValue<>{}(name, arg, index, value)
-            && !(value < lower)
-            && !(upper < value);
+    return [=, &value](std::string_view name, std::string_view arg, int index) {
+        return ParseValue<>{}(name, arg, index, value) && (... && preds(value));
     };
 }
 
 // Default parser for list types.
 // Uses an instance of Parser<> to convert the string and then inserts the
 // converted value into the container.
-template <typename T>
-auto List(T& container)
+template <typename T, typename ...Predicates>
+auto List(T& container, Predicates... preds)
 {
-    return [&](std::string_view name, std::string_view arg, int index)
+    return [=, &container](std::string_view name, std::string_view arg, int index)
     {
         typename T::value_type value;
 
-        if (!ParseValue<>{}(name, arg, index, value))
-            return false;
+        if (ParseValue<>{}(name, arg, index, value) && (... && preds(value)))
+        {
+            container.insert(container.end(), std::move(value));
+            return true;
+        }
 
-        container.insert(container.end(), std::move(value));
-        return true;
+        return false;
     };
 }
 
@@ -343,20 +342,6 @@ public:
     template <typename ParserT, typename ...Args>
     auto Add(ParserT&& parser, char const* name, Args&&... args);
 
-    // Add an option to the command line.
-    // Returns a pointer to the newly created option.
-    //
-    // Same as for Add(Value(target), name, args...)
-    template <typename T, typename ...Args>
-    auto AddValue(T& target, char const* name, Args&&... args);
-
-    // Add an option to the command line.
-    // Returns a pointer to the newly created option.
-    //
-    // Same as for Add(List(target), name, Opt::zero_or_more, args...)
-    template <typename T, typename ...Args>
-    auto AddList(T& target, char const* name, Args&&... args);
-
     // Reset the parser.
     void Reset();
 
@@ -474,18 +459,6 @@ auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
     unique_options_.push_back(std::move(opt)); // commit
 
     return p;
-}
-
-template <typename T, typename ...Args>
-auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
-{
-    return Add(cl::Value(target), name, std::forward<Args>(args)...);
-}
-
-template <typename T, typename ...Args>
-auto Cmdline::AddList(T& target, char const* name, Args&&... args)
-{
-    return Add(cl::List(target), name, Opt::zero_or_more, std::forward<Args>(args)...);
 }
 
 inline void Cmdline::Reset()
