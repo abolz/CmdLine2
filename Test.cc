@@ -1,4 +1,10 @@
+#if 0
+int main() {}
+#else
 #include "Cmdline.h"
+#if 0
+int main() {}
+#else
 #include <iostream>
 
 int main(int argc, char* argv[])
@@ -6,6 +12,7 @@ int main(int argc, char* argv[])
     bool show_help = false;
     bool flag = false;
     int i = 0;
+    double f = 0.0;
     std::vector<std::string> input_files;
 
     cl::Cmdline cmd;
@@ -18,6 +25,11 @@ int main(int argc, char* argv[])
         cl::Arg::optional);
 
     cmd.Add(cl::Value(i, 0, 5), "i|ints", "Some ints in the range [0,5]",
+        cl::Opt::zero_or_more,
+        cl::Arg::required,
+        cl::CommaSeparatedArg::yes);
+
+    cmd.Add(cl::Value(f, 0.0f, 3.1415f), "floats", "Some floats in the range [0,pi]",
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
@@ -41,3 +53,5 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+#endif
+#endif
