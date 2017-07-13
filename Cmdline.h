@@ -1,23 +1,10 @@
-// Distributed under the MIT license. See the end of the file for details.
-
 #pragma once
-
-#define CL_NO_ABBREV 1
 
 #include <cassert>
 #include <memory>
 #include <sstream>
 #include <string>
-#if _MSC_VER
-#  include <string_view>
-#else
-#  if __has_include(<string_view>)
-#    include <string_view>
-#  else
-#    include <experimental/string_view>
-     namespace std { using std::experimental::string_view; }
-#  endif
-#endif
+#include <string_view>
 #include <vector>
 
 namespace cl {
@@ -27,105 +14,106 @@ namespace cl {
 //------------------------------------------------------------------------------
 
 // Flags controling how often an option may/must be specified.
-enum Opt : unsigned char {
+enum class Opt : unsigned char {
     // The option may appear at most once
-    Optional,
+    optional,
     // The option must appear exactly once.
-    Required,
+    required,
     // The option may appear multiple times.
-    ZeroOrMore,
+    zero_or_more,
     // The option must appear at least once.
-    OneOrMore,
+    one_or_more,
 };
 
 // Flags controling the number of arguments the option accepts.
 enum class Arg : unsigned char {
     // An argument is not allowed
-    None,
+    no,
     // An argument is optional.
-    Optional,
+    optional,
     // An argument is required.
-    Required,
+    required,
 };
 
 // Controls whether the option may/must join its argument.
-enum class JoinArg : unsigned char {
+enum class JoinsArg : unsigned char {
     // The option must not join its argument: "-I dir" and "-I=dir" are
     // possible.
     // The equals sign (if any) will not be a part of the option argument.
-    No,
+    no,
     // The option may join its argument: "-I dir" and "-Idir" are possible.
     // If the option is specified with an equals sign ("-I=dir") the '=' will
     // be part of the option argument.
-    Optional,
+    optional,
     // The option must join its argument: "-Idir" is the only possible format.
     // If the option is specified with an equals sign ("-I=dir") the '=' will
     // be part of the option argument.
-    Yes,
+    yes,
 };
 
 // May this option group with other options?
 enum class MayGroup : unsigned char {
     // The option may not be grouped with other options (even if the option
     // name consists only of a single letter).
-    No,
+    no,
     // The option may be grouped with other options.
     // This flag is ignored if the name of the options is not a single letter
     // and option groups must be prefixed with a single '-', e.g. "-xvf=file".
-    Yes,
+    yes,
 };
 
 // Positional option?
 enum class Positional : unsigned char {
     // The option is not a positional option, i.e. requires '-' or '--' as a
     // prefix when specified.
-    No,
+    no,
     // Positional option, no '-' required.
-    Yes,
+    yes,
 };
 
 // Split the argument between commas?
 enum class CommaSeparatedArg : unsigned char {
     // Do not split the argument between commas.
-    No,
+    no,
     // If this flag is set, the option's argument is split between commas,
     // e.g. "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
     // Note that each comma-separated argument counts as an option occurrence.
-    Yes,
+    yes,
 };
 
 // Parse all following options as positional options?
 enum class ConsumeRemaining : unsigned char {
     // Nothing special.
-    No,
+    no,
     // If an option with this flag is (successfully) parsed, all the remaining
     // options are parsed as positional options.
-    Yes,
+    yes,
 };
 
 // Steal arguments from the command line?
 enum class SeparateArg : unsigned char {
     // Do not steal arguments from the command line.
-    Disallowed,
+    disallowed,
     // If the option requires an argument and is not specified as "-i=1",
     // the parser may steal the next argument from the command line.
     // This allows options to be specified as "-i 1" instead of "-i=1".
-    Optional,
+    optional,
 };
 
 // Controls whether the Parse() methods should check for missing options.
 enum class CheckMissing : unsigned char {
     // Do not check for missing required options in Cmdline::Parse().
-    No,
+    no,
     // Check for missing required options in Cmdline::Parse().
     // Any missing option will be reported as an error.
-    Yes,
+    yes,
 };
 
 // Contains the help text for an option.
-struct HelpText {
+struct Descr
+{
     char const* s;
-    explicit HelpText(char const* s) : s(s) {}
+    explicit Descr(char const* s) : s(s) {}
 };
 
 template <typename T = void>
@@ -138,7 +126,7 @@ struct ParseValue
         stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
         stream >> value;
 
-        return stream && stream.eof();
+        return !stream.fail() && stream.eof();
     }
 };
 
@@ -223,16 +211,16 @@ class OptionBase
     // The name of the option.
     std::string_view name_;
     // The description of this option
-    std::string_view help_text_;
+    std::string_view descr_;
     // Flags controlling how the option may/must be specified.
-    Opt               num_occurrences_     = Opt::Optional;
-    Arg               num_args_            = Arg::None;
-    JoinArg           join_arg_            = JoinArg::No;
-    MayGroup          may_group_           = MayGroup::No;
-    Positional        positional_          = Positional::No;
-    CommaSeparatedArg comma_separated_arg_ = CommaSeparatedArg::No;
-    ConsumeRemaining  consume_remaining_   = ConsumeRemaining::No;
-    SeparateArg       separate_arg_        = SeparateArg::Optional;
+    Opt               num_occurrences_     = Opt::optional;
+    Arg               num_args_            = Arg::no;
+    JoinsArg          joins_arg_           = JoinsArg::no;
+    MayGroup          may_group_           = MayGroup::no;
+    Positional        positional_          = Positional::no;
+    CommaSeparatedArg comma_separated_arg_ = CommaSeparatedArg::no;
+    ConsumeRemaining  consume_remaining_   = ConsumeRemaining::no;
+    SeparateArg       separate_arg_        = SeparateArg::optional;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
@@ -241,14 +229,14 @@ private:
 
     void Apply(Opt               v) { num_occurrences_ = v; }
     void Apply(Arg               v) { num_args_ = v; }
-    void Apply(JoinArg           v) { join_arg_ = v; }
+    void Apply(JoinsArg          v) { joins_arg_ = v; }
     void Apply(MayGroup          v) { may_group_ = v; }
     void Apply(Positional        v) { positional_ = v; }
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
     void Apply(SeparateArg       v) { separate_arg_ = v; }
-    void Apply(HelpText          v) { help_text_ = v.s; }
-    void Apply(char const*       v) { help_text_ = v; }
+    void Apply(Descr             v) { descr_ = v.s; }
+    void Apply(char const*       v) { descr_ = v; }
 
 protected:
     template <typename ...Args>
@@ -267,7 +255,7 @@ public:
     std::string_view name() const { return name_; }
 
     // Returns the description of this option
-    std::string_view help_text() const { return help_text_; }
+    std::string_view descr() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -362,7 +350,7 @@ public:
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     //
-    // Same as for Add(List(target), name, Opt::ZeroOrMore, args...)
+    // Same as for Add(List(target), name, Opt::zero_or_more, args...)
     template <typename T, typename ...Args>
     auto AddList(T& target, char const* name, Args&&... args);
 
@@ -372,7 +360,7 @@ public:
     // Parse the command line arguments in [first, last).
     // Emits an error for unknown options.
     template <typename It>
-    bool Parse(It first, It last, CheckMissing check_missing = CheckMissing::Yes);
+    bool Parse(It first, It last, CheckMissing check_missing = CheckMissing::yes);
 
     // Parse the command line arguments in [first, last).
     // Calls sink() for unknown options.
@@ -451,14 +439,14 @@ inline OptionBase::~OptionBase()
 
 inline bool OptionBase::IsOccurrenceAllowed() const
 {
-    if (num_occurrences_ == Opt::Required || num_occurrences_ == Opt::Optional)
+    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::optional)
         return count_ == 0;
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const
 {
-    if (num_occurrences_ == Opt::Required || num_occurrences_ == Opt::OneOrMore)
+    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::one_or_more)
         return count_ == 0;
     return false;
 }
@@ -493,7 +481,7 @@ auto Cmdline::AddValue(T& target, char const* name, Args&&... args)
 template <typename T, typename ...Args>
 auto Cmdline::AddList(T& target, char const* name, Args&&... args)
 {
-    return Add(cl::List(target), name, Opt::ZeroOrMore, std::forward<Args>(args)...);
+    return Add(cl::List(target), name, Opt::zero_or_more, std::forward<Args>(args)...);
 }
 
 inline void Cmdline::Reset()
@@ -521,7 +509,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
     if (!DoParse(first, last, sink))
         return false;
 
-    if (check_missing == CheckMissing::Yes)
+    if (check_missing == CheckMissing::yes)
         return CheckMissingOptions();
 
     return true;
@@ -556,14 +544,14 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
 
     ForEachUniqueOption([&](std::string_view /*name*/, OptionBase* opt)
     {
-        if (opt->positional_ == Positional::Yes)
+        if (opt->positional_ == Positional::yes)
         {
             spos += ' ';
             spos.append(opt->name_.data(), opt->name_.size());
         }
         else
         {
-            auto const s0 = sopt.size();
+            auto const curr_size = sopt.size();
 
             sopt.append(kIndent, ' ');
 
@@ -571,21 +559,21 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
             sopt.append(opt->name_.data(), opt->name_.size());
             switch (opt->num_args_)
             {
-            case Arg::None:
+            case Arg::no:
                 break;
-            case Arg::Optional:
+            case Arg::optional:
                 sopt += "=<arg>";
                 break;
-            case Arg::Required:
+            case Arg::required:
                 sopt += " <arg>";
                 break;
             }
 
             // Length of: indent + option usage
-            auto const len = sopt.size() - s0;
+            auto const len = sopt.size() - curr_size;
 
             sopt.append(len >= kDescrIndent ? 1u : kDescrIndent - len, ' ');
-            sopt.append(opt->help_text_.data(), opt->help_text_.size());
+            sopt.append(opt->descr_.data(), opt->descr_.size());
 
             sopt += '\n'; // One option per line
         }
@@ -614,7 +602,7 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
 {
     ambiguous = false;
 
-#if CL_NO_ABBREV
+#if 1
     return FindOption(name);
 #else
     OptionBase* opt = nullptr;
@@ -649,7 +637,7 @@ inline void Cmdline::DoAdd(std::shared_ptr<OptionBase> const& opt)
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
 
-        if (opt->join_arg_ != JoinArg::No)
+        if (opt->joins_arg_ != JoinsArg::no)
         {
             int const n = static_cast<int>(name.size());
             if (max_prefix_len_ < n)
@@ -747,7 +735,7 @@ inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
     {
         auto&& opt = options_[curr_positional_].option;
 
-        if (opt->positional_ == Positional::Yes && opt->IsOccurrenceAllowed())
+        if (opt->positional_ == Positional::yes && opt->IsOccurrenceAllowed())
         {
             // The "argument" of a positional option, is the option name itself.
             return HandleOccurrence(opt.get(), opt->name_, optstr);
@@ -800,7 +788,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->join_arg_ == JoinArg::No)
+            if (opt->joins_arg_ == JoinsArg::no)
                 ++arg_start;
 
             auto const arg = optstr.substr(arg_start);
@@ -826,7 +814,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt && opt->join_arg_ != JoinArg::No)
+        if (opt && opt->joins_arg_ != JoinsArg::no)
         {
             auto const arg = optstr.substr(n);
             return HandleOccurrence(opt, name, arg);
@@ -847,10 +835,10 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         auto const name = optstr.substr(n, 1);
         auto const opt = FindOption(name);
 
-        if (opt == nullptr || opt->may_group_ == MayGroup::No)
+        if (opt == nullptr || opt->may_group_ == MayGroup::no)
             return Result::Ignored;
 
-        if (opt->num_args_ == Arg::None || n + 1 == optstr.size())
+        if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
         {
             group.push_back(opt);
             continue;
@@ -859,7 +847,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         // The option accepts an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
-        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::No)
+        if (optstr[n + 1] == '=' || opt->joins_arg_ != JoinsArg::no)
         {
             group.push_back(opt);
             break;
@@ -890,7 +878,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
         auto const opt = group[n];
         auto const name = optstr.substr(n, 1);
 
-        if (opt->num_args_ == Arg::None || n + 1 == optstr.size())
+        if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
         {
             if (Result::Success != HandleOccurrence(opt, name, curr, last))
                 return Result::Error;
@@ -903,7 +891,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
 
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->join_arg_ == JoinArg::No)
+        if (optstr[arg_start] == '=' && opt->joins_arg_ == JoinsArg::no)
             ++arg_start;
 
         auto const arg = optstr.substr(arg_start);
@@ -924,9 +912,9 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
     // If the option must join its argument, this is an error.
     // If the option might not steal its argument from the command line, this
     // is an error.
-    bool err = opt->join_arg_ == JoinArg::Yes || opt->separate_arg_ == SeparateArg::Disallowed;
+    bool err = opt->joins_arg_ == JoinsArg::yes || opt->separate_arg_ == SeparateArg::disallowed;
 
-    if (!err && opt->num_args_ == Arg::Required)
+    if (!err && opt->num_args_ == Arg::required)
     {
         ++curr;
         ++curr_index_;
@@ -950,7 +938,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 {
     // An argument was specified for OPT.
 
-    if (opt->positional_ == Positional::No && opt->num_args_ == Arg::None)
+    if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
         diag() << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
         return Result::Error;
@@ -981,7 +969,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
 
     Result res = Result::Success;
 
-    if (opt->comma_separated_arg_ == CommaSeparatedArg::Yes)
+    if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
     {
         SplitString(arg, ',', [&](std::string_view s)
         {
@@ -998,7 +986,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
     {
         // If the current option has the ConsumeRemaining flag set,
         // parse all following options as positional options.
-        if (opt->consume_remaining_ == ConsumeRemaining::Yes)
+        if (opt->consume_remaining_ == ConsumeRemaining::yes)
             dashdash_ = true;
     }
 
@@ -1038,24 +1026,3 @@ bool Cmdline::SplitString(std::string_view str, char sep, Func func)
 }
 
 } // namespace cl
-
-//------------------------------------------------------------------------------
-// Copyright 2017 A. Bolz
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.

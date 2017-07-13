@@ -1,6 +1,4 @@
 #include "Cmdline.h"
-//#include "CmdlineUtils.h"
-
 #include <iostream>
 
 int main(int argc, char* argv[])
@@ -14,33 +12,32 @@ int main(int argc, char* argv[])
 
     auto opt_h = cmd.AddValue(show_help, "h|help|?", "Display this message");
 
-    auto opt_f = cmd.AddValue(flag, "f", "A boolean flag",
-        cl::ZeroOrMore, cl::MayGroup::Yes, cl::Arg::Optional);
+    cmd.AddValue(flag, "f", "A boolean flag",
+        cl::Opt::zero_or_more,
+        cl::MayGroup::yes,
+        cl::Arg::optional);
 
-    auto opt_i = cmd.AddValue(i, "i|ints", "Some ints",
-        cl::ZeroOrMore, cl::Arg::Required, cl::CommaSeparatedArg::Yes);
+    cmd.Add(cl::Value(i, 0, 5), "i|ints", "Some ints in the range [0,5]",
+        cl::Opt::zero_or_more,
+        cl::Arg::required,
+        cl::CommaSeparatedArg::yes);
 
-    auto opt_in = cmd.AddList(input_files, "input-files", "List of input files",
-        cl::OneOrMore, cl::Positional::Yes);
+    cmd.AddList(input_files, "input-files", "List of input files",
+        cl::Opt::one_or_more,
+        cl::Positional::yes);
 
     bool const ok = cmd.Parse(argv + 1, argv + argc);
-    if (show_help) {
+    if (show_help)
+    {
         cmd.ShowHelp(std::cout, "Test");
         return 0;
     }
-    if (!ok) {
+    if (!ok)
+    {
         std::cerr << cmd.diag().str() << "\n";
         std::cerr << "use '-" << opt_h->name() << "' for help\n";
         return -1;
     }
-
-    std::cout << "opt_f: " << opt_f->count() << "\n";
-    std::cout << "  f = " << flag << "\n";
-    std::cout << "opt_i: " << opt_i->count() << "\n";
-    std::cout << "  i = " << i << "\n";
-    std::cout << "opt_in: " << opt_in->count() << "\n";
-    for (auto& str : input_files)
-        std::cout << "  '" << str << "'\n";
 
     return 0;
 }
