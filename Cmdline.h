@@ -383,7 +383,7 @@ public:
     void ShowHelp(std::ostream& os, char const* program_name) const;
 
 private:
-    enum class Result { Success, Error, Ignored };
+    enum class Result { success, error, ignored };
 
     OptionBase* FindOption(std::string_view name) const;
     OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
@@ -659,10 +659,10 @@ bool Cmdline::DoParse(It& curr, It last, Sink sink)
     {
         Result const res = Handle1(curr, last);
 
-        if (res == Result::Error)
+        if (res == Result::error)
             return false;
 
-        if (res == Result::Ignored && !sink(curr, curr_index_))
+        if (res == Result::ignored && !sink(curr, curr_index_))
             return false;
 
         // Handle1 might have changed CURR.
@@ -687,13 +687,13 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
     // happen if we're parsing a user-supplied array of command line
     // arguments.
     if (optstr.empty())
-        return Result::Success;
+        return Result::success;
 
     // Stop parsing if "--" has been found
     if (optstr == "--" && !dashdash_)
     {
         dashdash_ = true;
-        return Result::Success;
+        return Result::success;
     }
 
     // This argument is considered to be positional if it doesn't start with
@@ -714,13 +714,13 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
 
     Result res = HandleStandardOption(optstr, curr, last);
 
-    if (res == Result::Ignored)
+    if (res == Result::ignored)
         res = HandleOption(optstr);
 
-    if (res == Result::Ignored)
+    if (res == Result::ignored)
         res = HandlePrefix(optstr);
 
-    if (res == Result::Ignored && is_short /* && arg.size() >= 2 */)
+    if (res == Result::ignored && is_short /* && arg.size() >= 2 */)
         res = HandleGroup(optstr, curr, last);
 
     return res;
@@ -742,7 +742,7 @@ inline Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
         }
     }
 
-    return Result::Ignored;
+    return Result::ignored;
 }
 
 // If OPTSTR is the name of an option, handle the option.
@@ -755,7 +755,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr,
         if (ambiguous)
         {
             diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
-            return Result::Error;
+            return Result::error;
         }
 
         // OPTSTR is the name of an option, i.e. no argument was specified.
@@ -763,7 +763,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr,
         return HandleOccurrence(opt, optstr, curr, last);
     }
 
-    return Result::Ignored;
+    return Result::ignored;
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
@@ -782,7 +782,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
             if (ambiguous)
             {
                 diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
-                return Result::Error;
+                return Result::error;
             }
 
             // Ok, something like "-f=file".
@@ -796,7 +796,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
         }
     }
 
-    return Result::Ignored;
+    return Result::ignored;
 }
 
 inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
@@ -821,7 +821,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
         }
     }
 
-    return Result::Ignored;
+    return Result::ignored;
 }
 
 // Check if OPTSTR is actually a group of single letter options and store
@@ -836,7 +836,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         auto const opt = FindOption(name);
 
         if (opt == nullptr || opt->may_group_ == MayGroup::no)
-            return Result::Ignored;
+            return Result::ignored;
 
         if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
         {
@@ -855,10 +855,10 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
 
         // The option accepts an argument, but may not join its argument.
         diag() << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group\n";
-        return Result::Error;
+        return Result::error;
     }
 
-    return Result::Success;
+    return Result::success;
 }
 
 template <typename It>
@@ -869,7 +869,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
     // First determine if this is a valid option group.
     auto const res = DecomposeGroup(optstr, group);
 
-    if (res != Result::Success)
+    if (res != Result::success)
         return res;
 
     // Then process all options.
@@ -880,8 +880,8 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
 
         if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
         {
-            if (Result::Success != HandleOccurrence(opt, name, curr, last))
-                return Result::Error;
+            if (Result::success != HandleOccurrence(opt, name, curr, last))
+                return Result::error;
             continue;
         }
 
@@ -898,7 +898,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
         return HandleOccurrence(opt, name, arg);
     }
 
-    return Result::Success;
+    return Result::success;
 }
 
 template <typename It>
@@ -928,7 +928,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
     if (err)
     {
         diag() << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
-        return Result::Error;
+        return Result::error;
     }
 
     return ParseOptionArgument(opt, name, arg);
@@ -941,7 +941,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
     if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
         diag() << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
-        return Result::Error;
+        return Result::error;
     }
 
     return ParseOptionArgument(opt, name, arg);
@@ -954,27 +954,27 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
         if (!opt->IsOccurrenceAllowed())
         {
             diag() << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
-            return Result::Error;
+            return Result::error;
         }
 
         if (!opt->Parse(name, arg1, curr_index_))
         {
             diag() << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
-            return Result::Error;
+            return Result::error;
         }
 
         ++opt->count_;
-        return Result::Success;
+        return Result::success;
     };
 
-    Result res = Result::Success;
+    Result res = Result::success;
 
     if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
     {
         SplitString(arg, ',', [&](std::string_view s)
         {
             res = Parse1(s);
-            return res == Result::Success;
+            return res == Result::success;
         });
     }
     else
@@ -982,7 +982,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
         res = Parse1(arg);
     }
 
-    if (res == Result::Success)
+    if (res == Result::success)
     {
         // If the current option has the ConsumeRemaining flag set,
         // parse all following options as positional options.
