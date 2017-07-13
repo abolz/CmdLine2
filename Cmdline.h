@@ -11,6 +11,12 @@
 #include <string_view>
 #include <vector>
 
+#if __cplusplus >= 201703 // MSVC doesn't have fold expressions
+#define COMMAND_LINE_HAS_FOLD_EXPRESSIONS 1
+#else
+#define COMMAND_LINE_HAS_FOLD_EXPRESSIONS 0
+#endif
+
 namespace cl {
 
 //------------------------------------------------------------------------------
@@ -193,8 +199,16 @@ auto InRange(T lower, U upper)
 template <typename T, typename ...Predicates>
 auto Value(T& value, Predicates... preds)
 {
-    return [=, &value](ParseContext& ctx) {
+    return [=, &value](ParseContext& ctx)
+    {
+#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
         return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
+#else
+        auto res = true;
+        auto lst = {res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))...};
+        static_cast<void>(lst);
+        return res;
+#endif
     };
 }
 
@@ -207,7 +221,14 @@ auto List(T& container, Predicates... preds)
     return [=, &container](ParseContext& ctx)
     {
         typename T::value_type value;
+#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
         if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
+#else
+        auto res = true;
+        auto lst = {res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))...};
+        static_cast<void>(lst);
+        if (res)
+#endif
         {
             container.insert(container.end(), std::move(value));
             return true;
