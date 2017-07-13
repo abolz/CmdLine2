@@ -118,9 +118,10 @@ struct Descr
 
 struct ParseContext
 {
-    std::string_view name;  // Name of the option being parsed (as specified on the command line!)
-    std::string_view arg;   // Option argument
-    int              index; // Current index in the argv array
+    std::string_view name;  // in:  Name of the option being parsed (as specified on the command line!)
+    std::string_view arg;   // in:  Option argument
+    int              index; // in:  Current index in the argv array
+    std::string      diag;  // out: Optional error message
 };
 
 template <typename T = void>
@@ -175,8 +176,11 @@ struct ParseValue<void>
 template <typename T, typename U>
 auto InRange(T lower, U upper)
 {
-    return [=](auto const& value) {
-        return !(value < lower) && !(upper < value);
+    return [=](ParseContext& ctx, auto const& value) {
+        if (!(value < lower) && !(upper < value))
+            return true;
+        ctx.diag = "note: argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
+        return false;
     };
 }
 
@@ -186,7 +190,7 @@ template <typename T, typename ...Predicates>
 auto Value(T& value, Predicates... preds)
 {
     return [=, &value](ParseContext& ctx) {
-        return ParseValue<>{}(ctx, value) && (... && preds(value));
+        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
     };
 }
 
@@ -199,7 +203,7 @@ auto List(T& container, Predicates... preds)
     return [=, &container](ParseContext& ctx)
     {
         typename T::value_type value;
-        if (ParseValue<>{}(ctx, value) && (... && preds(value)))
+        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
         {
             container.insert(container.end(), std::move(value));
             return true;
@@ -945,6 +949,8 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
         if (!opt->Parse(ctx))
         {
             diag() << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
+            if (!ctx.diag.empty())
+                diag() << ctx.diag << "\n";
             return Result::error;
         }
 

@@ -17,7 +17,12 @@ int main(int argc, char* argv[])
 
     cl::Cmdline cmd;
 
-    auto IsEven = [](auto i) { return i % 2 == 0; };
+    auto IsEven = [](cl::ParseContext& ctx, auto i) {
+        if (i % 2 == 0)
+            return true;
+        ctx.diag = "note: argument must be an even integer";
+        return false;
+    };
 
     auto opt_h = cmd.Add(cl::Value(show_help), "h|help|?", "Display this message");
 
@@ -26,9 +31,9 @@ int main(int argc, char* argv[])
         cl::MayGroup::yes,
         cl::Arg::optional);
 
-    auto Times2 = [](int& i) { i += i; return true; };
+    auto Times2 = [](cl::ParseContext const& /*ctx*/, int& i) { i += i; return true; };
 
-    cmd.Add(cl::Value(i, cl::InRange(0,6), IsEven, Times2), "i|ints", "Some even ints in the range [0,5]",
+    cmd.Add(cl::Value(i, cl::InRange(0,6), IsEven, Times2), "i|ints", "Some even ints in the range [0,6]",
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
