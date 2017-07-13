@@ -116,12 +116,19 @@ struct Descr
     explicit Descr(char const* s) : s(s) {}
 };
 
+struct ParseContext
+{
+    std::string_view name;  // Name of the option being parsed (as specified on the command line!)
+    std::string_view arg;   // Option argument
+    int              index; // Current index in the argv array
+};
+
 template <typename T = void>
 struct ParseValue
 {
-    bool operator()(std::string_view /*name*/, std::string_view arg, int /*index*/, T& value) const
+    bool operator()(ParseContext const& ctx, T& value) const
     {
-        std::stringstream stream { std::string(arg) };
+        std::stringstream stream { std::string(ctx.arg) };
 
         stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
         stream >> value;
@@ -133,11 +140,11 @@ struct ParseValue
 template <>
 struct ParseValue<bool>
 {
-    bool operator()(std::string_view /*name*/, std::string_view arg, int /*index*/, bool& value) const
+    bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (arg.empty() || arg == "1" || arg == "true" || arg == "on" || arg == "yes")
+        if (ctx.arg.empty() || ctx.arg == "1" || ctx.arg == "true" || ctx.arg == "on" || ctx.arg == "yes")
             value = true;
-        else if (arg == "0" || arg == "false" || arg == "off" || arg == "no")
+        else if (ctx.arg == "0" || ctx.arg == "false" || ctx.arg == "off" || ctx.arg == "no")
             value = false;
         else
             return false;
@@ -149,9 +156,9 @@ struct ParseValue<bool>
 template <>
 struct ParseValue<std::string>
 {
-    bool operator()(std::string_view /*name*/, std::string_view arg, int /*index*/, std::string& value) const
+    bool operator()(ParseContext const& ctx, std::string& value) const
     {
-        value.assign(arg.data(), arg.size());
+        value.assign(ctx.arg.data(), ctx.arg.size());
         return true;
     }
 };
@@ -160,8 +167,8 @@ template <>
 struct ParseValue<void>
 {
     template <typename T>
-    bool operator()(std::string_view name, std::string_view arg, int index, T& value) const {
-        return ParseValue<T>{}(name, arg, index, value);
+    bool operator()(ParseContext& ctx, T& value) const {
+        return ParseValue<T>{}(ctx, value);
     }
 };
 
@@ -178,8 +185,8 @@ auto InRange(T lower, U upper)
 template <typename T, typename ...Predicates>
 auto Value(T& value, Predicates... preds)
 {
-    return [=, &value](std::string_view name, std::string_view arg, int index) {
-        return ParseValue<>{}(name, arg, index, value) && (... && preds(value));
+    return [=, &value](ParseContext& ctx) {
+        return ParseValue<>{}(ctx, value) && (... && preds(value));
     };
 }
 
@@ -189,11 +196,10 @@ auto Value(T& value, Predicates... preds)
 template <typename T, typename ...Predicates>
 auto List(T& container, Predicates... preds)
 {
-    return [=, &container](std::string_view name, std::string_view arg, int index)
+    return [=, &container](ParseContext& ctx)
     {
         typename T::value_type value;
-
-        if (ParseValue<>{}(name, arg, index, value) && (... && preds(value)))
+        if (ParseValue<>{}(ctx, value) && (... && preds(value)))
         {
             container.insert(container.end(), std::move(value));
             return true;
@@ -265,7 +271,7 @@ private:
 
     // Parse the given value from NAME and/or ARG and store the result.
     // Return true on success, false otherwise.
-    virtual bool Parse(std::string_view name, std::string_view arg, int index) = 0;
+    virtual bool Parse(ParseContext& ctx) = 0;
 };
 
 template <typename ParserT>
@@ -284,16 +290,16 @@ public:
     ParserT const& parser() const { return parser_; }
 
 private:
-    bool Parse(std::string_view name, std::string_view arg, int index) override {
-        return DoParse(name, arg, index, std::is_convertible<decltype(parser_(name, arg, index)), bool>{});
+    bool Parse(ParseContext& ctx) override {
+        return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
     }
 
-    bool DoParse(std::string_view name, std::string_view arg, int index, /*parser_ returns bool*/ std::true_type) {
-        return parser_(name, arg, index);
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::true_type) {
+        return parser_(ctx);
     }
 
-    bool DoParse(std::string_view name, std::string_view arg, int index, /*parser_ returns bool*/ std::false_type) {
-        parser_(name, arg, index);
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::false_type) {
+        parser_(ctx);
         return true;
     }
 };
@@ -930,7 +936,13 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
             return Result::error;
         }
 
-        if (!opt->Parse(name, arg1, curr_index_))
+        ParseContext ctx;
+
+        ctx.name  = name;
+        ctx.arg   = arg1;
+        ctx.index = curr_index_;
+
+        if (!opt->Parse(ctx))
         {
             diag() << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
             return Result::error;

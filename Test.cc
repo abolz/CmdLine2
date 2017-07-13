@@ -17,21 +17,7 @@ int main(int argc, char* argv[])
 
     cl::Cmdline cmd;
 
-    auto InRange = [&](auto lower, auto upper) {
-        return [&, lower, upper](auto const& value) -> bool {
-            if (!(value < lower) && !(upper < value))
-                return true;
-            cmd.diag() << "note: '" << value << "' is not in the range [" << lower << ", " << upper << "]\n";
-            return false;
-        };
-    };
-
-    auto IsEven = [&cmd](int i) {
-        if (i % 2 == 0)
-            return true;
-        cmd.diag() << "note: '" << i << "' is not an even integer argument\n";
-        return false;
-    };
+    auto IsEven = [](auto i) { return i % 2 == 0; };
 
     auto opt_h = cmd.Add(cl::Value(show_help), "h|help|?", "Display this message");
 
@@ -42,12 +28,12 @@ int main(int argc, char* argv[])
 
     auto Times2 = [](int& i) { i += i; return true; };
 
-    cmd.Add(cl::Value(i, InRange(0,6), IsEven, Times2), "i|ints", "Some even ints in the range [0,5]",
+    cmd.Add(cl::Value(i, cl::InRange(0,6), IsEven, Times2), "i|ints", "Some even ints in the range [0,5]",
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
 
-    cmd.Add(cl::Value(f, InRange(0, 3.1415)), "floats", "Some floats in the range [0,pi]",
+    cmd.Add(cl::Value(f, cl::InRange(0, 3.1415)), "floats", "Some floats in the range [0,pi]",
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
