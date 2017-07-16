@@ -11,19 +11,22 @@
 #include <string_view>
 #include <vector>
 
+#ifndef CXX_HAS_FOLD_EXPRESSIONS
 #if __cplusplus >= 201703 // MSVC doesn't have fold expressions
-#define COMMAND_LINE_HAS_FOLD_EXPRESSIONS 1
+#define CXX_HAS_FOLD_EXPRESSIONS 1
 #else
-#define COMMAND_LINE_HAS_FOLD_EXPRESSIONS 0
+#define CXX_HAS_FOLD_EXPRESSIONS 0
+#endif
 #endif
 
 namespace cl {
+inline namespace v1 {
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
 
-// Flags controling how often an option may/must be specified.
+// Controls how often an option may/must be specified.
 enum class Opt : unsigned char {
     // The option may appear at most once
     optional,
@@ -35,7 +38,7 @@ enum class Opt : unsigned char {
     one_or_more,
 };
 
-// Flags controling the number of arguments the option accepts.
+// Controls the number of arguments the option accepts.
 enum class Arg : unsigned char {
     // An argument is not allowed
     no,
@@ -48,27 +51,26 @@ enum class Arg : unsigned char {
 // Controls whether the option may/must join its argument.
 enum class JoinArg : unsigned char {
     // The option must not join its argument: "-I dir" and "-I=dir" are
-    // possible.
-    // If the option is specified with an equals sign ("-I=dir") the '=' will
-    // not be part of the option argument.
+    // possible. If the option is specified with an equals sign ("-I=dir") the
+    // '=' will NOT be part of the option argument.
     no,
-    // The option may join its argument: "-I dir" and "-Idir" are possible.
-    // If the option is specified with an equals sign ("-I=dir") the '=' will
-    // be part of the option argument.
+    // The option may join its argument: "-I dir" and "-Idir" are possible. If
+    // the option is specified with an equals sign ("-I=dir") the '=' will be
+    // part of the option argument.
     optional,
     // The option must join its argument: "-Idir" is the only possible format.
-    // If the option is specified with an equals sign ("-I=dir") the '=' will
-    // be part of the option argument.
+    // If the option is specified with an equals sign ("-I=dir") the '=' will be
+    // part of the option argument.
     yes,
 };
 
 // May this option group with other options?
 enum class MayGroup : unsigned char {
-    // The option may not be grouped with other options (even if the option
-    // name consists only of a single letter).
+    // The option may not be grouped with other options (even if the option name
+    // consists only of a single letter).
     no,
     // The option may be grouped with other options.
-    // This flag is ignored if the name of the options is not a single letter
+    // This flag is ignored if the names of the options are not a single letter
     // and option groups must be prefixed with a single '-', e.g. "-xvf=file".
     yes,
 };
@@ -86,8 +88,8 @@ enum class Positional : unsigned char {
 enum class CommaSeparatedArg : unsigned char {
     // Do not split the argument between commas.
     no,
-    // If this flag is set, the option's argument is split between commas,
-    // e.g. "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
+    // If this flag is set, the option's argument is split between commas, e.g.
+    // "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
     // Note that each comma-separated argument counts as an option occurrence.
     yes,
 };
@@ -119,7 +121,7 @@ struct Descr
 
 struct ParseContext
 {
-    std::string_view name;  // in:  Name of the option being parsed (as specified on the command line!)
+    std::string_view name;  // in:  Name of the option being parsed
     std::string_view arg;   // in:  Option argument
     int              index; // in:  Current index in the argv array
     std::string      diag;  // out: Optional error message
@@ -186,6 +188,13 @@ auto InRange(T lower, U upper)
     };
 }
 
+//
+// XXX
+//
+// ParseValue<>::operator() and predicates have the same signature...
+// Combine?!?!
+//
+
 // Default parser for scalar types.
 // Uses an instance of Parser<> to convert the string.
 template <typename T, typename ...Predicates>
@@ -193,11 +202,11 @@ auto Value(T& value, Predicates... preds)
 {
     return [=, &value](ParseContext& ctx)
     {
-#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
+#if CXX_HAS_FOLD_EXPRESSIONS
         return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
 #else
         auto res = true;
-        auto lst = {res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))...};
+        auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(lst);
         return res;
 #endif
@@ -213,11 +222,11 @@ auto List(T& container, Predicates... preds)
     return [=, &container](ParseContext& ctx)
     {
         typename T::value_type value;
-#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
+#if CXX_HAS_FOLD_EXPRESSIONS
         if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
 #else
         auto res = true;
-        auto lst = {res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))...};
+        auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(lst);
         if (res)
 #endif
@@ -267,7 +276,7 @@ protected:
     explicit OptionBase(char const* name, Args&&... args)
         : name_(name)
     {
-#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
+#if CXX_HAS_FOLD_EXPRESSIONS
         (Apply(args), ...);
 #else
         auto lst = {(Apply(args), 0)..., 0};
@@ -303,10 +312,10 @@ class Option : public OptionBase
     Parser const parser_;
 
 public:
-    template <typename InitParser, typename ...Args>
-    Option(InitParser&& parser, char const* name, Args&&... args)
+    template <typename ParserInit, typename ...Args>
+    Option(ParserInit&& parser, char const* name, Args&&... args)
         : OptionBase(name, std::forward<Args>(args)...)
-        , parser_(std::forward<InitParser>(parser))
+        , parser_(std::forward<ParserInit>(parser))
     {
     }
 
@@ -382,9 +391,9 @@ public:
     // Parse the command line arguments in [first, last).
     // Calls sink() for unknown options.
     //
-    // Sink must have signature "bool sink(It, int)" and should
-    // return false if the parser should stop or true to continue parsing
-    // command line arguments.
+    // Sink must have signature "bool sink(It, int)" and should return false if
+    // the parser should stop or true to continue parsing command line
+    // arguments.
     template <typename It, typename Sink>
     bool Parse(It first, It last, CheckMissing check_missing, Sink sink);
 
@@ -427,7 +436,8 @@ private:
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(std::string_view optstr, std::vector<OptionBase*>& group);
+    Result DecomposeGroup(
+        std::string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It>
     Result HandleGroup(std::string_view optstr, It& curr, It last);
@@ -496,8 +506,7 @@ inline void Cmdline::EmitNote(int index, std::string message)
 template <typename Parser, typename ...Args>
 auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
 {
-    auto opt = std::make_unique<Option<std::decay_t<Parser>>>(
-        std::forward<Parser>(parser), name, std::forward<Args>(args)...);
+    auto opt = std::make_unique<Option<std::decay_t<Parser>>>( std::forward<Parser>(parser), name, std::forward<Args>(args)... );
 
     const auto p = opt.get();
     DoAdd(p);
@@ -511,6 +520,9 @@ inline void Cmdline::Reset()
     curr_positional_ = 0;
     curr_index_      = 0;
     dashdash_        = false;
+
+    for (auto& opt : unique_options_)
+        opt->count_ = 0;
 }
 
 template <typename It>
@@ -702,8 +714,7 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
     std::string_view optstr(*curr);
 
     // This cannot happen if we're parsing the argv[] arrray, but it might
-    // happen if we're parsing a user-supplied array of command line
-    // arguments.
+    // happen if we're parsing a user-supplied array of command line arguments.
     if (optstr.empty())
         return Result::success;
 
@@ -820,8 +831,8 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
 inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
 {
     // Scan over all known prefix lengths.
-    // Start with the longest to allow different prefixes like e.g. "-with"
-    // and "-without".
+    // Start with the longest to allow different prefixes like e.g. "-with" and
+    // "-without".
 
     size_t n = static_cast<size_t>(max_prefix_len_);
     if (n > optstr.size())
@@ -842,8 +853,8 @@ inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
     return Result::ignored;
 }
 
-// Check if OPTSTR is actually a group of single letter options and store
-// the options in GROUP.
+// Check if OPTSTR is actually a group of single letter options and store the
+// options in GROUP.
 inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vector<OptionBase*>& group)
 {
     group.reserve(optstr.size());
@@ -1008,8 +1019,8 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
 
     if (res == Result::success)
     {
-        // If the current option has the ConsumeRemaining flag set,
-        // parse all following options as positional options.
+        // If the current option has the ConsumeRemaining flag set, parse all
+        // following options as positional options.
         if (opt->consume_remaining_ == ConsumeRemaining::yes)
             dashdash_ = true;
     }
@@ -1031,4 +1042,5 @@ bool Cmdline::SplitString(std::string_view str, char sep, Func func)
     }
 }
 
+} // namespace v1
 } // namespace cl

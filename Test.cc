@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
     {
         for (auto& s : cmd.diag())
             std::cerr << s << "\n";
-        std::cerr << "\n";       
+        std::cerr << "\n";
         std::cerr << "use '-" << opt_h->name() << "' for help\n";
         return -1;
     }
