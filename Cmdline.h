@@ -504,10 +504,62 @@ inline void Cmdline::EmitNote(int index, std::string message)
     diag_.push_back({Diagnostic::Type::note, index, std::move(message)});
 }
 
+namespace impl
+{
+#if 1 // WORKAROUND (incomplete)
+    template <typename ...Args>
+    struct IsInvocableImpl
+    {
+        struct Any { template <typename T> Any(T&&) {} };
+
+        template <typename F>
+        static auto test(F&&) -> decltype(std::declval<F>()(std::declval<Args>()...), std::true_type{});
+        static auto test(Any) -> std::false_type;
+    };
+
+    template <typename F, typename ...Args>
+    struct IsInvocable : decltype(IsInvocableImpl<Args...>::test(std::declval<F>()))
+    {
+    };
+#else
+    template <typename F, typename ...Args>
+    using IsInvocable = std::is_invocable<F, Args...>;
+#endif
+
+#if 1 // WORKAROUND (incomplete)
+    template <typename R, typename ...Args>
+    struct IsInvocableRImpl
+    {
+        struct Any { template <typename T> Any(T&&) {} };
+
+        template <typename F>
+        static auto test(F&&) -> std::is_convertible< decltype(std::declval<F>()(std::declval<Args>()...)), R >;
+        static auto test(Any) -> std::false_type;
+    };
+
+    template <typename R, typename F, typename ...Args>
+    struct IsInvocableR : decltype(IsInvocableRImpl<R, Args...>::test(std::declval<F>()))
+    {
+    };
+#else
+    template <typename R, typename F, typename ...Args>
+    using IsInvocableR = std::is_invocable_r<R, F, Args...>;
+#endif
+}
+
 template <typename Parser, typename ...Args>
 auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
 {
-    auto opt = std::make_unique<Option<std::decay_t<Parser>>>( std::forward<Parser>(parser), name, std::forward<Args>(args)... );
+    using DecayedParser = std::decay_t<Parser>;
+
+    static_assert(
+        impl::IsInvocableR<bool, DecayedParser, ParseContext&>::value ||
+        impl::IsInvocable<DecayedParser, ParseContext&>::value,
+        "The parser must be invocable with an argument of type "
+        "'ParseContext&' and the return type should be convertible "
+        "to 'bool'");
+
+    auto opt = std::make_unique<Option<DecayedParser>>( std::forward<Parser>(parser), name, std::forward<Args>(args)... );
 
     const auto p = opt.get();
     DoAdd(p);
