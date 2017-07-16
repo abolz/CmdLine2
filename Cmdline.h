@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace cl {
-inline namespace v1 {
+inline namespace v2 {
 
 // Controls how often an option may/must be specified.
 enum class Opt : unsigned char {
@@ -1096,5 +1096,5 @@ bool Cmdline::SplitString(std__string_view str, char sep, Func func)
     }
 }
 
-} // namespace v1
+} // namespace v2
 } // namespace cl
