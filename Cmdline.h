@@ -46,10 +46,11 @@ enum class Arg : unsigned char {
 };
 
 // Controls whether the option may/must join its argument.
-enum class JoinsArg : unsigned char {
+enum class JoinArg : unsigned char {
     // The option must not join its argument: "-I dir" and "-I=dir" are
     // possible.
-    // The equals sign (if any) will not be a part of the option argument.
+    // If the option is specified with an equals sign ("-I=dir") the '=' will
+    // not be part of the option argument.
     no,
     // The option may join its argument: "-I dir" and "-Idir" are possible.
     // If the option is specified with an equals sign ("-I=dir") the '=' will
@@ -249,7 +250,7 @@ class OptionBase
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::optional;
     Arg               num_args_            = Arg::no;
-    JoinsArg          joins_arg_           = JoinsArg::no;
+    JoinArg           join_arg_            = JoinArg::no;
     MayGroup          may_group_           = MayGroup::no;
     Positional        positional_          = Positional::no;
     CommaSeparatedArg comma_separated_arg_ = CommaSeparatedArg::no;
@@ -263,7 +264,7 @@ private:
 
     void Apply(Opt               v) { num_occurrences_ = v; }
     void Apply(Arg               v) { num_args_ = v; }
-    void Apply(JoinsArg          v) { joins_arg_ = v; }
+    void Apply(JoinArg           v) { join_arg_ = v; }
     void Apply(MayGroup          v) { may_group_ = v; }
     void Apply(Positional        v) { positional_ = v; }
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
@@ -668,7 +669,7 @@ inline void Cmdline::DoAdd(OptionBase* opt)
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
 
-        if (opt->joins_arg_ != JoinsArg::no)
+        if (opt->join_arg_ != JoinArg::no)
         {
             int const n = static_cast<int>(name.size());
             if (max_prefix_len_ < n)
@@ -819,7 +820,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->joins_arg_ == JoinsArg::no)
+            if (opt->join_arg_ == JoinArg::no)
                 ++arg_start;
 
             auto const arg = optstr.substr(arg_start);
@@ -845,7 +846,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt && opt->joins_arg_ != JoinsArg::no)
+        if (opt && opt->join_arg_ != JoinArg::no)
         {
             auto const arg = optstr.substr(n);
             return HandleOccurrence(opt, name, arg);
@@ -878,7 +879,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         // The option accepts an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
-        if (optstr[n + 1] == '=' || opt->joins_arg_ != JoinsArg::no)
+        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::no)
         {
             group.push_back(opt);
             break;
@@ -922,7 +923,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, It last)
 
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->joins_arg_ == JoinsArg::no)
+        if (optstr[arg_start] == '=' && opt->join_arg_ == JoinArg::no)
             ++arg_start;
 
         auto const arg = optstr.substr(arg_start);
@@ -943,7 +944,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
     // If the option must join its argument, this is an error.
     // If the option might not steal its argument from the command line, this
     // is an error.
-    bool err = opt->joins_arg_ == JoinsArg::yes || opt->allow_separate_arg_ == AllowSeparateArg::no;
+    bool err = opt->join_arg_ == JoinArg::yes || opt->allow_separate_arg_ == AllowSeparateArg::no;
 
     if (!err && opt->num_args_ == Arg::required)
     {
