@@ -1,10 +1,4 @@
-#if 0
-int main() {}
-#else
 #include "Cmdline.h"
-#if 0
-int main() {}
-#else
 #include <iostream>
 
 int main(int argc, char* argv[])
@@ -20,7 +14,7 @@ int main(int argc, char* argv[])
     auto IsEven = [](cl::ParseContext& ctx, auto i) {
         if (i % 2 == 0)
             return true;
-        ctx.diag = "note: argument must be an even integer";
+        ctx.diag = "argument must be an even integer";
         return false;
     };
 
@@ -64,5 +58,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-#endif
-#endif

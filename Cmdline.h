@@ -101,13 +101,13 @@ enum class ConsumeRemaining : unsigned char {
 };
 
 // Steal arguments from the command line?
-enum class SeparateArg : unsigned char {
+enum class AllowSeparateArg : unsigned char {
     // Do not steal arguments from the command line.
-    disallowed,
+    no,
     // If the option requires an argument and is not specified as "-i=1",
     // the parser may steal the next argument from the command line.
     // This allows options to be specified as "-i 1" instead of "-i=1".
-    optional,
+    yes,
 };
 
 // Controls whether the Parse() methods should check for missing options.
@@ -189,7 +189,7 @@ auto InRange(T lower, U upper)
     return [=](ParseContext& ctx, auto const& value) {
         if (!(value < lower) && !(upper < value))
             return true;
-        ctx.diag = "note: argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
+        ctx.diag = "argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
         return false;
     };
 }
@@ -254,7 +254,7 @@ class OptionBase
     Positional        positional_          = Positional::no;
     CommaSeparatedArg comma_separated_arg_ = CommaSeparatedArg::no;
     ConsumeRemaining  consume_remaining_   = ConsumeRemaining::no;
-    SeparateArg       separate_arg_        = SeparateArg::optional;
+    AllowSeparateArg  allow_separate_arg_  = AllowSeparateArg::yes;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
@@ -268,7 +268,7 @@ private:
     void Apply(Positional        v) { positional_ = v; }
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
-    void Apply(SeparateArg       v) { separate_arg_ = v; }
+    void Apply(AllowSeparateArg  v) { allow_separate_arg_ = v; }
     void Apply(Descr             v) { descr_ = v.s; }
     void Apply(char const*       v) { descr_ = v; }
 
@@ -277,8 +277,12 @@ protected:
     explicit OptionBase(char const* name, Args&&... args)
         : name_(name)
     {
-        int const unused[] = { (Apply(args), 0)..., 0 };
-        static_cast<void>(unused);
+#if COMMAND_LINE_HAS_FOLD_EXPRESSIONS
+        (Apply(args), ...);
+#else
+        auto lst = {(Apply(args), 0)..., 0};
+        static_cast<void>(lst);
+#endif
     }
 
 public:
@@ -303,20 +307,20 @@ private:
     virtual bool Parse(ParseContext& ctx) = 0;
 };
 
-template <typename ParserT>
+template <typename Parser>
 class Option : public OptionBase
 {
-    ParserT const parser_;
+    Parser const parser_;
 
 public:
-    template <typename P, typename ...Args>
-    Option(P&& parser, char const* name, Args&&... args)
+    template <typename InitParser, typename ...Args>
+    Option(InitParser&& parser, char const* name, Args&&... args)
         : OptionBase(name, std::forward<Args>(args)...)
-        , parser_(std::forward<P>(parser))
+        , parser_(std::forward<InitParser>(parser))
     {
     }
 
-    ParserT const& parser() const { return parser_; }
+    Parser const& parser() const { return parser_; }
 
 private:
     bool Parse(ParseContext& ctx) override {
@@ -374,8 +378,8 @@ public:
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
-    template <typename ParserT, typename ...Args>
-    auto Add(ParserT&& parser, char const* name, Args&&... args);
+    template <typename Parser, typename ...Args>
+    auto Add(Parser&& parser, char const* name, Args&&... args);
 
     // Reset the parser.
     void Reset();
@@ -483,11 +487,11 @@ inline Cmdline::~Cmdline()
 {
 }
 
-template <typename ParserT, typename ...Args>
-auto Cmdline::Add(ParserT&& parser, char const* name, Args&&... args)
+template <typename Parser, typename ...Args>
+auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
 {
-    auto opt = std::make_unique<Option<std::decay_t<ParserT>>>(
-        std::forward<ParserT>(parser), name, std::forward<Args>(args)...);
+    auto opt = std::make_unique<Option<std::decay_t<Parser>>>(
+        std::forward<Parser>(parser), name, std::forward<Args>(args)...);
 
     const auto p = opt.get();
     DoAdd(p);
@@ -508,7 +512,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index)
     {
-        diag() << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
+        diag_ << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
         return false;
     };
 
@@ -536,7 +540,7 @@ inline bool Cmdline::CheckMissingOptions()
     {
         if (opt->IsOccurrenceRequired())
         {
-            diag() << "error: option '" << opt->name_ << "' missing\n";
+            diag_ << "error: option '" << opt->name_ << "' missing\n";
             res = false;
         }
     }
@@ -762,7 +766,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr,
     {
         if (ambiguous)
         {
-            diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+            diag_ << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
             return Result::error;
         }
 
@@ -789,7 +793,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
         {
             if (ambiguous)
             {
-                diag() << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+                diag_ << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
                 return Result::error;
             }
 
@@ -862,7 +866,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         }
 
         // The option accepts an argument, but may not join its argument.
-        diag() << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group\n";
+        diag_ << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group\n";
         return Result::error;
     }
 
@@ -920,7 +924,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
     // If the option must join its argument, this is an error.
     // If the option might not steal its argument from the command line, this
     // is an error.
-    bool err = opt->joins_arg_ == JoinsArg::yes || opt->separate_arg_ == SeparateArg::disallowed;
+    bool err = opt->joins_arg_ == JoinsArg::yes || opt->allow_separate_arg_ == AllowSeparateArg::no;
 
     if (!err && opt->num_args_ == Arg::required)
     {
@@ -935,7 +939,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 
     if (err)
     {
-        diag() << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
+        diag_ << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
         return Result::error;
     }
 
@@ -948,7 +952,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 
     if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
-        diag() << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
+        diag_ << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
         return Result::error;
     }
 
@@ -961,7 +965,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
     {
         if (!opt->IsOccurrenceAllowed())
         {
-            diag() << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
+            diag_ << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
             return Result::error;
         }
 
@@ -973,9 +977,9 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
 
         if (!opt->Parse(ctx))
         {
-            diag() << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
+            diag_ << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
             if (!ctx.diag.empty())
-                diag() << ctx.diag << "\n";
+                diag_ << "note: " << ctx.diag << "\n";
             return Result::error;
         }
 
