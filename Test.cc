@@ -49,10 +49,10 @@ int main(int argc, char* argv[])
     }
     if (!ok)
     {
-        for (auto& s : cmd.diag())
-            std::cerr << s << "\n";
+        for (auto& d : cmd.diag())
+            std::cerr << d.str() << "\n";
         std::cerr << "\n";
-        std::cerr << "use '-" << opt_h->name() << "' for help\n";
+        std::cerr << "use '-" << std::string(opt_h->name()) << "' for help\n";
         return -1;
     }
 

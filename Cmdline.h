@@ -1,30 +1,14 @@
 #pragma once
 
-#ifndef COMMAND_LINE_WITH_ABBREVIATIONS
-#define COMMAND_LINE_WITH_ABBREVIATIONS 0
-#endif
-
 #include <cassert>
-#include <memory>
+#include <memory> // unique_ptr
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#ifndef CXX_HAS_FOLD_EXPRESSIONS
-#if __cplusplus >= 201703 // MSVC doesn't have fold expressions
-#define CXX_HAS_FOLD_EXPRESSIONS 1
-#else
-#define CXX_HAS_FOLD_EXPRESSIONS 0
-#endif
-#endif
-
 namespace cl {
 inline namespace v1 {
-
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
 
 // Controls how often an option may/must be specified.
 enum class Opt : unsigned char {
@@ -171,7 +155,8 @@ template <>
 struct ParseValue<void>
 {
     template <typename T>
-    bool operator()(ParseContext& ctx, T& value) const {
+    bool operator()(ParseContext& ctx, T& value) const
+    {
         return ParseValue<T>{}(ctx, value);
     }
 };
@@ -202,13 +187,13 @@ auto Value(T& value, Predicates... preds)
 {
     return [=, &value](ParseContext& ctx)
     {
-#if CXX_HAS_FOLD_EXPRESSIONS
-        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
-#else
+#if 1 // WORKAROUND: folding expressions
         auto res = true;
         auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(lst);
         return res;
+#else
+        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
 #endif
     };
 }
@@ -222,13 +207,14 @@ auto List(T& container, Predicates... preds)
     return [=, &container](ParseContext& ctx)
     {
         typename T::value_type value;
-#if CXX_HAS_FOLD_EXPRESSIONS
-        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
-#else
+
+#if 1 // WORKAROUND: folding expressions
         auto res = true;
         auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(lst);
         if (res)
+#else
+        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
 #endif
         {
             container.insert(container.end(), std::move(value));
@@ -276,11 +262,11 @@ protected:
     explicit OptionBase(char const* name, Args&&... args)
         : name_(name)
     {
-#if CXX_HAS_FOLD_EXPRESSIONS
-        (Apply(args), ...);
-#else
+#if 1 // WORKAROUND: folding expressions
         auto lst = {(Apply(args), 0)..., 0};
         static_cast<void>(lst);
+#else
+        (Apply(args), ...);
 #endif
     }
 
@@ -306,6 +292,24 @@ private:
     virtual bool Parse(ParseContext& ctx) = 0;
 };
 
+inline OptionBase::~OptionBase()
+{
+}
+
+inline bool OptionBase::IsOccurrenceAllowed() const
+{
+    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::optional)
+        return count_ == 0;
+    return true;
+}
+
+inline bool OptionBase::IsOccurrenceRequired() const
+{
+    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::one_or_more)
+        return count_ == 0;
+    return false;
+}
+
 template <typename Parser>
 class Option : public OptionBase
 {
@@ -322,15 +326,18 @@ public:
     Parser const& parser() const { return parser_; }
 
 private:
-    bool Parse(ParseContext& ctx) override {
+    bool Parse(ParseContext& ctx) override
+    {
         return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
     }
 
-    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::true_type) {
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::true_type)
+    {
         return parser_(ctx);
     }
 
-    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::false_type) {
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::false_type)
+    {
         parser_(ctx);
         return true;
     }
@@ -338,6 +345,20 @@ private:
 
 class Cmdline
 {
+public:
+    struct Diagnostic
+    {
+        enum class Type { error, note };
+
+        Type type = Type::error;
+        int index = -1;
+        std::string message = {};
+
+        // Returns a string representation of this diagnostic message.
+        std::string str() const;
+    };
+
+private:
     struct NameOptionPair
     {
         std::string_view name;
@@ -348,7 +369,7 @@ class Cmdline
     using Options = std::vector<NameOptionPair>;
 
     // List of diagnostic messages
-    std::vector<std::string> diag_;
+    std::vector<Diagnostic> diag_;
     // Option storage.
     UniqueOptions unique_options_ {};
     // List of options. Includes the positional options (in order).
@@ -370,7 +391,7 @@ public:
     Cmdline& operator =(Cmdline const&) = delete;
 
     // Returns the diagnostic messages
-    std::vector<std::string> const& diag() const { return diag_; }
+    std::vector<Diagnostic> const& diag() const { return diag_; }
 
     void EmitError(int index, std::string message);
     void EmitNote(int index, std::string message);
@@ -453,31 +474,17 @@ private:
     static bool SplitString(std::string_view str, char sep, Func func);
 };
 
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
-
-inline OptionBase::~OptionBase()
+inline std::string Cmdline::Diagnostic::str() const
 {
-}
+    std::string stype = (type == Diagnostic::Type::error)
+        ? "error"
+        : "note";
+    std::string sindex = (index >= 0)
+        ? "(" + std::to_string(index) + ")"
+        : "";
 
-inline bool OptionBase::IsOccurrenceAllowed() const
-{
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::optional)
-        return count_ == 0;
-    return true;
+    return stype + sindex + ": " + message;
 }
-
-inline bool OptionBase::IsOccurrenceRequired() const
-{
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::one_or_more)
-        return count_ == 0;
-    return false;
-}
-
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
 
 inline Cmdline::Cmdline()
 {
@@ -489,18 +496,12 @@ inline Cmdline::~Cmdline()
 
 inline void Cmdline::EmitError(int index, std::string message)
 {
-    if (index >= 0)
-        diag_.push_back("error(" + std::to_string(index) + "): " + message);
-    else
-        diag_.push_back("error: " + message);
+    diag_.push_back({Diagnostic::Type::error, index, std::move(message)});
 }
 
 inline void Cmdline::EmitNote(int index, std::string message)
 {
-    if (index >= 0)
-        diag_.push_back("note(" + std::to_string(index) + "): " + message);
-    else
-        diag_.push_back("note: " + message);
+    diag_.push_back({Diagnostic::Type::note, index, std::move(message)});
 }
 
 template <typename Parser, typename ...Args>
@@ -632,7 +633,7 @@ inline OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) c
 {
     ambiguous = false;
 
-#if COMMAND_LINE_WITH_ABBREVIATIONS
+#if 0
     OptionBase* opt = nullptr;
 
     for (auto&& p : options_)
