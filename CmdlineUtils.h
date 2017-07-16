@@ -206,7 +206,7 @@ InpIt TokenizeSingleArgWindows(InpIt first, InpIt last, Buffer& buffer, int& quo
 
 // Parses a command line string and returns a list of command line arguments.
 // Using Windows-style escaping.
-template <class InpIt, class Rhs>
+template <typename InpIt, typename Rhs>
 void TokenizeWindows(InpIt first, InpIt last, Rhs& out, bool parse_program_name = true)
 {
     if (first == last)
@@ -243,7 +243,7 @@ void TokenizeWindows(InpIt first, InpIt last, Rhs& out, bool parse_program_name 
 // CommandLineToArgvW will return the argument string unchanged. Arguments in a
 // command line should be separated by spaces; this function does not add these
 // spaces.
-template <class InpIt, class Buffer>
+template <typename InpIt, typename Buffer>
 void QuoteSingleArgWindows(InpIt first, InpIt last, Buffer& buffer)
 {
     int num_backslashes = 0;
@@ -285,7 +285,7 @@ void QuoteSingleArgWindows(InpIt first, InpIt last, Buffer& buffer)
 }
 
 // Quote command line arguments. Using Windows-style escaping.
-template <class InpIt, class Buffer>
+template <typename InpIt, typename Buffer>
 InpIt QuoteArgsWindows(InpIt first, InpIt last, Buffer& buffer)
 {
     using std::begin;
