@@ -144,9 +144,9 @@ struct ParseValue<bool>
 {
     bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (ctx.arg.empty() || ctx.arg == "1" || ctx.arg == "true" || ctx.arg == "on" || ctx.arg == "yes")
+        if (ctx.arg.empty() || ctx.arg == "1" ||  ctx.arg == "y" || ctx.arg == "true" || ctx.arg == "on" || ctx.arg == "yes")
             value = true;
-        else if (ctx.arg == "0" || ctx.arg == "false" || ctx.arg == "off" || ctx.arg == "no")
+        else if (ctx.arg == "0" || ctx.arg == "n" || ctx.arg == "false" || ctx.arg == "off" || ctx.arg == "no")
             value = false;
         else
             return false;
