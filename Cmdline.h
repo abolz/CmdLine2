@@ -409,6 +409,9 @@ public:
 private:
     enum class Result { success, error, ignored };
 
+    void EmitError(int index, std::string message);
+    void EmitNote(int index, std::string message);
+
     OptionBase* FindOption(std::string_view name) const;
     OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
 
@@ -512,7 +515,7 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index)
     {
-        diag_ << "error(" << index << "): unkown option '" << std::string_view(*curr) << "'\n";
+        EmitError(index, "unkown option '" + std::string(*curr) + "'");
         return false;
     };
 
@@ -540,7 +543,7 @@ inline bool Cmdline::CheckMissingOptions()
     {
         if (opt->IsOccurrenceRequired())
         {
-            diag_ << "error: option '" << opt->name_ << "' missing\n";
+            EmitError(-1, "option '" + std::string(opt->name_) + "' missing");
             res = false;
         }
     }
@@ -597,6 +600,22 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
         os << "Usage: " << program_name << spos << '\n';
     else
         os << "Usage: " << program_name << " [options]" << spos << "\nOptions:\n" << sopt;
+}
+
+inline void Cmdline::EmitError(int index, std::string message)
+{
+    if (index >= 0)
+        diag_ << "error(" << index << "): " << message << "\n";
+    else
+        diag_ << "error: " << message << "\n";
+}
+
+inline void Cmdline::EmitNote(int index, std::string message)
+{
+    if (index >= 0)
+        diag_ << "note(" << index << "): " << message << "\n";
+    else
+        diag_ << "note: " << message << "\n";
 }
 
 inline OptionBase* Cmdline::FindOption(std::string_view name) const
@@ -766,7 +785,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr,
     {
         if (ambiguous)
         {
-            diag_ << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+            EmitError(curr_index_, "option '" + std::string(optstr) + "' is ambiguous");
             return Result::error;
         }
 
@@ -793,7 +812,7 @@ inline Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
         {
             if (ambiguous)
             {
-                diag_ << "error(" << curr_index_ << "): option" << optstr << " is ambiguous\n";
+                EmitError(curr_index_, "option '" + std::string(optstr) + "' is ambiguous");
                 return Result::error;
             }
 
@@ -866,7 +885,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vec
         }
 
         // The option accepts an argument, but may not join its argument.
-        diag_ << "error(" << curr_index_ << "): option '" << optstr[n] << "' must be last in a group\n";
+        EmitError(curr_index_, std::string("option '") + optstr[n] + "' must be last in a group");
         return Result::error;
     }
 
@@ -939,7 +958,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 
     if (err)
     {
-        diag_ << "error(" << curr_index_ << "): option '" << name << "' requires an argument\n";
+        EmitError(curr_index_, "option '" + std::string(name) + "' requires an argument");
         return Result::error;
     }
 
@@ -952,7 +971,7 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_vi
 
     if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
-        diag_ << "error(" << curr_index_ << "): option '" << name << "' does not accept an argument\n";
+        EmitError(curr_index_, "option '" + std::string(name) + "' does not accept an argument");
         return Result::error;
     }
 
@@ -965,7 +984,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
     {
         if (!opt->IsOccurrenceAllowed())
         {
-            diag_ << "error(" << curr_index_ << "): option '" << name << "' already specified\n";
+            EmitError(curr_index_, "option '" + std::string(name) + "' already specified");
             return Result::error;
         }
 
@@ -977,7 +996,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
 
         if (!opt->Parse(ctx))
         {
-            diag_ << "error(" << curr_index_ << "): invalid argument '" << arg1 << "' for option '" << name << "'\n";
+            EmitError(curr_index_, "invalid argument '" + std::string(arg1) + "' for option '" + std::string(name) + "'");
             if (!ctx.diag.empty())
                 diag_ << "note: " << ctx.diag << "\n";
             return Result::error;
