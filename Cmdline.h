@@ -338,8 +338,8 @@ class Cmdline
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
     using Options = std::vector<NameOptionPair>;
 
-    // Output stream for diagnostic messages
-    std::ostringstream diag_;
+    // List of diagnostic messages
+    std::vector<std::string> diag_;
     // Option storage.
     UniqueOptions unique_options_ {};
     // List of options. Includes the positional options (in order).
@@ -361,10 +361,10 @@ public:
     Cmdline& operator =(Cmdline const&) = delete;
 
     // Returns the diagnostic messages
-    std::ostringstream const& diag() const { return diag_; }
+    std::vector<std::string> const& diag() const { return diag_; }
 
-    // Returns the diagnostic messages
-    std::ostringstream& diag() { return diag_; }
+    void EmitError(int index, std::string message);
+    void EmitNote(int index, std::string message);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -393,14 +393,11 @@ public:
     // Returns true if all required options have been (successfully) parsed.
     bool CheckMissingOptions();
 
-    // Prints a short help message
-    void ShowHelp(std::ostream& os, char const* program_name) const;
+    // Returns a short help message
+    std::string HelpMessage(std::string const& program_name) const;
 
 private:
     enum class Result { success, error, ignored };
-
-    void EmitError(int index, std::string message);
-    void EmitNote(int index, std::string message);
 
     OptionBase* FindOption(std::string_view name) const;
     OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
@@ -480,6 +477,22 @@ inline Cmdline::~Cmdline()
 {
 }
 
+inline void Cmdline::EmitError(int index, std::string message)
+{
+    if (index >= 0)
+        diag_.push_back("error(" + std::to_string(index) + "): " + message);
+    else
+        diag_.push_back("error: " + message);
+}
+
+inline void Cmdline::EmitNote(int index, std::string message)
+{
+    if (index >= 0)
+        diag_.push_back("note(" + std::to_string(index) + "): " + message);
+    else
+        diag_.push_back("note: " + message);
+}
+
 template <typename Parser, typename ...Args>
 auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
 {
@@ -541,10 +554,10 @@ inline bool Cmdline::CheckMissingOptions()
     return res;
 }
 
-inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
+inline std::string Cmdline::HelpMessage(std::string const& program_name) const
 {
-    static size_t const kIndent = 2;
-    static size_t const kDescrIndent = 16;
+    static constexpr size_t kIndent = 2;
+    static constexpr size_t kDescrIndent = 16;
 
     std::string spos;
     std::string sopt;
@@ -587,25 +600,9 @@ inline void Cmdline::ShowHelp(std::ostream& os, char const* program_name) const
     }
 
     if (sopt.empty())
-        os << "Usage: " << program_name << spos << '\n';
+        return "Usage: " + program_name + spos + '\n';
     else
-        os << "Usage: " << program_name << " [options]" << spos << "\nOptions:\n" << sopt;
-}
-
-inline void Cmdline::EmitError(int index, std::string message)
-{
-    if (index >= 0)
-        diag_ << "error(" << index << "): " << message << "\n";
-    else
-        diag_ << "error: " << message << "\n";
-}
-
-inline void Cmdline::EmitNote(int index, std::string message)
-{
-    if (index >= 0)
-        diag_ << "note(" << index << "): " << message << "\n";
-    else
-        diag_ << "note: " << message << "\n";
+        return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n";
 }
 
 inline OptionBase* Cmdline::FindOption(std::string_view name) const
@@ -986,7 +983,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string
         {
             EmitError(curr_index_, "invalid argument '" + std::string(arg1) + "' for option '" + std::string(name) + "'");
             if (!ctx.diag.empty())
-                diag_ << "note: " << ctx.diag << "\n";
+                EmitNote(-1, ctx.diag);
             return Result::error;
         }
 

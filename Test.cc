@@ -44,12 +44,14 @@ int main(int argc, char* argv[])
     bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (show_help)
     {
-        cmd.ShowHelp(std::cout, "Test");
+        std::cerr << cmd.HelpMessage("Test");
         return 0;
     }
     if (!ok)
     {
-        std::cerr << cmd.diag().str() << "\n";
+        for (auto& s : cmd.diag())
+            std::cerr << s << "\n";
+        std::cerr << "\n";       
         std::cerr << "use '-" << opt_h->name() << "' for help\n";
         return -1;
     }
