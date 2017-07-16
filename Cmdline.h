@@ -101,16 +101,6 @@ enum class ConsumeRemaining : unsigned char {
     yes,
 };
 
-// Steal arguments from the command line?
-enum class AllowSeparateArg : unsigned char {
-    // Do not steal arguments from the command line.
-    no,
-    // If the option requires an argument and is not specified as "-i=1",
-    // the parser may steal the next argument from the command line.
-    // This allows options to be specified as "-i 1" instead of "-i=1".
-    yes,
-};
-
 // Controls whether the Parse() methods should check for missing options.
 enum class CheckMissing : unsigned char {
     // Do not check for missing required options in Cmdline::Parse().
@@ -187,7 +177,8 @@ struct ParseValue<void>
 template <typename T, typename U>
 auto InRange(T lower, U upper)
 {
-    return [=](ParseContext& ctx, auto const& value) {
+    return [=](ParseContext& ctx, auto const& value)
+    {
         if (!(value < lower) && !(upper < value))
             return true;
         ctx.diag = "argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
@@ -255,7 +246,6 @@ class OptionBase
     Positional        positional_          = Positional::no;
     CommaSeparatedArg comma_separated_arg_ = CommaSeparatedArg::no;
     ConsumeRemaining  consume_remaining_   = ConsumeRemaining::no;
-    AllowSeparateArg  allow_separate_arg_  = AllowSeparateArg::yes;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
@@ -269,7 +259,6 @@ private:
     void Apply(Positional        v) { positional_ = v; }
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
-    void Apply(AllowSeparateArg  v) { allow_separate_arg_ = v; }
     void Apply(Descr             v) { descr_ = v.s; }
     void Apply(char const*       v) { descr_ = v; }
 
@@ -942,9 +931,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 
     // We get here if no argument was specified.
     // If the option must join its argument, this is an error.
-    // If the option might not steal its argument from the command line, this
-    // is an error.
-    bool err = opt->join_arg_ == JoinArg::yes || opt->allow_separate_arg_ == AllowSeparateArg::no;
+    bool err = opt->join_arg_ == JoinArg::yes;
 
     if (!err && opt->num_args_ == Arg::required)
     {
