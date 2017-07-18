@@ -527,45 +527,35 @@ inline void Cmdline::EmitNote(int index, std::string message)
 
 namespace impl
 {
-#if 1 // WORKAROUND (incomplete)
+// WORKAROUND std::is_invocable (incomplete)
+
     template <typename ...Args>
     struct IsInvocableImpl
     {
         struct Any { template <typename T> Any(T&&) {} };
 
         template <typename F>
-        static auto test(F&&) -> decltype(std::declval<F>()(std::declval<Args>()...), std::true_type{});
+        static auto test(F&&) -> decltype(std::result_of_t<F&& (Args&&...)>{}, std::true_type{});
         static auto test(Any) -> std::false_type;
     };
 
     template <typename F, typename ...Args>
-    struct IsInvocable : decltype(IsInvocableImpl<Args...>::test(std::declval<F>()))
-    {
-    };
-#else
-    template <typename F, typename ...Args>
-    using IsInvocable = std::is_invocable<F, Args...>;
-#endif
+    using IsInvocable = decltype(IsInvocableImpl<Args...>::test(std::declval<F>()));
 
-#if 1 // WORKAROUND (incomplete)
+// WORKAROUND std::is_invocable_r (incomplete)
+
     template <typename R, typename ...Args>
     struct IsInvocableRImpl
     {
         struct Any { template <typename T> Any(T&&) {} };
 
         template <typename F>
-        static auto test(F&&) -> std::is_convertible< decltype(std::declval<F>()(std::declval<Args>()...)), R >;
+        static auto test(F&&) -> std::is_convertible< std::result_of_t<F&& (Args&&...)>, R >::type;
         static auto test(Any) -> std::false_type;
     };
 
     template <typename R, typename F, typename ...Args>
-    struct IsInvocableR : decltype(IsInvocableRImpl<R, Args...>::test(std::declval<F>()))
-    {
-    };
-#else
-    template <typename R, typename F, typename ...Args>
-    using IsInvocableR = std::is_invocable_r<R, F, Args...>;
-#endif
+    using IsInvocableR = decltype(IsInvocableRImpl<R, Args...>::test(std::declval<F>()));
 }
 
 template <typename Parser, typename ...Args>
