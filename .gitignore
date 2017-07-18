@@ -1,6 +1,4 @@
 /.vscode/
-/backups/
-/vs/
-/*.exe
-/*.obj
-/*.out
+*.exe
+*.obj
+*.out
