@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#ifndef CL_CMDLINE_H
+#define CL_CMDLINE_H 1
 
 #include "cxx_string_view.h"
 
@@ -1108,3 +1109,5 @@ bool Cmdline::SplitString(cxx::string_view str, char sep, Func func)
 
 } // namespace v2
 } // namespace cl
+
+#endif

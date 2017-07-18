@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#ifndef CL_CMDLINE_UTILS_H
+#define CL_CMDLINE_UTILS_H 1
 
 #include <iterator>
 
@@ -341,3 +342,5 @@ InpIt QuoteArgsWindows(InpIt first, InpIt last, Buffer& buffer)
 
 } // namespace v2
 } // namespace cl
+
+#endif
