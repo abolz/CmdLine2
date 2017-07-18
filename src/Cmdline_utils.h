@@ -3,6 +3,7 @@
 #include <iterator>
 
 namespace cl {
+inline namespace v2 {
 
 // Parses a single argument from a command line string.
 // Using Unix-style escaping.
@@ -318,4 +319,5 @@ InpIt QuoteArgsWindows(InpIt first, InpIt last, Buffer& buffer)
     return first;
 }
 
+} // namespace v2
 } // namespace cl
