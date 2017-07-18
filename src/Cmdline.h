@@ -1,7 +1,6 @@
 #pragma once
 
-#include "__string_view.h"
-using std__string_view = cxx::string_view;
+#include "cxx_string_view.h"
 
 #include <cassert>
 #include <memory> // unique_ptr
@@ -107,8 +106,8 @@ struct Descr
 
 struct ParseContext
 {
-    std__string_view name;  // in:  Name of the option being parsed
-    std__string_view arg;   // in:  Option argument
+    cxx::string_view name;  // in:  Name of the option being parsed
+    cxx::string_view arg;   // in:  Option argument
     int              index; // in:  Current index in the argv array
     std::string      diag;  // out: Optional error message
 };
@@ -232,9 +231,9 @@ class OptionBase
     friend class Cmdline;
 
     // The name of the option.
-    std__string_view name_;
+    cxx::string_view name_;
     // The description of this option
-    std__string_view descr_;
+    cxx::string_view descr_;
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::optional;
     Arg               num_args_            = Arg::no;
@@ -277,10 +276,10 @@ public:
 
 public:
     // Returns the name of this option
-    std__string_view name() const { return name_; }
+    cxx::string_view name() const { return name_; }
 
     // Returns the description of this option
-    std__string_view descr() const { return descr_; }
+    cxx::string_view descr() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -363,7 +362,7 @@ public:
 private:
     struct NameOptionPair
     {
-        std__string_view name;
+        cxx::string_view name;
         OptionBase* option;
     };
 
@@ -431,8 +430,8 @@ public:
 private:
     enum class Result { success, error, ignored };
 
-    OptionBase* FindOption(std__string_view name) const;
-    OptionBase* FindOption(std__string_view name, bool& ambiguous) const;
+    OptionBase* FindOption(cxx::string_view name) const;
+    OptionBase* FindOption(cxx::string_view name, bool& ambiguous) const;
 
     void DoAdd(OptionBase* opt);
 
@@ -443,37 +442,37 @@ private:
     Result Handle1(It& curr, It last);
 
     // <file>
-    Result HandlePositional(std__string_view optstr);
+    Result HandlePositional(cxx::string_view optstr);
 
     // -f
     // -f <file>
     template <typename It>
-    Result HandleStandardOption(std__string_view optstr, It& curr, It last);
+    Result HandleStandardOption(cxx::string_view optstr, It& curr, It last);
 
     // -f=<file>
-    Result HandleOption(std__string_view optstr);
+    Result HandleOption(cxx::string_view optstr);
 
     // -I<dir>
-    Result HandlePrefix(std__string_view optstr);
+    Result HandlePrefix(cxx::string_view optstr);
 
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
     Result DecomposeGroup(
-        std__string_view optstr, std::vector<OptionBase*>& group);
+        cxx::string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It>
-    Result HandleGroup(std__string_view optstr, It& curr, It last);
+    Result HandleGroup(cxx::string_view optstr, It& curr, It last);
 
     template <typename It>
-    Result HandleOccurrence(OptionBase* opt, std__string_view name, It& curr, It last);
-    Result HandleOccurrence(OptionBase* opt, std__string_view name, std__string_view arg);
+    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, It last);
+    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
-    Result ParseOptionArgument(OptionBase* opt, std__string_view name, std__string_view arg);
+    Result ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
     // Does not skip empty tokens.
     template <typename Func>
-    static bool SplitString(std__string_view str, char sep, Func func);
+    static bool SplitString(cxx::string_view str, char sep, Func func);
 };
 
 inline std::string Cmdline::Diagnostic::str() const
@@ -672,7 +671,7 @@ inline std::string Cmdline::HelpMessage(std::string const& program_name) const
         return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n";
 }
 
-inline OptionBase* Cmdline::FindOption(std__string_view name) const
+inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
 {
     for (auto&& p : options_)
     {
@@ -683,7 +682,7 @@ inline OptionBase* Cmdline::FindOption(std__string_view name) const
     return nullptr;
 }
 
-inline OptionBase* Cmdline::FindOption(std__string_view name, bool& ambiguous) const
+inline OptionBase* Cmdline::FindOption(cxx::string_view name, bool& ambiguous) const
 {
     ambiguous = false;
 
@@ -717,7 +716,7 @@ inline void Cmdline::DoAdd(OptionBase* opt)
 {
     assert(!opt->name_.empty());
 
-    SplitString(opt->name_, '|', [&](std__string_view name)
+    SplitString(opt->name_, '|', [&](cxx::string_view name)
     {
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
@@ -766,7 +765,7 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
 {
     assert(curr != last);
 
-    std__string_view optstr(*curr);
+    cxx::string_view optstr(*curr);
 
     // This cannot happen if we're parsing the argv[] arrray, but it might
     // happen if we're parsing a user-supplied array of command line arguments.
@@ -810,7 +809,7 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
     return res;
 }
 
-inline Cmdline::Result Cmdline::HandlePositional(std__string_view optstr)
+inline Cmdline::Result Cmdline::HandlePositional(cxx::string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
     assert(curr_positional_ <= E);
@@ -831,7 +830,7 @@ inline Cmdline::Result Cmdline::HandlePositional(std__string_view optstr)
 
 // If OPTSTR is the name of an option, handle the option.
 template <typename It>
-Cmdline::Result Cmdline::HandleStandardOption(std__string_view optstr, It& curr, It last)
+Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr, It last)
 {
     bool ambiguous = false;
     if (auto const opt = FindOption(optstr, ambiguous))
@@ -851,11 +850,11 @@ Cmdline::Result Cmdline::HandleStandardOption(std__string_view optstr, It& curr,
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-inline Cmdline::Result Cmdline::HandleOption(std__string_view optstr)
+inline Cmdline::Result Cmdline::HandleOption(cxx::string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
-    if (arg_start != std__string_view::npos)
+    if (arg_start != cxx::string_view::npos)
     {
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
@@ -883,7 +882,7 @@ inline Cmdline::Result Cmdline::HandleOption(std__string_view optstr)
     return Result::ignored;
 }
 
-inline Cmdline::Result Cmdline::HandlePrefix(std__string_view optstr)
+inline Cmdline::Result Cmdline::HandlePrefix(cxx::string_view optstr)
 {
     // Scan over all known prefix lengths.
     // Start with the longest to allow different prefixes like e.g. "-with" and
@@ -910,7 +909,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(std__string_view optstr)
 
 // Check if OPTSTR is actually a group of single letter options and store the
 // options in GROUP.
-inline Cmdline::Result Cmdline::DecomposeGroup(std__string_view optstr, std::vector<OptionBase*>& group)
+inline Cmdline::Result Cmdline::DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group)
 {
     group.reserve(optstr.size());
 
@@ -946,7 +945,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(std__string_view optstr, std::vec
 }
 
 template <typename It>
-Cmdline::Result Cmdline::HandleGroup(std__string_view optstr, It& curr, It last)
+Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, It last)
 {
     std::vector<OptionBase*> group;
 
@@ -986,11 +985,11 @@ Cmdline::Result Cmdline::HandleGroup(std__string_view optstr, It& curr, It last)
 }
 
 template <typename It>
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std__string_view name, It& curr, It last)
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, It last)
 {
     assert(curr != last);
 
-    std__string_view arg;
+    cxx::string_view arg;
 
     // We get here if no argument was specified.
     // If the option must join its argument, this is an error.
@@ -1004,7 +1003,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std__string_view name
         if (curr == last)
             err = true;
         else
-            arg = std__string_view(*curr);
+            arg = cxx::string_view(*curr);
     }
 
     if (err)
@@ -1016,7 +1015,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std__string_view name
     return ParseOptionArgument(opt, name, arg);
 }
 
-inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std__string_view name, std__string_view arg)
+inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
 {
     // An argument was specified for OPT.
 
@@ -1029,9 +1028,9 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std__string_vi
     return ParseOptionArgument(opt, name, arg);
 }
 
-inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std__string_view name, std__string_view arg)
+inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
 {
-    auto Parse1 = [&](std__string_view arg1)
+    auto Parse1 = [&](cxx::string_view arg1)
     {
         if (!opt->IsOccurrenceAllowed())
         {
@@ -1061,7 +1060,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std__string
 
     if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
     {
-        SplitString(arg, ',', [&](std__string_view s)
+        SplitString(arg, ',', [&](cxx::string_view s)
         {
             res = Parse1(s);
             return res == Result::success;
@@ -1084,14 +1083,14 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std__string
 }
 
 template <typename Func>
-bool Cmdline::SplitString(std__string_view str, char sep, Func func)
+bool Cmdline::SplitString(cxx::string_view str, char sep, Func func)
 {
     for (;;)
     {
         auto const p = str.find(sep);
         if (!func(str.substr(0, p))) // p == npos is ok here
             return false;
-        if (p == std__string_view::npos)
+        if (p == cxx::string_view::npos)
             return true;
         str.remove_prefix(p + 1);
     }
