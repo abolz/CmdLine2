@@ -1,29 +1,27 @@
-#pragma once
+#ifndef CXX_STRING_VIEW_H
+#define CXX_STRING_VIEW_H 1
 
-#ifndef STD_STRING_VIEW_CHECKED_ITERATOR
-#ifndef NDEBUG
-#define STD_STRING_VIEW_CHECKED_ITERATOR 1
-#else
-#define STD_STRING_VIEW_CHECKED_ITERATOR 0
-#endif
-#endif
+#define CXX_STRING_VIEW_CHECKED_ITERATOR 0
 
 #include <cassert>
+#include <cstdint>
 #include <cstring>
-#if STD_STRING_VIEW_CHECKED_ITERATOR
+#if CXX_STRING_VIEW_CHECKED_ITERATOR
 #include <iterator> // random_access_iterator_tag...
 #endif
 #include <type_traits>
 
-#if STD_STRING_VIEW_CHECKED_ITERATOR
-class std__string_view_iterator
+namespace cxx {
+
+#if CXX_STRING_VIEW_CHECKED_ITERATOR
+class string_view_iterator
 {
 public:
     using iterator_category = std::random_access_iterator_tag;
     using value_type        = char;
     using reference         = char const&;
     using pointer           = char const*;
-    using difference_type   = std::ptrdiff_t;
+    using difference_type   = intptr_t;
 
 private:
     pointer         ptr_  = nullptr;
@@ -31,11 +29,11 @@ private:
     difference_type size_ = 0;
 
 public:
-    /*constexpr*/ std__string_view_iterator() noexcept = default;
-    /*constexpr*/ std__string_view_iterator(std__string_view_iterator const&) noexcept = default;
-    /*constexpr*/ std__string_view_iterator& operator=(std__string_view_iterator const&) noexcept = default;
+    /*constexpr*/ string_view_iterator() noexcept = default;
+    /*constexpr*/ string_view_iterator(string_view_iterator const&) noexcept = default;
+    /*constexpr*/ string_view_iterator& operator=(string_view_iterator const&) noexcept = default;
 
-    /*constexpr*/ std__string_view_iterator(pointer ptr, difference_type size, difference_type pos = 0) noexcept
+    /*constexpr*/ string_view_iterator(pointer ptr, difference_type size, difference_type pos = 0) noexcept
         : ptr_(ptr)
         , pos_(pos)
         , size_(size)
@@ -46,123 +44,140 @@ public:
         assert(pos_ <= size_);
     }
 
-    /*constexpr*/ pointer ptr() const noexcept {
-        return ptr_ + pos_;
-    }
-
-    /*constexpr*/ reference operator*() const noexcept {
+    /*constexpr*/ reference operator*() const noexcept
+    {
         assert(ptr_ != nullptr);
         assert(pos_ < size_);
         return ptr_[pos_];
     }
 
-    /*constexpr*/ pointer operator->() const noexcept {
+    /*constexpr*/ pointer operator->() const noexcept
+    {
         assert(ptr_ != nullptr);
         assert(pos_ < size_);
         return ptr_ + pos_;
     }
 
-    /*constexpr*/ std__string_view_iterator& operator++() noexcept {
+    /*constexpr*/ string_view_iterator& operator++() noexcept
+    {
         assert(pos_ < size_);
         ++pos_;
         return *this;
     }
 
-    /*constexpr*/ std__string_view_iterator operator++(int) noexcept {
+    /*constexpr*/ string_view_iterator operator++(int) noexcept
+    {
         auto t = *this;
         ++(*this);
         return t;
     }
 
-    /*constexpr*/ std__string_view_iterator& operator--() noexcept {
+    /*constexpr*/ string_view_iterator& operator--() noexcept
+    {
         assert(pos_ > 0);
         --pos_;
         return *this;
     }
 
-    /*constexpr*/ std__string_view_iterator operator--(int) noexcept {
+    /*constexpr*/ string_view_iterator operator--(int) noexcept
+    {
         auto t = *this;
         --(*this);
         return t;
     }
 
-    /*constexpr*/ std__string_view_iterator& operator+=(difference_type n) noexcept {
+    /*constexpr*/ string_view_iterator& operator+=(difference_type n) noexcept
+    {
         assert(pos_ + n >= 0);
         assert(pos_ + n <= size_);
         pos_ += n;
         return *this;
     }
 
-    /*constexpr*/ std__string_view_iterator operator+(difference_type n) const noexcept {
+    /*constexpr*/ string_view_iterator operator+(difference_type n) const noexcept
+    {
         auto t = *this;
         t += n;
         return t;
     }
 
-    /*constexpr*/ friend std__string_view_iterator operator+(difference_type n, std__string_view_iterator it) noexcept {
+    /*constexpr*/ friend string_view_iterator operator+(difference_type n, string_view_iterator it) noexcept
+    {
         return it + n;
     }
 
-    /*constexpr*/ std__string_view_iterator& operator-=(difference_type n) noexcept {
+    /*constexpr*/ string_view_iterator& operator-=(difference_type n) noexcept
+    {
         assert(pos_ - n >= 0);
         assert(pos_ - n <= size_);
         pos_ -= n;
         return *this;
     }
 
-    /*constexpr*/ std__string_view_iterator operator-(difference_type n) const noexcept {
+    /*constexpr*/ string_view_iterator operator-(difference_type n) const noexcept
+    {
         auto t = *this;
         t -= n;
         return t;
     }
 
-    /*constexpr*/ difference_type operator-(std__string_view_iterator rhs) const noexcept {
+    /*constexpr*/ difference_type operator-(string_view_iterator rhs) const noexcept
+    {
         assert(ptr_ == rhs.ptr_);
         return pos_ - rhs.pos_;
     }
 
-    /*constexpr*/ reference operator[](difference_type index) const noexcept {
+    /*constexpr*/ reference operator[](difference_type index) const noexcept
+    {
         assert(ptr_ != nullptr);
         assert(pos_ + index >= 0);
         assert(pos_ + index < size_);
         return ptr_[pos_ + index];
     }
 
-    /*constexpr*/ friend bool operator==(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator==(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         assert(lhs.ptr_ == rhs.ptr_);
         return lhs.pos_ == rhs.pos_;
     }
 
-    /*constexpr*/ friend bool operator!=(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator!=(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         return !(lhs == rhs);
     }
 
-    /*constexpr*/ friend bool operator<(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator<(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         assert(lhs.ptr_ == rhs.ptr_);
         return lhs.pos_ < rhs.pos_;
     }
 
-    /*constexpr*/ friend bool operator>(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator>(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         return rhs < lhs;
     }
 
-    /*constexpr*/ friend bool operator<=(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator<=(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         return !(rhs < lhs);
     }
 
-    /*constexpr*/ friend bool operator>=(std__string_view_iterator lhs, std__string_view_iterator rhs) noexcept {
+    /*constexpr*/ friend bool operator>=(string_view_iterator lhs, string_view_iterator rhs) noexcept
+    {
         return !(lhs < rhs);
     }
 
 #ifdef _MSC_VER
-    using _Checked_type = std__string_view_iterator;
+    using _Checked_type = string_view_iterator;
     using _Unchecked_type = pointer;
 
-    /*constexpr*/ friend _Unchecked_type _Unchecked(_Checked_type it) noexcept {
+    /*constexpr*/ friend _Unchecked_type _Unchecked(_Checked_type it) noexcept
+    {
         return it.ptr_ + it.pos_;
     }
 
-    /*constexpr*/ friend _Checked_type& _Rechecked(_Checked_type& it, _Unchecked_type p) noexcept {
+    /*constexpr*/ friend _Checked_type& _Rechecked(_Checked_type& it, _Unchecked_type p) noexcept
+    {
         it.pos_ = p - it.ptr_;
         return it;
     }
@@ -170,7 +185,7 @@ public:
 };
 #endif
 
-class std__string_view
+class string_view // A minimal std::string_view replacement
 {
 public:
     using value_type        = char;
@@ -178,18 +193,19 @@ public:
     using const_pointer     = char const*;
     using reference         = char const&;
     using const_reference   = char const&;
-#if STD_STRING_VIEW_CHECKED_ITERATOR
-    using iterator          = std__string_view_iterator;
-    using const_iterator    = std__string_view_iterator;
+#if CXX_STRING_VIEW_CHECKED_ITERATOR
+    using iterator          = string_view_iterator;
+    using const_iterator    = string_view_iterator;
 #else
     using iterator          = char const*;
     using const_iterator    = char const*;
 #endif
     using size_type         = size_t;
+    //using difference_type   = intptr_t;
 
 private:
     const_pointer data_ = nullptr;
-    size_t        size_ = 0;
+    size_t        size_ = 0; // intptr_t size_ = 0; XXX
 
 private:
     static size_t Min(size_t x, size_t y) { return y < x ? y : x; }
@@ -208,17 +224,17 @@ private:
 public:
     static constexpr size_t npos = static_cast<size_t>(-1);
 
-    /*constexpr*/ std__string_view() noexcept = default;
-    /*constexpr*/ std__string_view(std__string_view const&) noexcept = default;
+    /*constexpr*/ string_view() noexcept = default;
+    /*constexpr*/ string_view(string_view const&) noexcept = default;
 
-    /*constexpr*/ std__string_view(const_pointer ptr, size_t len) noexcept
+    /*constexpr*/ string_view(const_pointer ptr, size_t len) noexcept
         : data_(ptr)
         , size_(len)
     {
         assert(size_ == 0 || data_ != nullptr);
     }
 
-    std__string_view(const_pointer c_str) noexcept
+    string_view(const_pointer c_str) noexcept
         : data_(c_str)
         , size_(c_str ? ::strlen(c_str) : 0u)
     {
@@ -233,7 +249,7 @@ public:
             std::is_convertible<SizeT, size_t>::value
         >::type
     >
-    std__string_view(String const& str)
+    string_view(String const& str)
         : data_(str.data())
         , size_(str.size())
     {
@@ -263,10 +279,27 @@ public:
         return size_;
     }
 
+    // XXX
+    // Returns the length of the string.
+    /*constexpr*/ intptr_t ssize() const noexcept
+    {
+        return static_cast<intptr_t>(size_);
+        //assert(ssize_ >= 0);
+        //return ssize_;
+    }
+
     // Returns the length of the string.
     /*constexpr*/ size_t length() const noexcept
     {
         return size_;
+    }
+
+    // Returns the length of the string.
+    /*constexpr*/ intptr_t slength() const noexcept
+    {
+        return static_cast<intptr_t>(size_);
+        //assert(ssize_ >= 0);
+        //return ssize_;
     }
 
     // Returns whether the string is empty.
@@ -278,8 +311,8 @@ public:
     // Returns an iterator pointing to the start of the string.
     /*constexpr*/ const_iterator begin() const noexcept
     {
-#if STD_STRING_VIEW_CHECKED_ITERATOR
-        return const_iterator{data_, static_cast<std::ptrdiff_t>(size_), 0};
+#if CXX_STRING_VIEW_CHECKED_ITERATOR
+        return const_iterator(data_, static_cast<intptr_t>(size_), 0);
 #else
         return data_;
 #endif
@@ -288,8 +321,8 @@ public:
     // Returns an iterator pointing past the end of the string.
     /*constexpr*/ const_iterator end() const noexcept
     {
-#if STD_STRING_VIEW_CHECKED_ITERATOR
-        return const_iterator{data_, static_cast<std::ptrdiff_t>(size_), static_cast<std::ptrdiff_t>(size_)};
+#if CXX_STRING_VIEW_CHECKED_ITERATOR
+        return const_iterator(data_, static_cast<intptr_t>(size_), static_cast<intptr_t>(size_));
 #else
         return data_ + size_;
 #endif
@@ -302,18 +335,28 @@ public:
         return data_[n];
     }
 
-    // Returns whether this string is equal to another string STR.
-    bool equal(std__string_view str) const noexcept
+    bool Equal_to_(string_view other) const noexcept
     {
-        return size() == str.size()
-            && 0 == Compare(data(), str.data(), size());
+        return size() == other.size() && 0 == Compare(data(), other.data(), size());
     }
 
-    // Lexicographically compare this string with another string STR.
-    bool less(std__string_view str) const noexcept
+    bool Less_than_(string_view other) const noexcept
     {
-        int c = Compare(data(), str.data(), Min(size(), str.size()));
-        return c < 0 || (c == 0 && size() < str.size());
+        int const c = Compare(data(), other.data(), Min(size(), other.size()));
+        return c < 0 || (c == 0 && size() < other.size());
+    }
+
+    // Lexicographically compare this string with another string OTHER.
+    int compare(string_view other)
+    {
+        int const c = Compare(data(), other.data(), Min(size(), other.size()));
+        if (c != 0)
+            return c;
+        if (size() < other.size())
+            return -1;
+        if (size() > other.size())
+            return +1;
+        return 0;
     }
 
     // Removes the first N characters from the string.
@@ -346,29 +389,34 @@ public:
     }
 
     // Returns the substring [first, +count)
-    /*constexpr*/ std__string_view substr(size_t first = 0, size_t count = npos) const noexcept
+    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const noexcept
     {
+#if 1 // std
+        assert(first <= size_);
+        return { data_ + first, Min(count, size_ - first) };
+#else
         size_t const f = Min(first, size_);
-        size_t const n = Min(count, size_ - f);
+        size_t const f = first;
         return { data_ + f, n };
+#endif
     }
 
     // Search for the first character ch in the sub-string [from, end)
     size_t find(char ch, size_t from = 0) const noexcept;
 
     // Search for the first substring str in the sub-string [from, end)
-    size_t find(std__string_view str, size_t from = 0) const noexcept;
+    size_t find(string_view str, size_t from = 0) const noexcept;
 
     // Search for the first character ch in the sub-string [from, end)
     size_t find_first_of(char ch, size_t from = 0) const noexcept;
 
     // Search for the first character in the sub-string [from, end)
     // which matches any of the characters in chars.
-    size_t find_first_of(std__string_view chars, size_t from = 0) const noexcept;
+    size_t find_first_of(string_view chars, size_t from = 0) const noexcept;
 
     // Search for the first character in the sub-string [from, end)
     // which does not match any of the characters in chars.
-    size_t find_first_not_of(std__string_view chars, size_t from = 0) const noexcept;
+    size_t find_first_not_of(string_view chars, size_t from = 0) const noexcept;
 
     // Search for the last character ch in the sub-string [0, from)
     size_t rfind(char ch, size_t from = npos) const noexcept;
@@ -378,14 +426,14 @@ public:
 
     // Search for the last character in the sub-string [0, from)
     // which matches any of the characters in chars.
-    size_t find_last_of(std__string_view chars, size_t from = npos) const noexcept;
+    size_t find_last_of(string_view chars, size_t from = npos) const noexcept;
 
     // Search for the last character in the sub-string [0, from)
     // which does not match any of the characters in chars.
-    size_t find_last_not_of(std__string_view chars, size_t from = npos) const noexcept;
+    size_t find_last_not_of(string_view chars, size_t from = npos) const noexcept;
 };
 
-inline size_t std__string_view::find(char ch, size_t from) const noexcept
+inline size_t string_view::find(char ch, size_t from) const noexcept
 {
     if (from >= size())
         return npos;
@@ -396,7 +444,7 @@ inline size_t std__string_view::find(char ch, size_t from) const noexcept
     return npos;
 }
 
-inline size_t std__string_view::find(std__string_view str, size_t from) const noexcept
+inline size_t string_view::find(string_view str, size_t from) const noexcept
 {
     if (str.size() == 1)
         return find(str[0], from);
@@ -416,12 +464,12 @@ inline size_t std__string_view::find(std__string_view str, size_t from) const no
     return npos;
 }
 
-inline size_t std__string_view::find_first_of(char ch, size_t from) const noexcept
+inline size_t string_view::find_first_of(char ch, size_t from) const noexcept
 {
     return find(ch, from);
 }
 
-inline size_t std__string_view::find_first_of(std__string_view chars, size_t from) const noexcept
+inline size_t string_view::find_first_of(string_view chars, size_t from) const noexcept
 {
     if (chars.size() == 1)
         return find(chars[0], from);
@@ -438,7 +486,7 @@ inline size_t std__string_view::find_first_of(std__string_view chars, size_t fro
     return npos;
 }
 
-inline size_t std__string_view::find_first_not_of(std__string_view chars, size_t from) const noexcept
+inline size_t string_view::find_first_not_of(string_view chars, size_t from) const noexcept
 {
     if (from >= size())
         return npos;
@@ -452,7 +500,7 @@ inline size_t std__string_view::find_first_not_of(std__string_view chars, size_t
     return npos;
 }
 
-inline size_t std__string_view::rfind(char ch, size_t from) const noexcept
+inline size_t string_view::rfind(char ch, size_t from) const noexcept
 {
     if (from < size())
         ++from;
@@ -461,19 +509,19 @@ inline size_t std__string_view::rfind(char ch, size_t from) const noexcept
 
     for (auto I = from; I != 0; --I)
     {
-        if (ch == data()[I - 1])
+        if (static_cast<unsigned char>(ch) == static_cast<unsigned char>(data()[I - 1]))
             return I - 1;
     }
 
     return npos;
 }
 
-inline size_t std__string_view::find_last_of(char ch, size_t from) const noexcept
+inline size_t string_view::find_last_of(char ch, size_t from) const noexcept
 {
     return rfind(ch, from);
 }
 
-inline size_t std__string_view::find_last_of(std__string_view chars, size_t from) const noexcept
+inline size_t string_view::find_last_of(string_view chars, size_t from) const noexcept
 {
     if (chars.size() == 1)
         return rfind(chars[0], from);
@@ -495,7 +543,7 @@ inline size_t std__string_view::find_last_of(std__string_view chars, size_t from
     return npos;
 }
 
-inline size_t std__string_view::find_last_not_of(std__string_view chars, size_t from) const noexcept
+inline size_t string_view::find_last_not_of(string_view chars, size_t from) const noexcept
 {
     if (from < size())
         ++from;
@@ -511,32 +559,36 @@ inline size_t std__string_view::find_last_not_of(std__string_view chars, size_t 
     return npos;
 }
 
-inline bool operator==(std__string_view s1, std__string_view s2) noexcept
+inline bool operator==(string_view s1, string_view s2) noexcept
 {
-    return s1.equal(s2);
+    return s1.Equal_to_(s2);
 }
 
-inline bool operator!=(std__string_view s1, std__string_view s2) noexcept
+inline bool operator!=(string_view s1, string_view s2) noexcept
 {
     return !(s1 == s2);
 }
 
-inline bool operator<(std__string_view s1, std__string_view s2) noexcept
+inline bool operator<(string_view s1, string_view s2) noexcept
 {
-    return s1.less(s2);
+    return s1.Less_than_(s2);
 }
 
-inline bool operator<=(std__string_view s1, std__string_view s2) noexcept
+inline bool operator<=(string_view s1, string_view s2) noexcept
 {
     return !(s2 < s1);
 }
 
-inline bool operator>(std__string_view s1, std__string_view s2) noexcept
+inline bool operator>(string_view s1, string_view s2) noexcept
 {
     return s2 < s1;
 }
 
-inline bool operator>=(std__string_view s1, std__string_view s2) noexcept
+inline bool operator>=(string_view s1, string_view s2) noexcept
 {
     return !(s1 < s2);
 }
+
+} // namespace cxx
+
+#endif

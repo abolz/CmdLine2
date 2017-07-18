@@ -1,6 +1,7 @@
 #pragma once
 
 #include "__string_view.h"
+using std__string_view = cxx::string_view;
 
 #include <cassert>
 #include <memory> // unique_ptr
