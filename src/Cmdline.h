@@ -528,35 +528,22 @@ inline void Cmdline::EmitNote(int index, std::string message)
 
 namespace impl
 {
-// WORKAROUND std::is_invocable (incomplete)
-
-    template <typename ...Args>
-    struct IsInvocableImpl
-    {
-        struct Any { template <typename T> Any(T&&) {} };
-
-        template <typename F>
-        static auto test(F&&) -> decltype(std::result_of_t<F&& (Args&&...)>{}, std::true_type{});
-        static auto test(Any) -> std::false_type;
-    };
-
-    template <typename F, typename ...Args>
-    using IsInvocable = decltype(IsInvocableImpl<Args...>::test(std::declval<F>()));
-
 // WORKAROUND std::is_invocable_r (incomplete)
 
-    template <typename R, typename ...Args>
-    struct IsInvocableRImpl
+    template <typename T>
+    using Void_t = void;
+
+    template <typename T, typename Sig, typename = void>
+    struct IsInvocable : std::false_type {};
+
+    template <typename T, typename Ret, typename ...Args>
+    struct IsInvocable<T, Ret (Args...), Void_t< std::result_of<T&& (Args&&...)> >>
+        : std::is_convertible<
+            std::result_of_t<T&& (Args&&...)>,
+            Ret
+          >
     {
-        struct Any { template <typename T> Any(T&&) {} };
-
-        template <typename F>
-        static auto test(F&&) -> typename std::is_convertible< std::result_of_t<F&& (Args&&...)>, R >::type;
-        static auto test(Any) -> std::false_type;
     };
-
-    template <typename R, typename F, typename ...Args>
-    using IsInvocableR = decltype(IsInvocableRImpl<R, Args...>::test(std::declval<F>()));
 }
 
 template <typename Parser, typename ...Args>
@@ -565,8 +552,8 @@ auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
     using DecayedParser = std::decay_t<Parser>;
 
     static_assert(
-        impl::IsInvocableR<bool, DecayedParser, ParseContext&>::value ||
-        impl::IsInvocable<DecayedParser, ParseContext&>::value,
+        impl::IsInvocable<DecayedParser, bool (ParseContext&)>::value ||
+        impl::IsInvocable<DecayedParser, void (ParseContext&)>::value,
         "The parser must be invocable with an argument of type "
         "'ParseContext&' and the return type should be convertible "
         "to 'bool'");
