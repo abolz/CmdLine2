@@ -551,7 +551,7 @@ namespace impl
         struct Any { template <typename T> Any(T&&) {} };
 
         template <typename F>
-        static auto test(F&&) -> std::is_convertible< std::result_of_t<F&& (Args&&...)>, R >::type;
+        static auto test(F&&) -> typename std::is_convertible< std::result_of_t<F&& (Args&&...)>, R >::type;
         static auto test(Any) -> std::false_type;
     };
 
