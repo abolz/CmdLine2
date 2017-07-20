@@ -1,3 +1,4 @@
+#define CL_CONSOLE_COLORS 1
 #include "../src/Cmdline.h"
 #include <iostream>
 
@@ -49,8 +50,7 @@ int main(int argc, char* argv[])
     }
     if (!ok)
     {
-        for (auto& d : cmd.diag())
-            std::cerr << d.str() << "\n";
+        cmd.PrintErrors();
         std::cerr << "\n";
         std::cerr << "use '-" << std::string(opt_h->name()) << "' for help\n";
         return -1;

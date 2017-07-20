@@ -21,20 +21,34 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+//#ifndef CL_CONSOLE_COLORS
+//#ifdef _WIN32
+//#define CL_CONSOLE_COLORS 0
+//#else
+//#define CL_CONSOLE_COLORS 1
+//#endif
+//#endif
+
 #include "cxx_string_view.h"
 
 #include <cassert>
+#include <cstdio>
 #include <memory> // unique_ptr
 #include <sstream>
 #include <string>
 #include <vector>
+
+//#if CL_CONSOLE_COLORS && defined(_WIN32)
+//#include <windows.h>
+//#endif
 
 namespace cl {
 inline namespace v2 {
 
 // Controls how often an option may/must be specified.
 enum class Opt : unsigned char {
-    // The option may appear at most once
+    // The option may appear at most once.
+    // This is the default.
     optional,
     // The option must appear exactly once.
     required,
@@ -46,7 +60,8 @@ enum class Opt : unsigned char {
 
 // Controls the number of arguments the option accepts.
 enum class Arg : unsigned char {
-    // An argument is not allowed
+    // An argument is not allowed.
+    // This is the default.
     no,
     // An argument is optional.
     optional,
@@ -59,6 +74,7 @@ enum class JoinArg : unsigned char {
     // The option must not join its argument: "-I dir" and "-I=dir" are
     // possible. If the option is specified with an equals sign ("-I=dir") the
     // '=' will NOT be part of the option argument.
+    // This is the default.
     no,
     // The option may join its argument: "-I dir" and "-Idir" are possible. If
     // the option is specified with an equals sign ("-I=dir") the '=' will be
@@ -74,6 +90,7 @@ enum class JoinArg : unsigned char {
 enum class MayGroup : unsigned char {
     // The option may not be grouped with other options (even if the option name
     // consists only of a single letter).
+    // This is the default.
     no,
     // The option may be grouped with other options.
     // This flag is ignored if the names of the options are not a single letter
@@ -85,6 +102,7 @@ enum class MayGroup : unsigned char {
 enum class Positional : unsigned char {
     // The option is not a positional option, i.e. requires '-' or '--' as a
     // prefix when specified.
+    // This is the default.
     no,
     // Positional option, no '-' required.
     yes,
@@ -93,6 +111,7 @@ enum class Positional : unsigned char {
 // Split the argument between commas?
 enum class CommaSeparatedArg : unsigned char {
     // Do not split the argument between commas.
+    // This is the default.
     no,
     // If this flag is set, the option's argument is split between commas, e.g.
     // "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
@@ -103,6 +122,7 @@ enum class CommaSeparatedArg : unsigned char {
 // Parse all following options as positional options?
 enum class ConsumeRemaining : unsigned char {
     // Nothing special.
+    // This is the default.
     no,
     // If an option with this flag is (successfully) parsed, all the remaining
     // options are parsed as positional options.
@@ -115,6 +135,7 @@ enum class CheckMissing : unsigned char {
     no,
     // Check for missing required options in Cmdline::Parse().
     // Any missing option will be reported as an error.
+    // This is the default.
     yes,
 };
 
@@ -372,12 +393,9 @@ public:
     {
         enum class Type { error, note };
 
-        Type type = Type::error;
-        int index = -1;
+        Type        type = Type::error;
+        int         index = -1;
         std::string message = {};
-
-        // Returns a string representation of this diagnostic message.
-        std::string str() const;
     };
 
 private:
@@ -448,6 +466,9 @@ public:
     // Returns a short help message
     std::string HelpMessage(std::string const& program_name) const;
 
+    // Prints error messages to stderr
+    void PrintErrors() const;
+
 private:
     enum class Result { success, error, ignored };
 
@@ -495,18 +516,6 @@ private:
     template <typename Func>
     static bool SplitString(cxx::string_view str, char sep, Func func);
 };
-
-inline std::string Cmdline::Diagnostic::str() const
-{
-    std::string stype = (type == Diagnostic::Type::error)
-        ? "error"
-        : "note";
-    std::string sindex = (index >= 0)
-        ? "(" + std::to_string(index) + ")"
-        : "";
-
-    return stype + sindex + ": " + message;
-}
 
 inline Cmdline::Cmdline()
 {
@@ -667,6 +676,50 @@ inline std::string Cmdline::HelpMessage(std::string const& program_name) const
         return "Usage: " + program_name + spos + '\n';
     else
         return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n";
+}
+
+inline void Cmdline::PrintErrors() const
+{
+//#if CL_CONSOLE_COLORS
+//#define CL_VT100_RESET      "\x1B[0m"
+//#define CL_VT100_RED        "\x1B[31;1m"
+//#define CL_VT100_MAGENTA    "\x1B[35;1m"
+//#define CL_VT100_WHITE      "\x1B[37;1m"
+//#else
+#define CL_VT100_RESET
+#define CL_VT100_RED
+#define CL_VT100_MAGENTA
+#define CL_VT100_WHITE
+//#endif
+
+//#if CL_CONSOLE_COLORS && defined(_WIN32)
+//    HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
+//    if (hstderr != INVALID_HANDLE_VALUE)
+//    {
+//        DWORD mode = 0;
+//        if (GetConsoleMode(hstderr, &mode))
+//            SetConsoleMode(hstderr, mode | /*ENABLE_VIRTUAL_TERMINAL_PROCESSING*/ 0x04);
+//    }
+//
+//#endif
+
+    for (auto const& d : diag_)
+    {
+        switch (d.type)
+        {
+        case Diagnostic::Type::error:
+            fprintf(stderr, CL_VT100_RED "error" CL_VT100_WHITE  ": %s" CL_VT100_RESET "\n", d.message.c_str());
+            break;
+        case Diagnostic::Type::note:
+            fprintf(stderr, CL_VT100_MAGENTA "  note" CL_VT100_RESET ": %s\n", d.message.c_str());
+            break;
+        }
+    }
+
+#undef CL_VT100_RESET
+#undef CL_VT100_RED
+#undef CL_VT100_MAGENTA
+#undef CL_VT100_WHITE
 }
 
 inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
