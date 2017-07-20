@@ -133,7 +133,7 @@ struct ParseContext
     std::string      diag;  // out: Optional error message
 };
 
-template <typename T = void>
+template <typename T = void, typename /*Enable*/ = void>
 struct ParseValue
 {
     bool operator()(ParseContext const& ctx, T& value) const
