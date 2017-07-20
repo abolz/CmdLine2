@@ -683,12 +683,10 @@ inline void Cmdline::PrintErrors() const
 //#if CL_CONSOLE_COLORS
 //#define CL_VT100_RESET      "\x1B[0m"
 //#define CL_VT100_RED        "\x1B[31;1m"
-//#define CL_VT100_MAGENTA    "\x1B[35;1m"
 //#define CL_VT100_WHITE      "\x1B[37;1m"
 //#else
 #define CL_VT100_RESET
 #define CL_VT100_RED
-#define CL_VT100_MAGENTA
 #define CL_VT100_WHITE
 //#endif
 
@@ -700,7 +698,6 @@ inline void Cmdline::PrintErrors() const
 //        if (GetConsoleMode(hstderr, &mode))
 //            SetConsoleMode(hstderr, mode | /*ENABLE_VIRTUAL_TERMINAL_PROCESSING*/ 0x04);
 //    }
-//
 //#endif
 
     for (auto const& d : diag_)
@@ -708,18 +705,17 @@ inline void Cmdline::PrintErrors() const
         switch (d.type)
         {
         case Diagnostic::Type::error:
-            fprintf(stderr, CL_VT100_RED "error" CL_VT100_WHITE  ": %s" CL_VT100_RESET "\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_RED "error" CL_VT100_RESET "(%d): %s\n", d.index, d.message.c_str());
             break;
         case Diagnostic::Type::note:
-            fprintf(stderr, CL_VT100_MAGENTA "  note" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_WHITE " note" CL_VT100_RESET "(%d): %s\n", d.index, d.message.c_str());
             break;
         }
     }
 
-#undef CL_VT100_RESET
-#undef CL_VT100_RED
-#undef CL_VT100_MAGENTA
-#undef CL_VT100_WHITE
+//#undef CL_VT100_RESET
+//#undef CL_VT100_RED
+//#undef CL_VT100_WHITE
 }
 
 inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
@@ -1081,6 +1077,8 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_vi
 
 inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
 {
+    auto IsDigit = [](char ch) { return '0' <= ch && ch <= '9'; };
+
     auto Parse1 = [&](cxx::string_view arg1)
     {
         if (!opt->IsOccurrenceAllowed())
@@ -1099,7 +1097,16 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string
         {
             EmitError(curr_index_, "invalid argument '" + std::string(arg1) + "' for option '" + std::string(name) + "'");
             if (!ctx.diag.empty())
-                EmitNote(-1, ctx.diag);
+            {
+                EmitNote(curr_index_, ctx.diag);
+            }
+            else if (opt->num_args_ == cl::Arg::required
+                && arg.size() >= 2
+                && arg[0] == '-'
+                && (arg[1] == '-' || !IsDigit(arg[1])))
+            {
+                EmitNote(curr_index_, "argument actually looks like an option. did you forget to provide a required argument?");
+            }
             return Result::error;
         }
 
