@@ -466,6 +466,9 @@ public:
     // Returns a short help message
     std::string HelpMessage(std::string const& program_name) const;
 
+    // Prints the help message to stderr
+    void PrintHelpMessage(std::string const& program_name) const;
+
     // Prints error messages to stderr
     void PrintErrors() const;
 
@@ -676,6 +679,12 @@ inline std::string Cmdline::HelpMessage(std::string const& program_name) const
         return "Usage: " + program_name + spos + '\n';
     else
         return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
+}
+
+inline void Cmdline::PrintHelpMessage(std::string const& program_name) const
+{
+    auto const msg = HelpMessage(program_name);
+    fprintf(stderr, "%s\n", msg.c_str());
 }
 
 #if CL_CONSOLE_COLORS
