@@ -21,6 +21,10 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#ifndef CL_ALLOW_ABBREVIATIONS
+#define CL_ALLOW_ABBREVIATIONS 0
+#endif
+
 //#ifndef CL_CONSOLE_COLORS
 //#ifdef _WIN32
 //#define CL_CONSOLE_COLORS 0
@@ -733,7 +737,7 @@ inline OptionBase* Cmdline::FindOption(cxx::string_view name, bool& ambiguous) c
 {
     ambiguous = false;
 
-#if 0
+#if CL_ALLOW_ABBREVIATIONS
     OptionBase* opt = nullptr;
 
     for (auto&& p : options_)
