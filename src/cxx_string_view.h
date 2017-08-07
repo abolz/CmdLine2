@@ -416,7 +416,7 @@ public:
         return { data_ + first, Min(count, size_ - first) };
 #else
         size_t const f = Min(first, size_);
-        size_t const f = first;
+        size_t const n = Min(count, size_ - f);
         return { data_ + f, n };
 #endif
     }
