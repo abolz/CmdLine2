@@ -1,4 +1,3 @@
-#define CL_CONSOLE_COLORS 1
 #include "../src/Cmdline.h"
 #include <iostream>
 
