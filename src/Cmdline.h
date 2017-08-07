@@ -25,13 +25,13 @@
 #define CL_ALLOW_ABBREVIATIONS 0
 #endif
 
-//#ifndef CL_CONSOLE_COLORS
-//#ifdef _WIN32
-//#define CL_CONSOLE_COLORS 0
-//#else
-//#define CL_CONSOLE_COLORS 1
-//#endif
-//#endif
+#ifndef CL_CONSOLE_COLORS
+#ifdef _WIN32
+#define CL_CONSOLE_COLORS 0
+#else
+#define CL_CONSOLE_COLORS 1
+#endif
+#endif
 
 #include "cxx_string_view.h"
 
@@ -41,10 +41,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-//#if CL_CONSOLE_COLORS && defined(_WIN32)
-//#include <windows.h>
-//#endif
 
 namespace cl {
 inline namespace v2 {
@@ -682,28 +678,18 @@ inline std::string Cmdline::HelpMessage(std::string const& program_name) const
         return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-inline void Cmdline::PrintErrors() const
-{
-//#if CL_CONSOLE_COLORS
-//#define CL_VT100_RESET      "\x1B[0m"
-//#define CL_VT100_RED        "\x1B[31;1m"
-//#define CL_VT100_WHITE      "\x1B[37;1m"
-//#else
+#if CL_CONSOLE_COLORS
+#define CL_VT100_RESET  "\x1B[0m"
+#define CL_VT100_RED    "\x1B[31;1m"
+#define CL_VT100_WHITE  "\x1B[37;1m"
+#else
 #define CL_VT100_RESET
 #define CL_VT100_RED
 #define CL_VT100_WHITE
-//#endif
+#endif
 
-//#if CL_CONSOLE_COLORS && defined(_WIN32)
-//    HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
-//    if (hstderr != INVALID_HANDLE_VALUE)
-//    {
-//        DWORD mode = 0;
-//        if (GetConsoleMode(hstderr, &mode))
-//            SetConsoleMode(hstderr, mode | /*ENABLE_VIRTUAL_TERMINAL_PROCESSING*/ 0x04);
-//    }
-//#endif
-
+inline void Cmdline::PrintErrors() const
+{
     for (auto const& d : diag_)
     {
         switch (d.type)
@@ -716,11 +702,11 @@ inline void Cmdline::PrintErrors() const
             break;
         }
     }
-
-//#undef CL_VT100_RESET
-//#undef CL_VT100_RED
-//#undef CL_VT100_WHITE
 }
+
+#undef CL_VT100_RESET
+#undef CL_VT100_RED
+#undef CL_VT100_WHITE
 
 inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
 {
