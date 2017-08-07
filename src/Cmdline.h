@@ -630,7 +630,7 @@ inline bool Cmdline::CheckMissingOptions()
 inline std::string Cmdline::HelpMessage(std::string const& program_name) const
 {
     static constexpr size_t kIndent = 2;
-    static constexpr size_t kDescrIndent = 16;
+    static constexpr size_t kDescrIndent = 24;
 
     std::string spos;
     std::string sopt;
@@ -675,7 +675,7 @@ inline std::string Cmdline::HelpMessage(std::string const& program_name) const
     if (sopt.empty())
         return "Usage: " + program_name + spos + '\n';
     else
-        return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n";
+        return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
 inline void Cmdline::PrintErrors() const
