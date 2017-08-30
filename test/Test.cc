@@ -47,3 +47,9 @@ TEST_CASE("Flags")
     CHECK(c == true);
     CHECK(d == true);
 }
+
+//------------------------------------------------------------------------------
+// HACK
+//
+#include "../src/Cmdline.cc"
+#include "../src/StringSplit.cc"

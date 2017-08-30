@@ -1,6 +1,14 @@
 #include "../src/Cmdline.h"
 #include <iostream>
 
+enum class Simpson {
+    homer,
+    marge,
+    bart,
+    lisa,
+    maggie,
+};
+
 int main(int argc, char* argv[])
 {
     bool show_help = false;
@@ -8,13 +16,14 @@ int main(int argc, char* argv[])
     int i = 0;
     double f = 0.0;
     std::vector<std::string> input_files;
+    Simpson simpson;
 
     cl::Cmdline cmd;
 
     auto IsEven = [](cl::ParseContext& ctx, auto i) {
         if (i % 2 == 0)
             return true;
-        ctx.diag = "argument must be an even integer";
+        ctx.cmdline->EmitDiag(cl::Diagnostic::error, ctx.index, "Argument must be an even integer");
         return false;
     };
 
@@ -27,7 +36,7 @@ int main(int argc, char* argv[])
 
     auto Times2 = [](cl::ParseContext const& /*ctx*/, int& i) { i += i; return true; };
 
-    cmd.Add(cl::Value(i, cl::InRange(0,6), IsEven, Times2), "i|ints", "Some even ints in the range [0,6]",
+    cmd.Add(cl::Value(i, cl::InRange(0, 6), IsEven, Times2), "i|ints", "Some even ints in the range [0,6]",
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
@@ -41,6 +50,15 @@ int main(int argc, char* argv[])
         cl::Opt::one_or_more,
         cl::Positional::yes);
 
+    cmd.Add(cl::Map(simpson, {{"homer",    Simpson::homer },
+                              {"marge",    Simpson::marge },
+                              {"bart",     Simpson::bart  },
+                              {"el barto", Simpson::bart  },
+                              {"lisa",     Simpson::lisa  },
+                              {"maggie",   Simpson::maggie}}), "simpson", "One of the Simpsons",
+        cl::Opt::zero_or_more,
+        cl::Arg::required);
+
     bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (show_help)
     {
@@ -51,7 +69,7 @@ int main(int argc, char* argv[])
     {
         cmd.PrintErrors();
         std::cerr << "\n";
-        std::cerr << "use '-" << std::string(opt_h->name()) << "' for help\n";
+        std::cerr << "Use '-" << std::string(opt_h->name()) << "' for help\n";
         return -1;
     }
 
@@ -59,3 +77,9 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
+//------------------------------------------------------------------------------
+// HACK
+//
+#include "../src/Cmdline.cc"
+#include "../src/StringSplit.cc"
