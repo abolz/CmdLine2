@@ -21,29 +21,21 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#ifndef CL_ALLOW_ABBREVIATIONS
-#define CL_ALLOW_ABBREVIATIONS 0
-#endif
-
-#ifndef CL_CONSOLE_COLORS
-#ifdef _WIN32
-#define CL_CONSOLE_COLORS 0
-#else
-#define CL_CONSOLE_COLORS 1
-#endif
-#endif
-
 #include "cxx_string_view.h"
 
 #include <cassert>
-#include <cstdio>
-#include <memory> // unique_ptr
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace cl {
-inline namespace v2 {
+
+class Cmdline;
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 
 // Controls how often an option may/must be specified.
 enum class Opt : unsigned char {
@@ -143,137 +135,27 @@ enum class CheckMissing : unsigned char {
 struct Descr
 {
     char const* s;
-    explicit Descr(char const* s) : s(s) {}
+    explicit Descr(char const* c_str) : s(c_str) {}
 };
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 
 struct ParseContext
 {
-    cxx::string_view name;  // in:  Name of the option being parsed
-    cxx::string_view arg;   // in:  Option argument
-    int              index; // in:  Current index in the argv array
-    std::string      diag;  // out: Optional error message
+    cxx::string_view name;    // Name of the option being parsed
+    cxx::string_view arg;     // Option argument
+    int              index;   // Current index in the argv array
+    Cmdline*         cmdline; // The command line parser which currently parses the argument list (never null)
 };
-
-template <typename T = void, typename /*Enable*/ = void>
-struct ParseValue
-{
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        std::stringstream stream { std::string(ctx.arg) };
-
-        stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
-        stream >> value;
-
-        return !stream.fail() && stream.eof();
-    }
-};
-
-template <>
-struct ParseValue<bool>
-{
-    bool operator()(ParseContext const& ctx, bool& value) const
-    {
-        if (ctx.arg.empty() || ctx.arg == "1" ||  ctx.arg == "y" || ctx.arg == "true" || ctx.arg == "on" || ctx.arg == "yes")
-            value = true;
-        else if (ctx.arg == "0" || ctx.arg == "n" || ctx.arg == "false" || ctx.arg == "off" || ctx.arg == "no")
-            value = false;
-        else
-            return false;
-
-        return true;
-    }
-};
-
-template <>
-struct ParseValue<std::string>
-{
-    bool operator()(ParseContext const& ctx, std::string& value) const
-    {
-        value.assign(ctx.arg.data(), ctx.arg.size());
-        return true;
-    }
-};
-
-template <>
-struct ParseValue<void>
-{
-    template <typename T>
-    bool operator()(ParseContext& ctx, T& value) const
-    {
-        return ParseValue<T>{}(ctx, value);
-    }
-};
-
-template <typename T, typename U>
-auto InRange(T lower, U upper)
-{
-    return [=](ParseContext& ctx, auto const& value)
-    {
-        if (!(value < lower) && !(upper < value))
-            return true;
-        ctx.diag = "argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
-        return false;
-    };
-}
-
-//
-// XXX
-//
-// ParseValue<>::operator() and predicates have the same signature...
-// Combine?!?!
-//
-
-// Default parser for scalar types.
-// Uses an instance of Parser<> to convert the string.
-template <typename T, typename ...Predicates>
-auto Value(T& value, Predicates... preds)
-{
-    return [=, &value](ParseContext& ctx)
-    {
-#if 1 // WORKAROUND: folding expressions
-        auto res = true;
-        auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
-        static_cast<void>(lst);
-        return res;
-#else
-        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
-#endif
-    };
-}
-
-// Default parser for list types.
-// Uses an instance of Parser<> to convert the string and then inserts the
-// converted value into the container.
-template <typename T, typename ...Predicates>
-auto List(T& container, Predicates... preds)
-{
-    return [=, &container](ParseContext& ctx)
-    {
-        typename T::value_type value;
-
-#if 1 // WORKAROUND: folding expressions
-        auto res = true;
-        auto lst = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
-        static_cast<void>(lst);
-        if (res)
-#else
-        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
-#endif
-        {
-            container.insert(container.end(), std::move(value));
-            return true;
-        }
-
-        return false;
-    };
-}
 
 class OptionBase
 {
     friend class Cmdline;
 
     // The name of the option.
-    cxx::string_view name_;
+    cxx::string_view const name_;
     // The description of this option
     cxx::string_view descr_;
     // Flags controlling how the option may/must be specified.
@@ -288,8 +170,10 @@ class OptionBase
     int count_ = 0;
 
 private:
-    template <typename T> void Apply(T) = delete;
+    template <typename T> void Apply(T) = delete; // For slightly more useful error messages...
 
+    void Apply(Descr             v) { descr_ = v.s; }
+    void Apply(char const*       v) { descr_ = v; }
     void Apply(Opt               v) { num_occurrences_ = v; }
     void Apply(Arg               v) { num_args_ = v; }
     void Apply(JoinArg           v) { join_arg_ = v; }
@@ -297,19 +181,17 @@ private:
     void Apply(Positional        v) { positional_ = v; }
     void Apply(CommaSeparatedArg v) { comma_separated_arg_ = v; }
     void Apply(ConsumeRemaining  v) { consume_remaining_ = v; }
-    void Apply(Descr             v) { descr_ = v.s; }
-    void Apply(char const*       v) { descr_ = v; }
 
 protected:
     template <typename ...Args>
     explicit OptionBase(char const* name, Args&&... args)
         : name_(name)
     {
-#if 1 // WORKAROUND: folding expressions
-        auto lst = {(Apply(args), 0)..., 0};
-        static_cast<void>(lst);
-#else
+#if __cplusplus >= 201703
         (Apply(args), ...);
+#else
+        int unused[] = {(Apply(args), 0)..., 0};
+        static_cast<void>(unused);
 #endif
     }
 
@@ -335,28 +217,10 @@ private:
     virtual bool Parse(ParseContext& ctx) = 0;
 };
 
-inline OptionBase::~OptionBase()
-{
-}
-
-inline bool OptionBase::IsOccurrenceAllowed() const
-{
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::optional)
-        return count_ == 0;
-    return true;
-}
-
-inline bool OptionBase::IsOccurrenceRequired() const
-{
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::one_or_more)
-        return count_ == 0;
-    return false;
-}
-
 template <typename Parser>
 class Option : public OptionBase
 {
-    Parser const parser_;
+    Parser /*const*/ parser_;
 
 public:
     template <typename ParserInit, typename ...Args>
@@ -369,59 +233,52 @@ public:
     Parser const& parser() const { return parser_; }
 
 private:
-    bool Parse(ParseContext& ctx) override
-    {
+    bool Parse(ParseContext& ctx) override {
         return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
     }
 
-    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::true_type)
-    {
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::true_type) {
         return parser_(ctx);
     }
 
-    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::false_type)
-    {
+    bool DoParse(ParseContext& ctx, /*parser_ returns bool*/ std::false_type) {
         parser_(ctx);
         return true;
     }
 };
 
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
+struct Diagnostic
+{
+    enum /*class*/ Type { error, warning, note };
+
+    Type        type    = Type::error;
+    int         index   = -1;
+    std::string message = {};
+};
+
 class Cmdline
 {
-public:
-    struct Diagnostic
-    {
-        enum class Type { error, note };
-
-        Type        type = Type::error;
-        int         index = -1;
-        std::string message = {};
-    };
-
-private:
     struct NameOptionPair
     {
-        cxx::string_view name;
-        OptionBase* option;
+        cxx::string_view name   = {}; // NB: Names are always constructed from C-strings
+        OptionBase*      option = nullptr;
     };
 
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
-    using Options = std::vector<NameOptionPair>;
+    using Options       = std::vector<NameOptionPair>;
+    using Diagnostics   = std::vector<Diagnostic>;
 
-    // List of diagnostic messages
-    std::vector<Diagnostic> diag_;
-    // Option storage.
-    UniqueOptions unique_options_ {};
-    // List of options. Includes the positional options (in order).
-    Options options_ {};
-    // Maximum length of the names of all prefix options
-    int max_prefix_len_ = 0;
-    // The current positional argument - if any
-    int curr_positional_ = 0;
-    // Index of the current argument
-    int curr_index_ = 0;
-    // "--" seen?
-    bool dashdash_ = false;
+    Diagnostics     diag_            = {}; // List of diagnostic messages
+    UniqueOptions   unique_options_  = {}; // Option storage.
+    Options         options_         = {}; // List of options. Includes the positional options (in order).
+    int             max_prefix_len_  = 0;  // Maximum length of the names of all prefix options
+    int             curr_positional_ = 0;  // The current positional argument - if any
+    int             curr_index_      = 0;  // Index of the current argument
+    bool            dashdash_        = false; // "--" seen?
 
 public:
     Cmdline();
@@ -433,8 +290,7 @@ public:
     // Returns the diagnostic messages
     std::vector<Diagnostic> const& diag() const { return diag_; }
 
-    void EmitError(int index, std::string message);
-    void EmitNote(int index, std::string message);
+    void EmitDiag(Diagnostic::Type type, int index, std::string message);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -463,14 +319,14 @@ public:
     // Returns true if all required options have been (successfully) parsed.
     bool CheckMissingOptions();
 
+    // Prints error messages to stderr
+    void PrintErrors() const;
+
     // Returns a short help message
     std::string HelpMessage(std::string const& program_name) const;
 
     // Prints the help message to stderr
     void PrintHelpMessage(std::string const& program_name) const;
-
-    // Prints error messages to stderr
-    void PrintErrors() const;
 
 private:
     enum class Result { success, error, ignored };
@@ -503,8 +359,7 @@ private:
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(
-        cxx::string_view optstr, std::vector<OptionBase*>& group);
+    Result DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It>
     Result HandleGroup(cxx::string_view optstr, It& curr, It last);
@@ -514,48 +369,39 @@ private:
     Result HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
     Result ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
-
-    // Does not skip empty tokens.
-    template <typename Func>
-    static bool SplitString(cxx::string_view str, char sep, Func func);
 };
 
-inline Cmdline::Cmdline()
-{
-}
-
-inline Cmdline::~Cmdline()
-{
-}
-
-inline void Cmdline::EmitError(int index, std::string message)
-{
-    diag_.push_back({Diagnostic::Type::error, index, std::move(message)});
-}
-
-inline void Cmdline::EmitNote(int index, std::string message)
-{
-    diag_.push_back({Diagnostic::Type::note, index, std::move(message)});
-}
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 
 namespace impl
 {
-// WORKAROUND std::is_invocable_r (incomplete)
+#if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
+
+    template <typename R, typename T, typename ...Args>
+    using IsInvocableR = typename std::is_invocable_r<R, T, Args...>::type;
+
+#else // WORKAROUND (incomplete)
 
     template <typename T>
     using Void_t = void;
 
     template <typename T, typename Sig, typename = void>
-    struct IsInvocable : std::false_type {};
-
-    template <typename T, typename Ret, typename ...Args>
-    struct IsInvocable<T, Ret (Args...), Void_t< std::result_of<T&& (Args&&...)> >>
-        : std::is_convertible<
-            std::result_of_t<T&& (Args&&...)>,
-            Ret
-          >
+    struct IsInvocableImpl : std::false_type
     {
     };
+
+    template <typename T, typename Ret, typename ...Args>
+    struct IsInvocableImpl<T, Ret (Args...), Void_t< std::result_of<T&& (Args&&...)> >>
+        : std::is_convertible< std::result_of_t<T&& (Args&&...)>, Ret >
+    {
+    };
+
+    template <typename R, typename T, typename ...Args>
+    using IsInvocableR = typename IsInvocableImpl<T, R(Args...)>::type;
+
+#endif
 }
 
 template <typename Parser, typename ...Args>
@@ -564,8 +410,8 @@ auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
     using DecayedParser = std::decay_t<Parser>;
 
     static_assert(
-        impl::IsInvocable<DecayedParser, bool (ParseContext&)>::value ||
-        impl::IsInvocable<DecayedParser, void (ParseContext&)>::value,
+        impl::IsInvocableR<bool, DecayedParser, ParseContext&>::value ||
+        impl::IsInvocableR<void, DecayedParser, ParseContext&>::value,
         "The parser must be invocable with an argument of type "
         "'ParseContext&' and the return type should be convertible "
         "to 'bool'");
@@ -579,22 +425,13 @@ auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
     return p;
 }
 
-inline void Cmdline::Reset()
-{
-    curr_positional_ = 0;
-    curr_index_      = 0;
-    dashdash_        = false;
-
-    for (auto& opt : unique_options_)
-        opt->count_ = 0;
-}
-
 template <typename It>
 bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index)
     {
-        EmitError(index, "unkown option '" + std::string(*curr) + "'");
+        cxx::string_view optstr {*curr};
+        EmitDiag(Diagnostic::error, index, "Unknown option '" + std::string(*curr) + "'");
         return false;
     };
 
@@ -611,172 +448,6 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
         return CheckMissingOptions();
 
     return true;
-}
-
-// Emit errors for ALL missing options.
-inline bool Cmdline::CheckMissingOptions()
-{
-    bool res = true;
-
-    for (auto const& opt : unique_options_)
-    {
-        if (opt->IsOccurrenceRequired())
-        {
-            EmitError(-1, "option '" + std::string(opt->name_) + "' missing");
-            res = false;
-        }
-    }
-
-    return res;
-}
-
-inline std::string Cmdline::HelpMessage(std::string const& program_name) const
-{
-    static constexpr size_t kIndent = 2;
-    static constexpr size_t kDescrIndent = 24;
-
-    std::string spos;
-    std::string sopt;
-
-    for (auto const& opt : unique_options_)
-    {
-        if (opt->positional_ == Positional::yes)
-        {
-            spos += ' ';
-            spos.append(opt->name_.data(), opt->name_.size());
-        }
-        else
-        {
-            auto const curr_size = sopt.size();
-
-            sopt.append(kIndent, ' ');
-
-            sopt += '-';
-            sopt.append(opt->name_.data(), opt->name_.size());
-            switch (opt->num_args_)
-            {
-            case Arg::no:
-                break;
-            case Arg::optional:
-                sopt += "=<arg>";
-                break;
-            case Arg::required:
-                sopt += " <arg>";
-                break;
-            }
-
-            // Length of: indent + option usage
-            auto const len = sopt.size() - curr_size;
-
-            sopt.append(len >= kDescrIndent ? 1u : kDescrIndent - len, ' ');
-            sopt.append(opt->descr_.data(), opt->descr_.size());
-
-            sopt += '\n'; // One option per line
-        }
-    }
-
-    if (sopt.empty())
-        return "Usage: " + program_name + spos + '\n';
-    else
-        return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
-}
-
-inline void Cmdline::PrintHelpMessage(std::string const& program_name) const
-{
-    auto const msg = HelpMessage(program_name);
-    fprintf(stderr, "%s\n", msg.c_str());
-}
-
-#if CL_CONSOLE_COLORS
-#define CL_VT100_RESET  "\x1B[0m"
-#define CL_VT100_RED    "\x1B[31;1m"
-#define CL_VT100_WHITE  "\x1B[37;1m"
-#else
-#define CL_VT100_RESET
-#define CL_VT100_RED
-#define CL_VT100_WHITE
-#endif
-
-inline void Cmdline::PrintErrors() const
-{
-    for (auto const& d : diag_)
-    {
-        switch (d.type)
-        {
-        case Diagnostic::Type::error:
-            fprintf(stderr, CL_VT100_RED "error" CL_VT100_RESET "(%d): %s\n", d.index, d.message.c_str());
-            break;
-        case Diagnostic::Type::note:
-            fprintf(stderr, CL_VT100_WHITE " note" CL_VT100_RESET "(%d): %s\n", d.index, d.message.c_str());
-            break;
-        }
-    }
-}
-
-#undef CL_VT100_RESET
-#undef CL_VT100_RED
-#undef CL_VT100_WHITE
-
-inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
-{
-    for (auto&& p : options_)
-    {
-        if (p.name == name)
-            return p.option;
-    }
-
-    return nullptr;
-}
-
-inline OptionBase* Cmdline::FindOption(cxx::string_view name, bool& ambiguous) const
-{
-    ambiguous = false;
-
-#if CL_ALLOW_ABBREVIATIONS
-    OptionBase* opt = nullptr;
-
-    for (auto&& p : options_)
-    {
-        if (p.name == name) // exact match
-        {
-            ambiguous = false;
-            return p.option;
-        }
-
-        if (p.name.size() > name.size() && p.name.substr(0, name.size()) == name)
-        {
-            if (opt == nullptr)
-                opt = p.option;
-            else
-                ambiguous = true;
-        }
-    }
-
-    return opt;
-#else
-    return FindOption(name);
-#endif
-}
-
-inline void Cmdline::DoAdd(OptionBase* opt)
-{
-    assert(!opt->name_.empty());
-
-    SplitString(opt->name_, '|', [&](cxx::string_view name)
-    {
-        assert(!name.empty());
-        assert(FindOption(name) == nullptr); // option already exists?!
-
-        if (opt->join_arg_ != JoinArg::no)
-        {
-            int const n = static_cast<int>(name.size());
-            if (max_prefix_len_ < n)
-                max_prefix_len_ = n;
-        }
-
-        options_.push_back({name, opt});
-        return true;
-    });
 }
 
 template <typename It, typename Sink>
@@ -855,25 +526,6 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
     return res;
 }
 
-inline Cmdline::Result Cmdline::HandlePositional(cxx::string_view optstr)
-{
-    int const E = static_cast<int>(options_.size());
-    assert(curr_positional_ <= E);
-
-    for ( ; curr_positional_ != E; ++curr_positional_)
-    {
-        auto&& opt = options_[curr_positional_].option;
-
-        if (opt->positional_ == Positional::yes && opt->IsOccurrenceAllowed())
-        {
-            // The "argument" of a positional option, is the option name itself.
-            return HandleOccurrence(opt, opt->name_, optstr);
-        }
-    }
-
-    return Result::ignored;
-}
-
 // If OPTSTR is the name of an option, handle the option.
 template <typename It>
 Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr, It last)
@@ -883,7 +535,7 @@ Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr,
     {
         if (ambiguous)
         {
-            EmitError(curr_index_, "option '" + std::string(optstr) + "' is ambiguous");
+            EmitDiag(Diagnostic::error, curr_index_, "Option '" + std::string(optstr) + "' is ambiguous");
             return Result::error;
         }
 
@@ -893,101 +545,6 @@ Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr,
     }
 
     return Result::ignored;
-}
-
-// Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-inline Cmdline::Result Cmdline::HandleOption(cxx::string_view optstr)
-{
-    auto arg_start = optstr.find('=');
-
-    if (arg_start != cxx::string_view::npos)
-    {
-        // Found an '=' sign. Extract the name of the option.
-        auto const name = optstr.substr(0, arg_start);
-
-        bool ambiguous = false;
-        if (auto const opt = FindOption(name, ambiguous))
-        {
-            if (ambiguous)
-            {
-                EmitError(curr_index_, "option '" + std::string(optstr) + "' is ambiguous");
-                return Result::error;
-            }
-
-            // Ok, something like "-f=file".
-
-            // Discard the equals sign if this option may NOT join its value.
-            if (opt->join_arg_ == JoinArg::no)
-                ++arg_start;
-
-            auto const arg = optstr.substr(arg_start);
-            return HandleOccurrence(opt, name, arg);
-        }
-    }
-
-    return Result::ignored;
-}
-
-inline Cmdline::Result Cmdline::HandlePrefix(cxx::string_view optstr)
-{
-    // Scan over all known prefix lengths.
-    // Start with the longest to allow different prefixes like e.g. "-with" and
-    // "-without".
-
-    size_t n = static_cast<size_t>(max_prefix_len_);
-    if (n > optstr.size())
-        n = optstr.size();
-
-    for ( ; n != 0; --n)
-    {
-        auto const name = optstr.substr(0, n);
-        auto const opt = FindOption(name);
-
-        if (opt && opt->join_arg_ != JoinArg::no)
-        {
-            auto const arg = optstr.substr(n);
-            return HandleOccurrence(opt, name, arg);
-        }
-    }
-
-    return Result::ignored;
-}
-
-// Check if OPTSTR is actually a group of single letter options and store the
-// options in GROUP.
-inline Cmdline::Result Cmdline::DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group)
-{
-    group.reserve(optstr.size());
-
-    for (size_t n = 0; n < optstr.size(); ++n)
-    {
-        auto const name = optstr.substr(n, 1);
-        auto const opt = FindOption(name);
-
-        if (opt == nullptr || opt->may_group_ == MayGroup::no)
-            return Result::ignored;
-
-        if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
-        {
-            group.push_back(opt);
-            continue;
-        }
-
-        // The option accepts an argument. This terminates the option group.
-        // It is a valid option if the next character is an equal sign, or if
-        // the option may join its argument.
-        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::no)
-        {
-            group.push_back(opt);
-            break;
-        }
-
-        // The option accepts an argument, but may not join its argument.
-        EmitError(curr_index_, std::string("option '") + optstr[n] + "' must be last in a group");
-        return Result::error;
-    }
-
-    return Result::success;
 }
 
 template <typename It>
@@ -1054,106 +611,199 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name
 
     if (err)
     {
-        EmitError(curr_index_, "option '" + std::string(name) + "' requires an argument");
+        EmitDiag(Diagnostic::error, curr_index_, "Option '" + std::string(name) + "' requires an argument");
         return Result::error;
     }
 
     return ParseOptionArgument(opt, name, arg);
 }
 
-inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
+//
+// XXX
+//
+// ParseValue<>::operator() and predicates have the same signature...
+// Combine?!?!
+//
+
+template <typename T = void, typename /*Enable*/ = void>
+struct ParseValue
 {
-    // An argument was specified for OPT.
-
-    if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
+    bool operator()(ParseContext const& ctx, T& value) const
     {
-        EmitError(curr_index_, "option '" + std::string(name) + "' does not accept an argument");
-        return Result::error;
+        std::stringstream stream { std::string(ctx.arg) };
+
+        stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
+        stream >> value;
+
+        return !stream.fail() && stream.eof();
     }
+};
 
-    return ParseOptionArgument(opt, name, arg);
-}
-
-inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
+template <>
+struct ParseValue<bool>
 {
-    auto IsDigit = [](char ch) { return '0' <= ch && ch <= '9'; };
+    bool operator()(ParseContext const& ctx, bool& value) const;
+};
 
-    auto Parse1 = [&](cxx::string_view arg1)
-    {
-        if (!opt->IsOccurrenceAllowed())
-        {
-            EmitError(curr_index_, "option '" + std::string(name) + "' already specified");
-            return Result::error;
-        }
-
-        ParseContext ctx;
-
-        ctx.name  = name;
-        ctx.arg   = arg1;
-        ctx.index = curr_index_;
-
-        if (!opt->Parse(ctx))
-        {
-            EmitError(curr_index_, "invalid argument '" + std::string(arg1) + "' for option '" + std::string(name) + "'");
-            if (!ctx.diag.empty())
-            {
-                EmitNote(curr_index_, ctx.diag);
-            }
-            else if (opt->num_args_ == cl::Arg::required
-                && arg.size() >= 2
-                && arg[0] == '-'
-                && (arg[1] == '-' || !IsDigit(arg[1])))
-            {
-                EmitNote(curr_index_, "argument actually looks like an option. did you forget to provide a required argument?");
-            }
-            return Result::error;
-        }
-
-        ++opt->count_;
-        return Result::success;
-    };
-
-    Result res = Result::success;
-
-    if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
-    {
-        SplitString(arg, ',', [&](cxx::string_view s)
-        {
-            res = Parse1(s);
-            return res == Result::success;
-        });
-    }
-    else
-    {
-        res = Parse1(arg);
-    }
-
-    if (res == Result::success)
-    {
-        // If the current option has the ConsumeRemaining flag set, parse all
-        // following options as positional options.
-        if (opt->consume_remaining_ == ConsumeRemaining::yes)
-            dashdash_ = true;
-    }
-
-    return res;
-}
-
-template <typename Func>
-bool Cmdline::SplitString(cxx::string_view str, char sep, Func func)
+template <>
+struct ParseValue<std::string>
 {
-    for (;;)
+    bool operator()(ParseContext const& ctx, std::string& value) const;
+};
+
+template <>
+struct ParseValue<void>
+{
+    template <typename T>
+    bool operator()(ParseContext& ctx, T& value) const
     {
-        auto const p = str.find(sep);
-        if (!func(str.substr(0, p))) // p == npos is ok here
-            return false;
-        if (p == cxx::string_view::npos)
+        return ParseValue<T>{}(ctx, value);
+    }
+};
+
+template <typename T, typename U>
+auto InRange(T lower, U upper)
+{
+    return [=](ParseContext& ctx, auto const& value)
+    {
+        if (!(value < lower) && !(upper < value))
             return true;
-        str.remove_prefix(p + 1);
-    }
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]");
+        return false;
+    };
 }
 
-} // namespace v2
+template <typename T>
+auto GreaterThan(T lower)
+{
+    return [=](ParseContext& ctx, auto const& value)
+    {
+        if (lower < value)
+            return true;
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be greater than " + std::to_string(lower));
+        return false;
+    };
+}
+
+template <typename T>
+auto GreaterEqual(T lower)
+{
+    return [=](ParseContext& ctx, auto const& value)
+    {
+        if (!(value < lower)) // value >= lower
+            return true;
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be greater than or equal to " + std::to_string(lower));
+        return false;
+    };
+}
+
+template <typename T>
+auto LessThan(T upper)
+{
+    return [=](ParseContext& ctx, auto const& value)
+    {
+        if (value < upper)
+            return true;
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be less than " + std::to_string(upper));
+        return false;
+    };
+}
+
+template <typename T>
+auto LessEqual(T upper)
+{
+    return [=](ParseContext& ctx, auto const& value)
+    {
+        if (!(upper < value)) // upper >= value
+            return true;
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be less than or equal to " + std::to_string(upper));
+        return false;
+    };
+}
+
+//
+// Default parser for scalar types.
+// Uses an instance of Parser<> to convert the string.
+//
+template <typename T, typename ...Predicates>
+auto Value(T& value, Predicates&&... preds)
+{
+    return [=, &value](ParseContext& ctx)
+    {
+#if __cplusplus >= 201703
+        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
+#else
+        bool res = true;
+        int unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
+        static_cast<void>(unused);
+        return res;
+#endif
+    };
+}
+
+//
+// Default parser for list types.
+// Uses an instance of Parser<> to convert the string and then inserts the
+// converted value into the container.
+//
+// Predicates apply to the currently parsed value, not the whole list.
+//
+template <typename T, typename ...Predicates>
+auto List(T& container, Predicates&&... preds)
+{
+    return [=, &container](ParseContext& ctx)
+    {
+        typename T::value_type value;
+
+#if __cplusplus >= 201703
+        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
+#else
+        bool res = true;
+        int unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
+        static_cast<void>(unused);
+        if (res)
+#endif
+        {
+            container.insert(container.end(), std::move(value));
+            return true;
+        }
+
+        return false;
+    };
+}
+
+//
+// Default parser for enum types.
+// Look up the key in the map and if it exists, returns the mapped value.
+//
+template <typename T>
+auto Map(T& target, std::vector<std::pair<char const*, T>> map_)
+{
+    return [&target, map = std::move(map_)](ParseContext& ctx)
+    {
+        for (auto const& p : map)
+        {
+            if (p.first == ctx.arg)
+            {
+                target = p.second;
+                return true;
+            }
+        }
+
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Invalid argument '" + std::string(ctx.arg) + "' for  option '" + std::string(ctx.name) + "'");
+        for (auto const& p : map)
+        {
+            ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, std::string("Could be '") + p.first + "'");
+        }
+
+        return false;
+    };
+}
+
 } // namespace cl
 
-#endif
+#endif // CL_CMDLINE_H
