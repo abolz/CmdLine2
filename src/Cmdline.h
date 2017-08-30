@@ -258,6 +258,14 @@ struct Diagnostic
     Type        type    = Type::error;
     int         index   = -1;
     std::string message = {};
+
+    Diagnostic() = default;
+    Diagnostic(Type type_, int index_, std::string message_)
+        : type(type_)
+        , index(index_)
+        , message(std::move(message_))
+    {
+    }
 };
 
 class Cmdline
