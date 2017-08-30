@@ -558,9 +558,9 @@ static bool IsAnyOf(T&& value, Match&&... match)
 
 bool cl::ParseValue<bool>::operator()(ParseContext const& ctx, bool& value) const
 {
-    if (ctx.arg.empty() || IsAnyOf(ctx.arg, "1", "true", "True", "yes", "Yes", "on", "On"))
+    if (ctx.arg.empty() || IsAnyOf(ctx.arg, "1", "y", "true", "True", "yes", "Yes", "on", "On"))
         value = true;
-    else if (IsAnyOf(ctx.arg, "0", "false", "False", "no", "No", "off", "Off"))
+    else if (IsAnyOf(ctx.arg, "0", "n", "false", "False", "no", "No", "off", "Off"))
         value = false;
     else
         return false;
