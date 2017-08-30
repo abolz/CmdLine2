@@ -77,9 +77,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-
-//------------------------------------------------------------------------------
-// HACK
-//
-#include "../src/Cmdline.cc"
-#include "../src/StringSplit.cc"
