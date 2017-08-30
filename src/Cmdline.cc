@@ -354,11 +354,12 @@ void Cmdline::DoAdd(OptionBase* opt)
 Cmdline::Result Cmdline::HandlePositional(cxx::string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
+    assert(curr_positional_ >= 0);
     assert(curr_positional_ <= E);
 
     for ( ; curr_positional_ != E; ++curr_positional_)
     {
-        auto&& opt = options_[curr_positional_].option;
+        auto&& opt = options_[static_cast<size_t>(curr_positional_)].option;
 
         if (opt->positional_ == Positional::yes && opt->IsOccurrenceAllowed())
         {
