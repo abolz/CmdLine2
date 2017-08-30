@@ -1,0 +1,80 @@
+sudo: required
+dist: trusty
+
+language: cpp
+
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      compiler: gcc
+      env:
+        - COMPILER=g++-6
+        - CONFIGURATION=release
+        - CXXFLAGS="-std=c++14"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      compiler: gcc
+      env:
+        - COMPILER=g++-6
+        - CONFIGURATION=debug
+        - CXXFLAGS="-std=c++14"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      compiler: gcc
+      env:
+        - COMPILER=g++-7
+        - CONFIGURATION=release
+        - CXXFLAGS="-std=c++17"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      compiler: gcc
+      env:
+        - COMPILER=g++-7
+        - CONFIGURATION=debug
+        - CXXFLAGS="-std=c++17"
+    - os: osx
+      compiler: clang
+      env:
+        - COMPILER=clang++
+        - CONFIGURATION=release
+        - CXXFLAGS="-std=c++14 -stdlib=libc++"
+    - os: osx
+      compiler: clang
+      env:
+        - COMPILER=clang++
+        - CONFIGURATION=debug
+        - CXXFLAGS="-std=c++14 -stdlib=libc++"
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget "https://github.com/premake/premake-core/releases/download/v5.0.0-alpha11/premake-5.0.0-alpha11-linux.tar.gz" -O premake5.tar.gz; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx"   ]]; then wget "https://github.com/premake/premake-core/releases/download/v5.0.0-alpha11/premake-5.0.0-alpha11-macosx.tar.gz" -O premake5.tar.gz; fi
+  - tar -xvf premake5.tar.gz
+
+install:
+  - ./premake5 --cxxflags="$CXXFLAGS" gmake
+
+script:
+  - export CXX=$COMPILER
+  - make -C build/gmake/ config=$CONFIGURATION Test
+  - ./build/gmake/bin/$CONFIGURATION/Test
