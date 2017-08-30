@@ -259,6 +259,7 @@ struct Diagnostic
     int         index   = -1;
     std::string message = {};
 
+    // For VS2015
     Diagnostic() = default;
     Diagnostic(Type type_, int index_, std::string message_)
         : type(type_)
@@ -274,6 +275,14 @@ class Cmdline
     {
         cxx::string_view name   = {}; // NB: Names are always constructed from C-strings
         OptionBase*      option = nullptr;
+
+        // For VS2015
+        NameOptionPair() = default;
+        NameOptionPair(cxx::string_view name_, OptionBase* option_)
+            : name(name_)
+            , option(option_)
+        {
+        }
     };
 
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
