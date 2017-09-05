@@ -469,6 +469,9 @@ bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing, Sink sink)
 template <typename It, typename EndIt, typename Sink>
 bool Cmdline::DoParse(It& curr, EndIt last, Sink sink)
 {
+    static_assert(std::is_lvalue_reference<decltype(*curr)>::value,
+        "It::operator* must return an lvalue");
+
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
 
