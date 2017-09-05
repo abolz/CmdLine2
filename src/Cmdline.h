@@ -319,8 +319,8 @@ public:
 
     // Parse the command line arguments in [first, last).
     // Emits an error for unknown options.
-    template <typename It>
-    bool Parse(It first, It last, CheckMissing check_missing = CheckMissing::yes);
+    template <typename It, typename EndIt>
+    bool Parse(It first, EndIt last, CheckMissing check_missing = CheckMissing::yes);
 
     // Parse the command line arguments in [first, last).
     // Calls sink() for unknown options.
@@ -328,8 +328,8 @@ public:
     // Sink must have signature "bool sink(It, int)" and should return false if
     // the parser should stop or true to continue parsing command line
     // arguments.
-    template <typename It, typename Sink>
-    bool Parse(It first, It last, CheckMissing check_missing, Sink sink);
+    template <typename It, typename EndIt, typename Sink>
+    bool Parse(It first, EndIt last, CheckMissing check_missing, Sink sink);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
@@ -353,19 +353,19 @@ private:
 
     void DoAdd(OptionBase* opt);
 
-    template <typename It, typename Sink>
-    bool DoParse(It& curr, It last, Sink sink);
+    template <typename It, typename EndIt, typename Sink>
+    bool DoParse(It& curr, EndIt last, Sink sink);
 
-    template <typename It>
-    Result Handle1(It& curr, It last);
+    template <typename It, typename EndIt>
+    Result Handle1(It& curr, EndIt last);
 
     // <file>
     Result HandlePositional(cxx::string_view optstr);
 
     // -f
     // -f <file>
-    template <typename It>
-    Result HandleStandardOption(cxx::string_view optstr, It& curr, It last);
+    template <typename It, typename EndIt>
+    Result HandleStandardOption(cxx::string_view optstr, It& curr, EndIt last);
 
     // -f=<file>
     Result HandleOption(cxx::string_view optstr);
@@ -378,11 +378,11 @@ private:
     // -xvf<file>
     Result DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group);
 
-    template <typename It>
-    Result HandleGroup(cxx::string_view optstr, It& curr, It last);
+    template <typename It, typename EndIt>
+    Result HandleGroup(cxx::string_view optstr, It& curr, EndIt last);
 
-    template <typename It>
-    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, It last);
+    template <typename It, typename EndIt>
+    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, EndIt last);
     Result HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
     Result ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
@@ -442,8 +442,8 @@ auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
     return p;
 }
 
-template <typename It>
-bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
+template <typename It, typename EndIt>
+bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index)
     {
@@ -454,8 +454,8 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
     return Parse(first, last, check_missing, sink);
 }
 
-template <typename It, typename Sink>
-bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
+template <typename It, typename EndIt, typename Sink>
+bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing, Sink sink)
 {
     if (!DoParse(first, last, sink))
         return false;
@@ -466,8 +466,8 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing, Sink sink)
     return true;
 }
 
-template <typename It, typename Sink>
-bool Cmdline::DoParse(It& curr, It last, Sink sink)
+template <typename It, typename EndIt, typename Sink>
+bool Cmdline::DoParse(It& curr, EndIt last, Sink sink)
 {
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
@@ -493,8 +493,8 @@ bool Cmdline::DoParse(It& curr, It last, Sink sink)
     return true;
 }
 
-template <typename It>
-Cmdline::Result Cmdline::Handle1(It& curr, It last)
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::Handle1(It& curr, EndIt last)
 {
     assert(curr != last);
 
@@ -543,8 +543,8 @@ Cmdline::Result Cmdline::Handle1(It& curr, It last)
 }
 
 // If OPTSTR is the name of an option, handle the option.
-template <typename It>
-Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr, It last)
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr, EndIt last)
 {
     bool ambiguous = false;
     if (auto const opt = FindOption(optstr, ambiguous))
@@ -563,8 +563,8 @@ Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr,
     return Result::ignored;
 }
 
-template <typename It>
-Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, It last)
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, EndIt last)
 {
     std::vector<OptionBase*> group;
 
@@ -603,8 +603,8 @@ Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, It last)
     return Result::success;
 }
 
-template <typename It>
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, It last)
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, EndIt last)
 {
     assert(curr != last);
 
