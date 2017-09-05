@@ -101,6 +101,9 @@ bool Cmdline::CheckMissingOptions()
 
 void Cmdline::PrintErrors() const
 {
+    if (diag_.empty())
+        return;
+
     HANDLE const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
 
     CONSOLE_SCREEN_BUFFER_INFO sbi;
@@ -144,6 +147,9 @@ void Cmdline::PrintErrors() const
 
 void Cmdline::PrintErrors() const
 {
+    if (diag_.empty())
+        return;
+
     for (auto const& d : diag_)
     {
         switch (d.type)
