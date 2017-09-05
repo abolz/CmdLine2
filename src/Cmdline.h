@@ -447,7 +447,6 @@ bool Cmdline::Parse(It first, It last, CheckMissing check_missing)
 {
     auto sink = [&](It curr, int index)
     {
-        cxx::string_view optstr {*curr};
         EmitDiag(Diagnostic::error, index, "Unknown option '" + std::string(*curr) + "'");
         return false;
     };
