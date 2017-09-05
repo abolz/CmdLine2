@@ -28,6 +28,8 @@
 #include <type_traits>
 #include <utility>
 
+#define STR_STRING_SPLIT_STD 1 // https://isocpp.org/files/papers/n3593.html
+
 namespace str {
 
 //------------------------------------------------------------------------------
@@ -78,7 +80,20 @@ struct StringLiteral
 
     DelimiterResult operator()(cxx::string_view str) const
     {
-        return { str.find(delim), delim.size() < 1 ? 1 : delim.size() };
+        if (delim.empty())
+        {
+#if STR_STRING_SPLIT_STD
+            if (str.size() <= 1)
+                return { cxx::string_view::npos, 0 };
+            return { 1, 0 };
+#else
+            // Return the whole string as a token.
+            // Makes StringLiteral("") behave exactly as AnyOf("").
+            return { cxx::string_view::npos, 0 };
+#endif
+        }
+
+        return { str.find(delim), delim.size() };
     }
 };
 
@@ -115,6 +130,15 @@ struct AnyOf
 
     DelimiterResult operator()(cxx::string_view str) const
     {
+#if STR_STRING_SPLIT_STD
+        if (chars.empty())
+        {
+            if (str.size() <= 1)
+                return { cxx::string_view::npos, 0 };
+            return { 1, 0 };
+        }
+#endif
+
         return { str.find_first_of(chars), 1 };
     }
 };
@@ -225,7 +249,7 @@ bool ForEach(String&& str, Splitter&& split, Function&& fn)
 // The default delimiter when not explicitly specified is
 // std::literal_delimiter.
 //
-template <typename T, typename U /* = std::decay_t<T> */>
+template <typename T, typename U = std::decay_t<T>>
 using DefaultDelimiter =
     std::conditional_t<
         std::is_constructible<CharLiteral, T>::value,
