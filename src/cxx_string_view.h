@@ -251,6 +251,7 @@ public:
         : data_(ptr)
         , size_(len)
     {
+        assert(size_ <= max_size());
         assert(size_ == 0 || data_ != nullptr);
     }
 
@@ -258,6 +259,7 @@ public:
         : data_(c_str)
         , size_(c_str ? ::strlen(c_str) : 0u)
     {
+        assert(size_ <= max_size());
     }
 
     template <
@@ -273,6 +275,7 @@ public:
         : data_(str.data())
         , size_(str.size())
     {
+        assert(size_ <= max_size());
         assert(size_ == 0 || data_ != nullptr);
     }
 
@@ -285,6 +288,12 @@ public:
     explicit operator T() const
     {
         return T(begin(), end());
+    }
+
+    /*constexpr*/ size_t max_size() const noexcept
+    {
+//      return static_cast<size_t>( (std::numeric_limits<std::iterator_traits<iterator>::difference_type>::max)() ) / sizeof(char);
+        return INTPTR_MAX / sizeof(char);
     }
 
     // Returns a pointer to the start of the string.
@@ -304,22 +313,19 @@ public:
     /*constexpr*/ intptr_t ssize() const noexcept
     {
         return static_cast<intptr_t>(size_);
-        //assert(ssize_ >= 0);
-        //return ssize_;
     }
 
     // Returns the length of the string.
     /*constexpr*/ size_t length() const noexcept
     {
-        return size_;
+        return size();
     }
 
+    // XXX
     // Returns the length of the string.
     /*constexpr*/ intptr_t slength() const noexcept
     {
-        return static_cast<intptr_t>(size_);
-        //assert(ssize_ >= 0);
-        //return ssize_;
+        return ssize();
     }
 
     // Returns whether the string is empty.
@@ -332,7 +338,7 @@ public:
     /*constexpr*/ const_iterator begin() const noexcept
     {
 #if CXX_STRING_VIEW_CHECKED_ITERATOR
-        return const_iterator(data_, static_cast<intptr_t>(size_), 0);
+        return const_iterator(data_, ssize(), 0);
 #else
         return data_;
 #endif
@@ -342,7 +348,7 @@ public:
     /*constexpr*/ const_iterator end() const noexcept
     {
 #if CXX_STRING_VIEW_CHECKED_ITERATOR
-        return const_iterator(data_, static_cast<intptr_t>(size_), static_cast<intptr_t>(size_));
+        return const_iterator(data_, ssize(), ssize());
 #else
         return data_ + size_;
 #endif
@@ -355,12 +361,13 @@ public:
         return data_[n];
     }
 
-    bool Equal_to_(string_view other) const noexcept
+    bool _equal_to(string_view other) const noexcept
     {
-        return size() == other.size() && 0 == Compare(data(), other.data(), size());
+        return size() == other.size()
+            && Compare(data(), other.data(), size()) == 0;
     }
 
-    bool Less_than_(string_view other) const noexcept
+    bool _less_than(string_view other) const noexcept
     {
         int const c = Compare(data(), other.data(), Min(size(), other.size()));
         return c < 0 || (c == 0 && size() < other.size());
@@ -409,14 +416,26 @@ public:
     }
 
     // Returns the substring [first, +count)
-    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const noexcept
+    /*constexpr*/ string_view substr(size_t first = 0) const noexcept
+    {
+#if 1 // std
+        assert(first <= size_);
+        return { data_ + first, size_ - first };
+#else
+        size_t f = Min(first, size_);
+        return { data_ + f, size_ - f };
+#endif
+    }
+
+    // Returns the substring [first, +count)
+    /*constexpr*/ string_view substr(size_t first, size_t count) const noexcept
     {
 #if 1 // std
         assert(first <= size_);
         return { data_ + first, Min(count, size_ - first) };
 #else
-        size_t const f = Min(first, size_);
-        size_t const n = Min(count, size_ - f);
+        size_t f = Min(first, size_);
+        size_t n = Min(count, size_ - f);
         return { data_ + f, n };
 #endif
     }
@@ -581,7 +600,7 @@ inline size_t string_view::find_last_not_of(string_view chars, size_t from) cons
 
 inline bool operator==(string_view s1, string_view s2) noexcept
 {
-    return s1.Equal_to_(s2);
+    return s1._equal_to(s2);
 }
 
 inline bool operator!=(string_view s1, string_view s2) noexcept
@@ -591,7 +610,7 @@ inline bool operator!=(string_view s1, string_view s2) noexcept
 
 inline bool operator<(string_view s1, string_view s2) noexcept
 {
-    return s1.Less_than_(s2);
+    return s1._less_than(s2);
 }
 
 inline bool operator<=(string_view s1, string_view s2) noexcept
