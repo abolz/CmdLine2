@@ -657,11 +657,11 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name
 //
 
 template <typename T = void, typename /*Enable*/ = void>
-struct ParseValue
+struct ConvertValue
 {
-    bool operator()(ParseContext const& ctx, T& value) const
+    bool operator()(cxx::string_view str, T& value) const
     {
-        std::stringstream stream { std::string(ctx.arg) };
+        std::stringstream stream { std::string(str) };
 
         stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
         stream >> value;
@@ -671,22 +671,41 @@ struct ParseValue
 };
 
 template <>
-struct ParseValue<bool>
+struct ConvertValue<bool>
 {
-    bool operator()(ParseContext const& ctx, bool& value) const;
+    bool operator()(cxx::string_view str, bool& value) const;
 };
 
 template <>
-struct ParseValue<std::string>
+struct ConvertValue<std::string>
 {
-    bool operator()(ParseContext const& ctx, std::string& value) const;
+    bool operator()(cxx::string_view str, std::string& value) const;
+};
+
+template <>
+struct ConvertValue<void>
+{
+    template <typename T>
+    bool operator()(cxx::string_view str, T& value) const
+    {
+        return ConvertValue<T>{}(ctx, value);
+    }
+};
+
+template <typename T = void, typename /*Enable*/ = void>
+struct ParseValue
+{
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        return ConvertValue<T>{}(ctx.arg, value);
+    }
 };
 
 template <>
 struct ParseValue<void>
 {
     template <typename T>
-    bool operator()(ParseContext& ctx, T& value) const
+    bool operator()(ParseContext /*const*/& ctx, T& value) const
     {
         return ParseValue<T>{}(ctx, value);
     }
