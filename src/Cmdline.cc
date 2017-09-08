@@ -20,8 +20,6 @@
 
 #include "Cmdline.h"
 
-#include "StringSplit.h"
-
 #include <climits>
 #include <cstdarg>
 #include <cstdio>
@@ -30,6 +28,163 @@
 #endif
 
 using namespace cl;
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
+namespace {
+
+// Return type for delimiters.
+//
+// +-----+-----+------------+
+// ^ tok ^     ^    rest    ^
+//       f     f+c
+//
+// Either FIRST or COUNT must be non-zero.
+struct DelimiterResult
+{
+    size_t first;
+    size_t count;
+};
+
+//
+// A character delimiter.
+//
+// This is slightly faster than StringLiteral if you want to break the string at
+// a specific character.
+//
+struct CharDelimiter
+{
+    char const ch;
+
+    explicit CharDelimiter(char ch_) : ch(ch_) {}
+
+    DelimiterResult operator()(cxx::string_view const& str) const
+    {
+        return { str.find(ch), 1 };
+    }
+};
+
+//
+// Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
+//
+struct LineDelimiter
+{
+    DelimiterResult operator()(cxx::string_view str) const
+    {
+        auto const first = str.data();
+        auto const last  = str.data() + str.size();
+
+        // Find the position of the first CR or LF
+        auto p = first;
+        while (p != last && (*p != '\n' && *p != '\r'))
+        {
+            ++p;
+        }
+
+        if (p == last)
+            return {cxx::string_view::npos, 0};
+
+        auto const index = static_cast<size_t>(p - first);
+
+        // If this is CRLF, skip the other half.
+        if (p + 1 != last)
+        {
+            if (p[0] == '\r' && p[1] == '\n')
+                return {index, 2};
+        }
+
+        return {index, 1};
+    }
+};
+
+//
+// Breaks a string into words, i.e. searches for the first whitespace preceding
+// the given length. If there is no whitespace, breaks a single word at length
+// characters.
+//
+struct WrapDelimiter
+{
+    size_t const length;
+
+    explicit WrapDelimiter(size_t length_)
+        : length(length_)
+    {
+        assert(length != 0 && "invalid parameter");
+    }
+
+    DelimiterResult operator()(cxx::string_view str) const
+    {
+        // If the string fits into the current line, just return this last line.
+        if (str.size() <= length)
+            return {cxx::string_view::npos, 0};
+
+        // Otherwise, search for the first space preceding the line length.
+        auto I = str.find_last_of(" \t", length);
+
+        if (I != cxx::string_view::npos) // There is a space.
+            return {I, 1};
+
+        return {length, 0}; // No space in current line, break at length.
+    }
+};
+
+struct DoSplitResult
+{
+    cxx::string_view tok; // The current token.
+    cxx::string_view str; // The rest of the string.
+    bool last = false;
+};
+
+static bool DoSplit(DoSplitResult& res, cxx::string_view str, DelimiterResult del)
+{
+    //
+    // +-----+-----+------------+
+    // ^ tok ^     ^    rest    ^
+    //       f     f+c
+    //
+
+    if (del.first == cxx::string_view::npos)
+    {
+        res.tok = str;
+//      res.str = {};
+        res.last = true;
+        return true;
+    }
+
+    assert(del.first + del.count >= del.first);
+    assert(del.first + del.count <= str.size());
+
+    size_t const off = del.first + del.count;
+    assert(off > 0 && "invalid delimiter result");
+
+    res.tok = { str.data(), del.first };
+    res.str = { str.data() + off, str.size() - off };
+    return true;
+}
+
+template <typename Delimiter, typename Function>
+static bool SplitString(cxx::string_view str, Delimiter&& delim, Function&& fn)
+{
+    DoSplitResult curr;
+
+    curr.tok = {};
+    curr.str = str;
+    curr.last = false;
+
+    for (;;)
+    {
+        if (!DoSplit(curr, curr.str, delim(curr.str)))
+            return true;
+        if (!fn(curr.tok))
+            return false;
+        if (curr.last)
+            return true;
+    }
+}
+
+} // namespace
 
 //------------------------------------------------------------------------------
 //
@@ -203,10 +358,10 @@ static void AppendWrapped(std::string& out, cxx::string_view text, size_t indent
     bool first = true;
 
     // Break the string into paragraphs
-    str::Split(text, str::LineDelimiter(), [&](cxx::string_view par)
+    SplitString(text, LineDelimiter(), [&](cxx::string_view par)
     {
         // Break the paragraphs at the maximum width into lines
-        str::Split(par, str::WrapDelimiter(width), [&](cxx::string_view line)
+        SplitString(par, WrapDelimiter(width), [&](cxx::string_view line)
         {
             if (first)
             {
@@ -219,7 +374,11 @@ static void AppendWrapped(std::string& out, cxx::string_view text, size_t indent
             }
 
             out.append(line.data(), line.size());
+
+            return true;
         });
+
+        return true;
     });
 }
 
@@ -340,7 +499,7 @@ void Cmdline::DoAdd(OptionBase* opt)
 {
     assert(!opt->name_.empty());
 
-    str::Split(opt->name_, '|', [&](cxx::string_view name)
+    SplitString(opt->name_, CharDelimiter('|'), [&](cxx::string_view name)
     {
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
@@ -353,6 +512,7 @@ void Cmdline::DoAdd(OptionBase* opt)
         }
 
         options_.push_back({name, opt});
+
         return true;
     });
 }
@@ -523,7 +683,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view n
 
     if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
     {
-        str::Split(arg, ',', [&](cxx::string_view s)
+        SplitString(arg, CharDelimiter(','), [&](cxx::string_view s)
         {
             res = Parse1(s);
             return res == Result::success;
