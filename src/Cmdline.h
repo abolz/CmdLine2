@@ -682,6 +682,21 @@ struct ConvertValue<std::string>
     bool operator()(cxx::string_view str, std::string& value) const;
 };
 
+template <typename Key, typename Value>
+struct ConvertValue<std::pair<Key, Value>>
+{
+    bool operator()(cxx::string_view str, std::pair<Key, Value>& value) const
+    {
+        auto const p = str.find(':');
+
+        if (p == cxx::string_view::npos)
+            return false;
+
+        return ConvertValue<Key>{}(str.substr(0, p), value.first)
+            && ConvertValue<Value>{}(str.substr(p + 1), value.second);
+    }
+};
+
 template <>
 struct ConvertValue<void>
 {
@@ -771,6 +786,24 @@ auto LessEqual(T upper)
     };
 }
 
+namespace impl
+{
+    template <typename T>
+    struct RemoveCVRecImpl
+    {
+        using type = std::remove_cv_t<T>;
+    };
+
+    template <template <typename...> class T, typename ...Args>
+    struct RemoveCVRecImpl<T<Args...>>
+    {
+        using type = T<typename RemoveCVRecImpl<Args>::type...>;
+    };
+
+    template <typename T>
+    using RemoveCVRec = typename RemoveCVRecImpl<T>::type;
+}
+
 //
 // Default parser for scalar types.
 // Uses an instance of Parser<> to convert the string.
@@ -803,7 +836,7 @@ auto PushBack(T& container, Predicates&&... preds)
 {
     return [=, &container](ParseContext& ctx)
     {
-        typename T::value_type value;
+        impl::RemoveCVRec<typename T::value_type> value;
 
 #if __cplusplus >= 201703
         if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
@@ -814,7 +847,7 @@ auto PushBack(T& container, Predicates&&... preds)
         if (res)
 #endif
         {
-            container.emplace_back(std::move(value));
+            container.insert(container.end(), std::move(value));
             return true;
         }
 
