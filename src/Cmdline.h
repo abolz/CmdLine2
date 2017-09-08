@@ -24,8 +24,8 @@
 #include "cxx_string_view.h"
 
 #include <cassert>
+#include <iosfwd>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -656,31 +656,34 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name
 // Combine?!?!
 //
 
+// Convert the string representation in STR into an object of type T.
 template <typename T = void, typename /*Enable*/ = void>
 struct ConvertValue
 {
+    template <typename Stream = std::stringstream>
     bool operator()(cxx::string_view str, T& value) const
     {
-        std::stringstream stream { std::string(str) };
-
-        stream.setf(std::ios_base::fmtflags(0), std::ios::basefield);
+        Stream stream { std::string(str) };
         stream >> value;
-
         return !stream.fail() && stream.eof();
     }
 };
 
-template <>
-struct ConvertValue<bool>
-{
-    bool operator()(cxx::string_view str, bool& value) const;
-};
-
-template <>
-struct ConvertValue<std::string>
-{
-    bool operator()(cxx::string_view str, std::string& value) const;
-};
+template <> struct ConvertValue< bool               > { bool operator()(cxx::string_view str, bool&               value) const; };
+template <> struct ConvertValue< signed char        > { bool operator()(cxx::string_view str, signed char&        value) const; };
+template <> struct ConvertValue< signed short       > { bool operator()(cxx::string_view str, signed short&       value) const; };
+template <> struct ConvertValue< signed int         > { bool operator()(cxx::string_view str, signed int&         value) const; };
+template <> struct ConvertValue< signed long        > { bool operator()(cxx::string_view str, signed long&        value) const; };
+template <> struct ConvertValue< signed long long   > { bool operator()(cxx::string_view str, signed long long&   value) const; };
+template <> struct ConvertValue< unsigned char      > { bool operator()(cxx::string_view str, unsigned char&      value) const; };
+template <> struct ConvertValue< unsigned short     > { bool operator()(cxx::string_view str, unsigned short&     value) const; };
+template <> struct ConvertValue< unsigned int       > { bool operator()(cxx::string_view str, unsigned int&       value) const; };
+template <> struct ConvertValue< unsigned long      > { bool operator()(cxx::string_view str, unsigned long&      value) const; };
+template <> struct ConvertValue< unsigned long long > { bool operator()(cxx::string_view str, unsigned long long& value) const; };
+template <> struct ConvertValue< float              > { bool operator()(cxx::string_view str, float&              value) const; };
+template <> struct ConvertValue< double             > { bool operator()(cxx::string_view str, double&             value) const; };
+template <> struct ConvertValue< long double        > { bool operator()(cxx::string_view str, long double&        value) const; };
+template <> struct ConvertValue< std::string        > { bool operator()(cxx::string_view str, std::string&        value) const; };
 
 template <typename Key, typename Value>
 struct ConvertValue<std::pair<Key, Value>>
@@ -703,10 +706,12 @@ struct ConvertValue<void>
     template <typename T>
     bool operator()(cxx::string_view str, T& value) const
     {
-        return ConvertValue<T>{}(ctx, value);
+        return ConvertValue<T>{}(str, value);
     }
 };
 
+// Convert the string representation in CTX.ARG into an object of type T.
+// Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
 struct ParseValue
 {
@@ -726,6 +731,8 @@ struct ParseValue<void>
     }
 };
 
+// Returns a function object which checks whether a given value is in the range [lower, upper].
+// Emits a diagnostic on error.
 template <typename T, typename U>
 auto InRange(T lower, U upper)
 {
@@ -738,6 +745,8 @@ auto InRange(T lower, U upper)
     };
 }
 
+// Returns a function object which checks whether a given value is > lower.
+// Emits a diagnostic on error.
 template <typename T>
 auto GreaterThan(T lower)
 {
@@ -750,6 +759,8 @@ auto GreaterThan(T lower)
     };
 }
 
+// Returns a function object which checks whether a given value is >= lower.
+// Emits a diagnostic on error.
 template <typename T>
 auto GreaterEqual(T lower)
 {
@@ -762,6 +773,8 @@ auto GreaterEqual(T lower)
     };
 }
 
+// Returns a function object which checks whether a given value is < upper.
+// Emits a diagnostic on error.
 template <typename T>
 auto LessThan(T upper)
 {
@@ -774,6 +787,8 @@ auto LessThan(T upper)
     };
 }
 
+// Returns a function object which checks whether a given value is <= upper.
+// Emits a diagnostic on error.
 template <typename T>
 auto LessEqual(T upper)
 {

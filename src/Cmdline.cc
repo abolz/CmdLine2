@@ -20,10 +20,12 @@
 
 #include "Cmdline.h"
 
-#include <climits>
 #include <cstdio>
+#include <limits>
 #if defined(_WIN32)
 #include <windows.h>
+#undef min
+#undef max
 #endif
 
 using namespace cl;
@@ -736,6 +738,135 @@ bool cl::ConvertValue<bool>::operator()(cxx::string_view str, bool& value) const
         return false;
 
     return true;
+}
+
+template <typename T, typename Fn>
+static bool StrToX(cxx::string_view str, T& value, Fn fn)
+{
+    if (str.empty())
+        return false;
+
+    std::string arg(str.data(), str.size());
+
+    char const* const ptr = arg.c_str();
+    char*             end = nullptr;
+
+    int& ec = errno;
+
+    auto const ec0 = std::exchange(ec, 0);
+    auto const val = fn(ptr, &end);
+    auto const ec1 = std::exchange(ec, ec0);
+
+    if (ec1 == ERANGE)
+        return false;
+    if (end != ptr + arg.size()) // not all characters extracted
+        return false;
+
+    value = val;
+    return true;
+}
+
+// Note:
+// Wrap into local function, to avoid instantiating StrToX with different lambdas which
+// actually all do the same thing: call strtol.
+static bool ParseLong(cxx::string_view str, long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtol(p, end, 0); });
+}
+
+template <typename T>
+static bool ParseInt(cxx::string_view str, T& value)
+{
+    long v = 0;
+    if (ParseLong(str, v) && v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max())
+    {
+        value = static_cast<T>(v);
+        return true;
+    }
+    return false;
+}
+
+bool ConvertValue<signed char>::operator()(cxx::string_view str, signed char& value) const
+{
+    return ParseInt(str, value);
+}
+
+bool ConvertValue<signed short>::operator()(cxx::string_view str, signed short& value) const
+{
+    return ParseInt(str, value);
+}
+
+bool ConvertValue<signed int>::operator()(cxx::string_view str, signed int& value) const
+{
+    return ParseInt(str, value);
+}
+
+bool ConvertValue<signed long>::operator()(cxx::string_view str, signed long& value) const
+{
+    return ParseLong(str, value);
+}
+
+bool ConvertValue<signed long long>::operator()(cxx::string_view str, signed long long& value) const
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
+}
+
+// (See above)
+static bool ParseUnsignedLong(cxx::string_view str, unsigned long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoul(p, end, 0); });
+}
+
+template <typename T>
+static bool ParseUnsignedInt(cxx::string_view str, T& value)
+{
+    unsigned long v = 0;
+    if (ParseUnsignedLong(str, v) && v <= std::numeric_limits<T>::max())
+    {
+        value = static_cast<T>(v);
+        return true;
+    }
+    return false;
+}
+
+bool ConvertValue<unsigned char>::operator()(cxx::string_view str, unsigned char& value) const
+{
+    return ParseUnsignedInt(str, value);
+}
+
+bool ConvertValue<unsigned short>::operator()(cxx::string_view str, unsigned short& value) const
+{
+    return ParseUnsignedInt(str, value);
+}
+
+bool ConvertValue<unsigned int>::operator()(cxx::string_view str, unsigned int& value) const
+{
+    return ParseUnsignedInt(str, value);
+}
+
+bool ConvertValue<unsigned long>::operator()(cxx::string_view str, unsigned long& value) const
+{
+    return ParseUnsignedLong(str, value);
+}
+
+bool ConvertValue<unsigned long long>::operator()(cxx::string_view str, unsigned long long& value) const
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
+}
+
+bool ConvertValue<float>::operator()(cxx::string_view str, float& value) const
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtof(p, end); });
+}
+
+bool ConvertValue<double>::operator()(cxx::string_view str, double& value) const
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtod(p, end); });
+}
+
+bool ConvertValue<long double>::operator()(cxx::string_view str, long double& value) const
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
 }
 
 bool cl::ConvertValue<std::string>::operator()(cxx::string_view str, std::string& value) const
