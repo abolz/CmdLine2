@@ -131,13 +131,6 @@ enum class CheckMissing : unsigned char {
     yes,
 };
 
-// Contains the help text for an option.
-struct Descr
-{
-    char const* s;
-    explicit Descr(char const* c_str) : s(c_str) {}
-};
-
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
@@ -157,7 +150,7 @@ class OptionBase
     // The name of the option.
     cxx::string_view const name_;
     // The description of this option
-    cxx::string_view descr_;
+    cxx::string_view const descr_;
     // Flags controlling how the option may/must be specified.
     Opt               num_occurrences_     = Opt::optional;
     Arg               num_args_            = Arg::no;
@@ -172,8 +165,6 @@ class OptionBase
 private:
     template <typename T> void Apply(T) = delete; // For slightly more useful error messages...
 
-    void Apply(Descr             v) { descr_ = v.s; }
-    void Apply(char const*       v) { descr_ = v; }
     void Apply(Opt               v) { num_occurrences_ = v; }
     void Apply(Arg               v) { num_args_ = v; }
     void Apply(JoinArg           v) { join_arg_ = v; }
@@ -184,8 +175,9 @@ private:
 
 protected:
     template <typename ...Args>
-    explicit OptionBase(char const* name, Args&&... args)
+    explicit OptionBase(char const* name, char const* descr, Args&&... args)
         : name_(name)
+        , descr_(descr)
     {
 #if __cplusplus >= 201703
         (Apply(args), ...);
@@ -224,8 +216,8 @@ class Option : public OptionBase
 
 public:
     template <typename ParserInit, typename ...Args>
-    Option(char const* name, ParserInit&& parser, Args&&... args)
-        : OptionBase(name, std::forward<Args>(args)...)
+    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+        : OptionBase(name, descr, std::forward<Args>(args)...)
         , parser_(std::forward<ParserInit>(parser))
     {
     }
@@ -312,7 +304,7 @@ public:
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     template <typename Parser, typename ...Args>
-    auto Add(char const* name, Parser&& parser, Args&&... args);
+    auto Add(char const* name, char const* descr, Parser&& parser, Args&&... args);
 
     // Reset the parser.
     void Reset();
@@ -422,7 +414,7 @@ namespace impl
 }
 
 template <typename Parser, typename ...Args>
-auto Cmdline::Add(char const* name, Parser&& parser, Args&&... args)
+auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&... args)
 {
     using DecayedParser = std::decay_t<Parser>;
 
@@ -433,7 +425,7 @@ auto Cmdline::Add(char const* name, Parser&& parser, Args&&... args)
         "'ParseContext&' and the return type should be convertible "
         "to 'bool'");
 
-    auto opt = std::make_unique<Option<DecayedParser>>( name, std::forward<Parser>(parser), std::forward<Args>(args)... );
+    auto opt = std::make_unique<Option<DecayedParser>>( name, descr, std::forward<Parser>(parser), std::forward<Args>(args)... );
 
     const auto p = opt.get();
     DoAdd(p);
@@ -799,7 +791,7 @@ auto PushBack(T& container, Predicates&&... preds)
 // Default parser for enum types.
 // Look up the key in the map and if it exists, returns the mapped value.
 //
-template </*typename U = T,*/ typename T, typename ...Predicates>
+template <typename T, typename ...Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
     using MapType = std::vector<std::pair<char const*, T>>;
@@ -811,46 +803,6 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
             if (p.first == ctx.arg)
             {
                 value = p.second;
-#if __cplusplus >= 201703
-                if ((... && preds(ctx, value)))
-#else
-                bool res = true;
-                bool unused[] = { (res = res && preds(ctx, value))..., false };
-                static_cast<void>(unused);
-                if (res)
-#endif
-                {
-                    return true;
-                }
-            }
-        }
-
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Invalid argument '" + std::string(ctx.arg) + "' for  option '" + std::string(ctx.name) + "'");
-        for (auto const& p : map)
-        {
-            ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, std::string("Could be '") + p.first + "'");
-        }
-
-        return false;
-    };
-}
-
-//
-// Default parser for enum types.
-// Look up the key in the map and if it exists, returns the mapped value.
-//
-template </*typename U = T,*/ typename T, typename ...Predicates>
-auto Map(T& value, std::initializer_list<char const*> ilist, Predicates&&... preds)
-{
-    using MapType = std::vector<char const*>;
-
-    return [=, &value, map = MapType(ilist)](ParseContext& ctx)
-    {
-        for (auto const& p : map)
-        {
-            if (p == ctx.arg)
-            {
-                value = p;
 #if __cplusplus >= 201703
                 if ((... && preds(ctx, value)))
 #else
