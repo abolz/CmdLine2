@@ -27,35 +27,40 @@ int main(int argc, char* argv[])
         return false;
     };
 
-    auto opt_h = cmd.Add(cl::Value(show_help), "h|help|?", "Display this message");
+    auto opt_h = cmd.Add("h|help|?", "Display this message", cl::Assign(show_help));
 
-    cmd.Add(cl::Value(flag), "f", "A boolean flag",
+    cmd.Add("f", "A boolean flag", 
+        cl::Assign(flag), 
         cl::Opt::zero_or_more,
         cl::MayGroup::yes,
         cl::Arg::optional);
 
     auto Times2 = [](cl::ParseContext const& /*ctx*/, int& i) { i += i; return true; };
 
-    cmd.Add(cl::Value(i, cl::InRange(0, 6), IsEven, Times2), "i|ints", "Some even ints in the range [0,6]",
+    cmd.Add("i|ints", "Some even ints in the range [0,6]",
+        cl::Assign(i, cl::InRange(0, 6), IsEven, Times2),
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
 
-    cmd.Add(cl::Value(f, cl::InRange(0, 3.1415)), "floats", "Some floats in the range [0,pi]",
+    cmd.Add("floats", "Some floats in the range [0,pi]",
+        cl::Assign(f, cl::InRange(0, 3.1415)),
         cl::Opt::zero_or_more,
         cl::Arg::required,
         cl::CommaSeparatedArg::yes);
 
-    cmd.Add(cl::List(input_files), "input-files", "List of input files",
+    cmd.Add("input-files", "List of input files",
+        cl::PushBack(input_files),
         cl::Opt::one_or_more,
         cl::Positional::yes);
 
-    cmd.Add(cl::Map(simpson, {{"homer",    Simpson::homer },
-                              {"marge",    Simpson::marge },
-                              {"bart",     Simpson::bart  },
-                              {"el barto", Simpson::bart  },
-                              {"lisa",     Simpson::lisa  },
-                              {"maggie",   Simpson::maggie}}), "simpson", "One of the Simpsons",
+    cmd.Add("simpson", "One of the Simpsons",
+        cl::Map(simpson, {{"homer",    Simpson::homer },
+                          {"marge",    Simpson::marge },
+                          {"bart",     Simpson::bart  },
+                          {"el barto", Simpson::bart  },
+                          {"lisa",     Simpson::lisa  },
+                          {"maggie",   Simpson::maggie}}),
         cl::Opt::zero_or_more,
         cl::Arg::required);
 
