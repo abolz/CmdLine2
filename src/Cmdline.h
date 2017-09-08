@@ -277,9 +277,9 @@ class Cmdline
         }
     };
 
+    using Diagnostics   = std::vector<Diagnostic>;
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
     using Options       = std::vector<NameOptionPair>;
-    using Diagnostics   = std::vector<Diagnostic>;
 
     Diagnostics     diag_            = {}; // List of diagnostic messages
     UniqueOptions   unique_options_  = {}; // Option storage.
@@ -426,10 +426,12 @@ auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&..
         "to 'bool'");
 
     auto opt = std::make_unique<Option<DecayedParser>>( name, descr, std::forward<Parser>(parser), std::forward<Args>(args)... );
+    auto const p = opt.get();
 
-    const auto p = opt.get();
-    DoAdd(p);
     unique_options_.push_back(std::move(opt)); // commit
+    // POST: opt=zombie
+
+    DoAdd(p);
 
     return p;
 }
