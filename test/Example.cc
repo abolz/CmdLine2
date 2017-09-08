@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
         return false;
     };
 
-    auto opt_h = cmd.Add("h|help|?", "Display this message", cl::Assign(show_help));
+    /*auto opt_h =*/ cmd.Add("h|help|?", "Display this message", cl::Assign(show_help));
 
     cmd.Add("f", "A boolean flag", 
         cl::Assign(flag), 
@@ -65,16 +65,15 @@ int main(int argc, char* argv[])
         cl::Arg::required);
 
     bool const ok = cmd.Parse(argv + 1, argv + argc);
-    if (show_help)
-    {
-        std::cerr << cmd.HelpMessage("Test");
-        return 0;
-    }
+    //if (show_help)
+    //{
+    //    std::cerr << cmd.HelpMessage("Test");
+    //    return 0;
+    //}
     if (!ok)
     {
         cmd.PrintErrors();
-        std::cerr << "\n";
-        std::cerr << "Use '-" << std::string(opt_h->name()) << "' for help\n";
+        cmd.PrintHelpMessage("Example"); //cmd.PrintHelpMessage(argv[0]);
         return -1;
     }
 
