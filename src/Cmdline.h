@@ -731,6 +731,8 @@ struct ParseValue<void>
     }
 };
 
+namespace check {
+
 // Returns a function object which checks whether a given value is in the range [lower, upper].
 // Emits a diagnostic on error.
 template <typename T, typename U>
@@ -800,6 +802,8 @@ auto LessEqual(T upper)
         return false;
     };
 }
+
+} // namespace check
 
 namespace impl
 {

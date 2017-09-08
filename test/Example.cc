@@ -39,11 +39,11 @@ int main(int argc, char* argv[])
     auto Times2 = [](cl::ParseContext const& /*ctx*/, int& i) { i += i; return true; };
 
     cmd.Add("i|ints", "Some even ints in the range [0,6]",
-        cl::Assign(i, cl::InRange(0, 6), IsEven, Times2),
+        cl::Assign(i, cl::check::InRange(0, 6), IsEven, Times2),
         cl::Opt::zero_or_more, cl::Arg::required, cl::CommaSeparatedArg::yes);
 
     cmd.Add("floats", "Some floats in the range [0,pi]",
-        cl::Assign(f, cl::InRange(0, 3.1415)),
+        cl::Assign(f, cl::check::InRange(0, 3.1415)),
         cl::Opt::zero_or_more, cl::Arg::required, cl::CommaSeparatedArg::yes);
 
     cmd.Add("input-files", "List of input files",
