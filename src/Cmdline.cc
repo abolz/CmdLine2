@@ -21,7 +21,6 @@
 #include "Cmdline.h"
 
 #include <climits>
-#include <cstdarg>
 #include <cstdio>
 #if defined(_WIN32)
 #include <windows.h>
