@@ -343,13 +343,13 @@ public:
     bool CheckMissingOptions();
 
     // Prints error messages to stderr.
-    void PrintErrors() const;
+    void PrintDiag() const;
 
     // Returns a short help message listing all registered options.
-    std::string HelpMessage(std::string const& program_name) const;
+    std::string GetHelp(std::string const& program_name) const;
 
     // Prints the help message to stderr
-    void PrintHelpMessage(std::string const& program_name) const;
+    void PrintHelp(std::string const& program_name) const;
 
 private:
     enum class Result { success, error, ignored };

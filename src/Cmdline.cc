@@ -253,7 +253,7 @@ bool Cmdline::CheckMissingOptions()
 
 #if defined(_WIN32)
 
-void Cmdline::PrintErrors() const
+void Cmdline::PrintDiag() const
 {
     if (diag_.empty())
         return;
@@ -299,7 +299,7 @@ void Cmdline::PrintErrors() const
 #define CL_VT100_MAGENTA    "\x1B[36;1m"
 #define CL_VT100_CYAN       "\x1B[36;1m"
 
-void Cmdline::PrintErrors() const
+void Cmdline::PrintDiag() const
 {
     if (diag_.empty())
         return;
@@ -385,7 +385,7 @@ static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
 static constexpr size_t kDescrIndent = 27;
 
-std::string Cmdline::HelpMessage(std::string const& program_name) const
+std::string Cmdline::GetHelp(std::string const& program_name) const
 {
     std::string spos;
     std::string sopt;
@@ -448,9 +448,9 @@ std::string Cmdline::HelpMessage(std::string const& program_name) const
         return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-void Cmdline::PrintHelpMessage(std::string const& program_name) const
+void Cmdline::PrintHelp(std::string const& program_name) const
 {
-    auto const msg = HelpMessage(program_name);
+    auto const msg = GetHelp(program_name);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
