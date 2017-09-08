@@ -135,6 +135,9 @@ enum class CheckMissing : unsigned char {
 //
 //------------------------------------------------------------------------------
 
+// Provides information about the argument and the command line parser which
+// is currently parsing the arguments.
+// The members are only valid inside the callback (parser).
 struct ParseContext
 {
     cxx::string_view name;    // Name of the option being parsed
@@ -303,10 +306,21 @@ public:
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
+    // NAME and DESCR must be valid while this command line parse is still alive.
     template <typename Parser, typename ...Args>
     auto Add(char const* name, char const* descr, Parser&& parser, Args&&... args);
 
-    // Reset the parser.
+    //
+    // TODO:
+    //
+    // Remove(OptionBase* opt);
+    //  => Remove ALL options
+    //
+    // Remove(char const* name);
+    //  => Remove only the single option with the given name.
+    //
+
+    // Resets the parser. Sets the COUNT members of all registered options to 0.
     void Reset();
 
     // Parse the command line arguments in [first, last).
@@ -318,7 +332,7 @@ public:
     // Calls sink() for unknown options.
     //
     // Sink must have signature "bool sink(It, int)" and should return false if
-    // the parser should stop or true to continue parsing command line
+    // the parser should stop, or return true to continue parsing command line
     // arguments.
     template <typename It, typename EndIt, typename Sink>
     bool Parse(It first, EndIt last, CheckMissing check_missing, Sink sink);
@@ -328,10 +342,10 @@ public:
     // Returns true if all required options have been (successfully) parsed.
     bool CheckMissingOptions();
 
-    // Prints error messages to stderr
+    // Prints error messages to stderr.
     void PrintErrors() const;
 
-    // Returns a short help message
+    // Returns a short help message listing all registered options.
     std::string HelpMessage(std::string const& program_name) const;
 
     // Prints the help message to stderr
