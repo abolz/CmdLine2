@@ -34,7 +34,7 @@ solution "Cmdline"
 
     configuration { "release" }
         defines { "NDEBUG" }
-        symbols "On"
+        symbols "Off"
         optimize "Full"
             -- On ==> -O2
             -- Full ==> -O3
