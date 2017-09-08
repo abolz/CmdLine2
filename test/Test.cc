@@ -46,7 +46,7 @@ TEST_CASE("Flags")
     int argc = static_cast<int>(std::distance(std::begin(argv), std::end(argv)));
 
     CHECK(true == cl.Parse(argv + 1, argv + argc));
-    cl.PrintErrors();
+    cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);
     CHECK(c == true);
@@ -86,7 +86,7 @@ TEST_CASE("Map")
     for (auto const& argv : argvs)
     {
        CHECK(true == cl.Parse(argv.begin(), argv.end()));
-       cl.PrintErrors();
+       cl.PrintDiag();
     }
 }
 
@@ -116,7 +116,7 @@ TEST_CASE("Flags_Tokenize")
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true -dtrue -dno -d1";
 
     CHECK(true == cl.Parse(cl::argv_begin(command_line, c_str_end{}), cl::argv_end()));
-    cl.PrintErrors();
+    cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);
     CHECK(c == true);
