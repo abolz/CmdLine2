@@ -662,12 +662,16 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view n
         ctx.index   = curr_index_;
         ctx.cmdline = this;
 
-        //size_t const num_diagnostics = diag_.size();
+        //
+        // XXX:
+        // Implement a better way to determine if a diagnostic should be emitted here...
+        //
+        size_t const num_diagnostics = diag_.size();
 
         if (!opt->Parse(ctx))
         {
-            //bool const diagnostic_emitted = diag_.size() > num_diagnostics;
-            //if (!diagnostic_emitted)
+            bool const diagnostic_emitted = diag_.size() > num_diagnostics;
+            if (!diagnostic_emitted)
             {
                 EmitDiag(Diagnostic::error, curr_index_, "Invalid argument '" + std::string(arg1) + "' for option '" + std::string(name) + "'");
             }
