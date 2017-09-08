@@ -749,7 +749,7 @@ auto LessEqual(T upper)
 // Uses an instance of Parser<> to convert the string.
 //
 template <typename T, typename ...Predicates>
-auto Value(T& value, Predicates&&... preds)
+auto Assign(T& value, Predicates&&... preds)
 {
     return [=, &value](ParseContext& ctx)
     {
@@ -757,7 +757,7 @@ auto Value(T& value, Predicates&&... preds)
         return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
 #else
         bool res = true;
-        int unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
+        bool unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(unused);
         return res;
 #endif
@@ -772,7 +772,7 @@ auto Value(T& value, Predicates&&... preds)
 // Predicates apply to the currently parsed value, not the whole list.
 //
 template <typename T, typename ...Predicates>
-auto List(T& container, Predicates&&... preds)
+auto PushBack(T& container, Predicates&&... preds)
 {
     return [=, &container](ParseContext& ctx)
     {
@@ -782,12 +782,12 @@ auto List(T& container, Predicates&&... preds)
         if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
 #else
         bool res = true;
-        int unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
+        bool unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
         static_cast<void>(unused);
         if (res)
 #endif
         {
-            container.insert(container.end(), std::move(value));
+            container.emplace_back(std::move(value));
             return true;
         }
 
@@ -799,17 +799,69 @@ auto List(T& container, Predicates&&... preds)
 // Default parser for enum types.
 // Look up the key in the map and if it exists, returns the mapped value.
 //
-template <typename T>
-auto Map(T& target, std::vector<std::pair<char const*, T>> map_)
+template </*typename U = T,*/ typename T, typename ...Predicates>
+auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
-    return [&target, map = std::move(map_)](ParseContext& ctx)
+    using MapType = std::vector<std::pair<char const*, T>>;
+
+    return [=, &value, map = MapType(ilist)](ParseContext& ctx)
     {
         for (auto const& p : map)
         {
             if (p.first == ctx.arg)
             {
-                target = p.second;
-                return true;
+                value = p.second;
+#if __cplusplus >= 201703
+                if ((... && preds(ctx, value)))
+#else
+                bool res = true;
+                bool unused[] = { (res = res && preds(ctx, value))..., false };
+                static_cast<void>(unused);
+                if (res)
+#endif
+                {
+                    return true;
+                }
+            }
+        }
+
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Invalid argument '" + std::string(ctx.arg) + "' for  option '" + std::string(ctx.name) + "'");
+        for (auto const& p : map)
+        {
+            ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, std::string("Could be '") + p.first + "'");
+        }
+
+        return false;
+    };
+}
+
+//
+// Default parser for enum types.
+// Look up the key in the map and if it exists, returns the mapped value.
+//
+template </*typename U = T,*/ typename T, typename ...Predicates>
+auto Map(T& value, std::initializer_list<char const*> ilist, Predicates&&... preds)
+{
+    using MapType = std::vector<char const*>;
+
+    return [=, &value, map = MapType(ilist)](ParseContext& ctx)
+    {
+        for (auto const& p : map)
+        {
+            if (p == ctx.arg)
+            {
+                value = p;
+#if __cplusplus >= 201703
+                if ((... && preds(ctx, value)))
+#else
+                bool res = true;
+                bool unused[] = { (res = res && preds(ctx, value))..., false };
+                static_cast<void>(unused);
+                if (res)
+#endif
+                {
+                    return true;
+                }
             }
         }
 
