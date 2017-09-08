@@ -1,5 +1,5 @@
 #include "../src/Cmdline.h"
-#include "../src/Cmdline_utils.h"
+//#include "../src/Cmdline_utils.h"
 #include <iterator>
 #include <vector>
 
@@ -51,6 +51,42 @@ TEST_CASE("Flags")
     CHECK(b == true);
     CHECK(c == true);
     CHECK(d == true);
+}
+
+TEST_CASE("Numbers")
+{
+    int a = 0;
+    long long b = 0;
+    unsigned char c = 0;
+    double d = 0;
+
+    cl::Cmdline cl;
+    cl.Add("a", "<descr>", cl::Assign(a), cl::Opt::zero_or_more, cl::Arg::required);
+    cl.Add("b", "<descr>", cl::Assign(b), cl::Opt::zero_or_more, cl::Arg::required);
+    cl.Add("c", "<descr>", cl::Assign(c), cl::Opt::zero_or_more, cl::Arg::required);
+    cl.Add("d", "<descr>", cl::Assign(d), cl::Opt::zero_or_more, cl::Arg::required);
+
+    char const* argv[] = {
+        "program_name",
+        "-a=1",
+        "-a=10001",
+        "-a=-1",
+        "-b", "-100",
+        "-b", "+100",
+        "-c", "0",
+        "-c", "255",
+        "-d=1",
+        "-d=-1",
+        "-d=1.234",
+        "-d=-1.234",
+        "-d=+1.234",
+        "-d=-1.234e+05",
+        "-d=+1.234e+05",
+    };
+    int argc = static_cast<int>(std::distance(std::begin(argv), std::end(argv)));
+
+    CHECK(true == cl.Parse(argv + 1, argv + argc));
+    cl.PrintDiag();
 }
 
 enum class Simpson {
