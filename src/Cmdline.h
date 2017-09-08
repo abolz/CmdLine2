@@ -224,7 +224,7 @@ class Option : public OptionBase
 
 public:
     template <typename ParserInit, typename ...Args>
-    Option(ParserInit&& parser, char const* name, Args&&... args)
+    Option(char const* name, ParserInit&& parser, Args&&... args)
         : OptionBase(name, std::forward<Args>(args)...)
         , parser_(std::forward<ParserInit>(parser))
     {
@@ -312,7 +312,7 @@ public:
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     template <typename Parser, typename ...Args>
-    auto Add(Parser&& parser, char const* name, Args&&... args);
+    auto Add(char const* name, Parser&& parser, Args&&... args);
 
     // Reset the parser.
     void Reset();
@@ -422,7 +422,7 @@ namespace impl
 }
 
 template <typename Parser, typename ...Args>
-auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
+auto Cmdline::Add(char const* name, Parser&& parser, Args&&... args)
 {
     using DecayedParser = std::decay_t<Parser>;
 
@@ -433,7 +433,7 @@ auto Cmdline::Add(Parser&& parser, char const* name, Args&&... args)
         "'ParseContext&' and the return type should be convertible "
         "to 'bool'");
 
-    auto opt = std::make_unique<Option<DecayedParser>>( std::forward<Parser>(parser), name, std::forward<Args>(args)... );
+    auto opt = std::make_unique<Option<DecayedParser>>( name, std::forward<Parser>(parser), std::forward<Args>(args)... );
 
     const auto p = opt.get();
     DoAdd(p);
