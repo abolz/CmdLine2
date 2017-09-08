@@ -383,7 +383,7 @@ static void AppendWrapped(std::string& out, cxx::string_view text, size_t indent
 
 static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
-static constexpr size_t kDescrIndent = 30;
+static constexpr size_t kDescrIndent = 27;
 
 std::string Cmdline::HelpMessage(std::string const& program_name) const
 {
@@ -411,7 +411,8 @@ std::string Cmdline::HelpMessage(std::string const& program_name) const
             std::string usage;
 
             usage += '-';
-            usage += '-';
+            if (opt->may_group_ == MayGroup::no)
+                usage += '-';
             usage.append(opt->name_.data(), opt->name_.size());
 
             switch (opt->num_args_)
