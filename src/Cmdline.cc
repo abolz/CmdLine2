@@ -20,7 +20,9 @@
 
 #include "Cmdline.h"
 
+#include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 #if defined(_WIN32)
 #include <windows.h>
