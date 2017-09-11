@@ -51,27 +51,17 @@ struct DelimiterResult
     size_t count;
 };
 
-//
-// A character delimiter.
-//
-// This is slightly faster than StringLiteral if you want to break the string at
-// a specific character.
-//
 struct CharDelimiter
 {
     char const ch;
-
     explicit CharDelimiter(char ch_) : ch(ch_) {}
 
     DelimiterResult operator()(std::string const& str) const
     {
-        return { str.find(ch), 1 };
+        return {str.find(ch), 1};
     }
 };
 
-//
-// Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
-//
 struct LineDelimiter
 {
     DelimiterResult operator()(std::string const& str) const
@@ -102,17 +92,10 @@ struct LineDelimiter
     }
 };
 
-//
-// Breaks a string into words, i.e. searches for the first whitespace preceding
-// the given length. If there is no whitespace, breaks a single word at length
-// characters.
-//
 struct WrapDelimiter
 {
     size_t const length;
-
-    explicit WrapDelimiter(size_t length_)
-        : length(length_)
+    explicit WrapDelimiter(size_t length_) : length(length_)
     {
         assert(length != 0 && "invalid parameter");
     }
