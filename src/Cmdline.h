@@ -580,8 +580,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string const& optstr, It& curr, EndIt 
             ++arg_start;
         }
 
-        auto const arg = optstr.substr(arg_start);
-        return HandleOccurrence(opt, name, arg);
+        return HandleOccurrence(opt, name, optstr.substr(arg_start));
     }
 
     return Result::success;
@@ -705,18 +704,16 @@ struct ParseValue<void>
     }
 };
 
-namespace check {
-
 // Returns a function object which checks whether a given value is in the range [lower, upper].
 // Emits a diagnostic on error.
 template <typename T, typename U>
-auto InRange(T lower, U upper)
+auto CheckInRange(T lower, U upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
         if (!(value < lower) && !(upper < value))
             return true;
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be in the range [" + std::to_string(lower) + ", " + std::to_string(upper) + "]");
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be in [" + std::to_string(lower) + ", " + std::to_string(upper) + "]");
         return false;
     };
 }
@@ -724,13 +721,13 @@ auto InRange(T lower, U upper)
 // Returns a function object which checks whether a given value is > lower.
 // Emits a diagnostic on error.
 template <typename T>
-auto GreaterThan(T lower)
+auto CheckGreaterThan(T lower)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
         if (lower < value)
             return true;
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be greater than " + std::to_string(lower));
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be > " + std::to_string(lower));
         return false;
     };
 }
@@ -738,13 +735,13 @@ auto GreaterThan(T lower)
 // Returns a function object which checks whether a given value is >= lower.
 // Emits a diagnostic on error.
 template <typename T>
-auto GreaterEqual(T lower)
+auto CheckGreaterEqual(T lower)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
         if (!(value < lower)) // value >= lower
             return true;
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be greater than or equal to " + std::to_string(lower));
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be >= " + std::to_string(lower));
         return false;
     };
 }
@@ -752,13 +749,13 @@ auto GreaterEqual(T lower)
 // Returns a function object which checks whether a given value is < upper.
 // Emits a diagnostic on error.
 template <typename T>
-auto LessThan(T upper)
+auto CheckLessThan(T upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
         if (value < upper)
             return true;
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be less than " + std::to_string(upper));
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be < " + std::to_string(upper));
         return false;
     };
 }
@@ -766,18 +763,16 @@ auto LessThan(T upper)
 // Returns a function object which checks whether a given value is <= upper.
 // Emits a diagnostic on error.
 template <typename T>
-auto LessEqual(T upper)
+auto CheckLessEqual(T upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
         if (!(upper < value)) // upper >= value
             return true;
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be less than or equal to " + std::to_string(upper));
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Argument must be <= " + std::to_string(upper));
         return false;
     };
 }
-
-} // namespace check
 
 namespace impl
 {
