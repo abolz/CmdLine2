@@ -78,7 +78,7 @@ struct LineDelimiter
         }
 
         if (p == last)
-            return {std::string::npos, 0};
+            return {std::string_view::npos, 0};
 
         auto const index = static_cast<size_t>(p - first);
 
@@ -105,12 +105,12 @@ struct WrapDelimiter
     {
         // If the string fits into the current line, just return this last line.
         if (str.size() <= length)
-            return {std::string::npos, 0};
+            return {std::string_view::npos, 0};
 
         // Otherwise, search for the first space preceding the line length.
         auto I = str.find_last_of(" \t", length);
 
-        if (I != std::string::npos) // There is a space.
+        if (I != std::string_view::npos) // There is a space.
             return {I, 1};
 
         return {length, 0}; // No space in current line, break at length.
@@ -132,7 +132,7 @@ static bool DoSplit(DoSplitResult& res, std::string_view str, DelimiterResult de
     //       f     f+c
     //
 
-    if (del.first == std::string::npos)
+    if (del.first == std::string_view::npos)
     {
         res.tok = str;
 //      res.str = {};
@@ -535,7 +535,7 @@ Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
-    if (arg_start != std::string::npos)
+    if (arg_start != std::string_view::npos)
     {
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
