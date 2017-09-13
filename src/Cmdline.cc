@@ -37,6 +37,117 @@ using namespace cl;
 //
 //------------------------------------------------------------------------------
 
+static int Compare(char const* s1, char const* s2, size_t n) noexcept
+{
+    // memcmp is undefined for nullptr's even if n == 0.
+    return n == 0 ? 0 : ::memcmp(s1, s2, n);
+}
+
+static char const* Find(char const* s, size_t n, char ch) noexcept
+{
+    assert(n != 0);
+    return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
+}
+
+bool string_view::_cmp_eq(string_view other) const noexcept
+{
+    return size() == other.size() && Compare(data(), other.data(), size()) == 0;
+}
+
+bool string_view::_cmp_lt(string_view other) const noexcept
+{
+    int const c = Compare(data(), other.data(), Min(size(), other.size()));
+    return c < 0 || (c == 0 && size() < other.size());
+}
+
+int string_view::compare(string_view other) const noexcept
+{
+    int const c = Compare(data(), other.data(), Min(size(), other.size()));
+    if (c != 0)
+        return c;
+    if (size() < other.size())
+        return -1;
+    if (size() > other.size())
+        return +1;
+    return 0;
+}
+
+size_t string_view::find(char ch, size_t from) const noexcept
+{
+    if (from >= size())
+        return npos;
+
+    if (auto I = Find(data() + from, size() - from, ch))
+        return static_cast<size_t>(I - data());
+
+    return npos;
+}
+
+size_t string_view::rfind(char ch, size_t from) const noexcept
+{
+    if (from < size())
+        ++from;
+    else
+        from = size();
+
+    for (auto I = from; I != 0; --I)
+    {
+        if (static_cast<unsigned char>(ch) == static_cast<unsigned char>(data()[I - 1]))
+            return I - 1;
+    }
+
+    return npos;
+}
+
+size_t string_view::find_first_of(string_view chars, size_t from) const noexcept
+{
+    if (chars.size() == 1)
+        return find(chars[0], from);
+
+    if (from >= size() || chars.empty())
+        return npos;
+
+    for (auto I = from; I != size(); ++I)
+    {
+        if (Find(chars.data(), chars.size(), data()[I]))
+            return I;
+    }
+
+    return npos;
+}
+
+size_t string_view::find_last_of(string_view chars, size_t from) const noexcept
+{
+    if (chars.size() == 1)
+        return rfind(chars[0], from);
+
+    if (chars.empty())
+        return npos;
+
+    if (from < size())
+        ++from;
+    else
+        from = size();
+
+    for (auto I = from; I != 0; --I)
+    {
+        if (Find(chars.data(), chars.size(), data()[I - 1]))
+            return I - 1;
+    }
+
+    return npos;
+}
+
+static std::string& operator+=(std::string& lhs, string_view rhs)
+{
+    lhs.append(rhs.data(), rhs.size());
+    return lhs;
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
 namespace {
 
 // Return type for delimiters.
@@ -57,7 +168,7 @@ struct CharDelimiter
     char const ch;
     explicit CharDelimiter(char ch_) : ch(ch_) {}
 
-    DelimiterResult operator()(std::string_view str) const
+    DelimiterResult operator()(string_view str) const
     {
         return {str.find(ch), 1};
     }
@@ -65,7 +176,7 @@ struct CharDelimiter
 
 struct LineDelimiter
 {
-    DelimiterResult operator()(std::string_view str) const
+    DelimiterResult operator()(string_view str) const
     {
         auto const first = str.data();
         auto const last  = str.data() + str.size();
@@ -78,7 +189,7 @@ struct LineDelimiter
         }
 
         if (p == last)
-            return {std::string_view::npos, 0};
+            return {string_view::npos, 0};
 
         auto const index = static_cast<size_t>(p - first);
 
@@ -101,16 +212,16 @@ struct WrapDelimiter
         assert(length != 0 && "invalid parameter");
     }
 
-    DelimiterResult operator()(std::string_view str) const
+    DelimiterResult operator()(string_view str) const
     {
         // If the string fits into the current line, just return this last line.
         if (str.size() <= length)
-            return {std::string_view::npos, 0};
+            return {string_view::npos, 0};
 
         // Otherwise, search for the first space preceding the line length.
         auto I = str.find_last_of(" \t", length);
 
-        if (I != std::string_view::npos) // There is a space.
+        if (I != string_view::npos) // There is a space.
             return {I, 1};
 
         return {length, 0}; // No space in current line, break at length.
@@ -119,12 +230,12 @@ struct WrapDelimiter
 
 struct DoSplitResult
 {
-    std::string_view tok; // The current token.
-    std::string_view str; // The rest of the string.
+    string_view tok; // The current token.
+    string_view str; // The rest of the string.
     bool last = false;
 };
 
-static bool DoSplit(DoSplitResult& res, std::string_view str, DelimiterResult del)
+static bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
 {
     //
     // +-----+-----+------------+
@@ -132,7 +243,7 @@ static bool DoSplit(DoSplitResult& res, std::string_view str, DelimiterResult de
     //       f     f+c
     //
 
-    if (del.first == std::string_view::npos)
+    if (del.first == string_view::npos)
     {
         res.tok = str;
 //      res.str = {};
@@ -152,7 +263,7 @@ static bool DoSplit(DoSplitResult& res, std::string_view str, DelimiterResult de
 }
 
 template <typename Delimiter, typename Function>
-static bool SplitString(std::string_view str, Delimiter&& delim, Function&& fn)
+static bool SplitString(string_view str, Delimiter&& delim, Function&& fn)
 {
     DoSplitResult curr;
 
@@ -326,7 +437,7 @@ void Cmdline::PrintDiag() const
 
 #endif
 
-static void AppendAligned(std::string& out, std::string_view text, size_t indent, size_t width)
+static void AppendAligned(std::string& out, string_view text, size_t indent, size_t width)
 {
     if (text.size() < width && indent < width - text.size())
     {
@@ -343,7 +454,7 @@ static void AppendAligned(std::string& out, std::string_view text, size_t indent
     }
 }
 
-static void AppendWrapped(std::string& out, std::string_view text, size_t indent, size_t width)
+static void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
     if (width <= indent)
         width = SIZE_MAX;
@@ -351,10 +462,10 @@ static void AppendWrapped(std::string& out, std::string_view text, size_t indent
     bool first = true;
 
     // Break the string into paragraphs
-    SplitString(text, LineDelimiter(), [&](std::string_view par)
+    SplitString(text, LineDelimiter(), [&](string_view par)
     {
         // Break the paragraphs at the maximum width into lines
-        return SplitString(par, WrapDelimiter(width), [&](std::string_view line)
+        return SplitString(par, WrapDelimiter(width), [&](string_view line)
         {
             if (first)
             {
@@ -377,7 +488,7 @@ static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
 static constexpr size_t kDescrIndent = 27;
 
-std::string Cmdline::GetHelp(std::string_view program_name) const
+std::string Cmdline::GetHelp(string_view program_name) const
 {
     std::string spos;
     std::string sopt;
@@ -438,13 +549,13 @@ std::string Cmdline::GetHelp(std::string_view program_name) const
         return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-void Cmdline::PrintHelp(std::string_view program_name) const
+void Cmdline::PrintHelp(string_view program_name) const
 {
     auto const msg = GetHelp(program_name);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
-OptionBase* Cmdline::FindOption(std::string_view name) const
+OptionBase* Cmdline::FindOption(string_view name) const
 {
     for (auto&& p : options_)
     {
@@ -455,7 +566,7 @@ OptionBase* Cmdline::FindOption(std::string_view name) const
     return nullptr;
 }
 
-OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) const
+OptionBase* Cmdline::FindOption(string_view name, bool& ambiguous) const
 {
     ambiguous = false;
 
@@ -492,7 +603,7 @@ void Cmdline::DoAdd(std::unique_ptr<OptionBase> popt)
 
     unique_options_.push_back(std::move(popt)); // commit
 
-    SplitString(opt->name_, CharDelimiter('|'), [&](std::string_view name)
+    SplitString(opt->name_, CharDelimiter('|'), [&](string_view name)
     {
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
@@ -510,7 +621,7 @@ void Cmdline::DoAdd(std::unique_ptr<OptionBase> popt)
     });
 }
 
-Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
+Cmdline::Result Cmdline::HandlePositional(string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
     assert(curr_positional_ >= 0);
@@ -531,11 +642,11 @@ Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
+Cmdline::Result Cmdline::HandleOption(string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
-    if (arg_start != std::string_view::npos)
+    if (arg_start != string_view::npos)
     {
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
@@ -565,7 +676,7 @@ Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
     return Result::ignored;
 }
 
-Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
+Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
 {
     // Scan over all known prefix lengths.
     // Start with the longest to allow different prefixes like e.g. "-with" and
@@ -591,7 +702,7 @@ Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
 
 // Check if OPTSTR is actually a group of single letter options and store the
 // options in GROUP.
-Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vector<OptionBase*>& group)
+Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group)
 {
     group.reserve(optstr.size());
 
@@ -626,7 +737,7 @@ Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vector<Opt
     return Result::success;
 }
 
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name, std::string_view arg)
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg)
 {
     // An argument was specified for OPT.
 
@@ -640,9 +751,9 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
     return ParseOptionArgument(opt, name, arg);
 }
 
-Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string_view name, std::string_view arg)
+Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, string_view arg)
 {
-    auto Parse1 = [&](std::string_view arg1)
+    auto Parse1 = [&](string_view arg1)
     {
         if (!opt->IsOccurrenceAllowed())
         {
@@ -685,7 +796,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string_view n
 
     if (opt->comma_separated_ == CommaSeparated::yes)
     {
-        SplitString(arg, CharDelimiter(','), [&](std::string_view s)
+        SplitString(arg, CharDelimiter(','), [&](string_view s)
         {
             res = Parse1(s);
             return res == Result::success;
@@ -714,7 +825,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string_view n
 //------------------------------------------------------------------------------
 
 template <typename ...Match>
-static bool IsAnyOf(std::string_view value, Match&&... match)
+static bool IsAnyOf(string_view value, Match&&... match)
 {
 #if __cplusplus >= 201703
     return (... || (value == match));
@@ -726,7 +837,7 @@ static bool IsAnyOf(std::string_view value, Match&&... match)
 #endif
 }
 
-bool cl::ConvertValue<bool>::operator()(std::string_view str, bool& value) const
+bool cl::ConvertValue<bool>::operator()(string_view str, bool& value) const
 {
     if (str.empty() || IsAnyOf(str, "1", "y", "true", "True", "yes", "Yes", "on", "On"))
         value = true;
@@ -739,7 +850,7 @@ bool cl::ConvertValue<bool>::operator()(std::string_view str, bool& value) const
 }
 
 template <typename T, typename Fn>
-static bool StrToX(std::string_view sv, T& value, Fn fn)
+static bool StrToX(string_view sv, T& value, Fn fn)
 {
     if (sv.empty())
         return false;
@@ -767,13 +878,13 @@ static bool StrToX(std::string_view sv, T& value, Fn fn)
 // Note:
 // Wrap into local function, to avoid instantiating StrToX with different lambdas which
 // actually all do the same thing: call strtol.
-static bool StrToLongLong(std::string_view str, long long& value)
+static bool StrToLongLong(string_view str, long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
 }
 
 template <typename T>
-static bool ParseInt(std::string_view str, T& value)
+static bool ParseInt(string_view str, T& value)
 {
     long long v = 0;
     if (StrToLongLong(str, v) && v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max())
@@ -784,39 +895,39 @@ static bool ParseInt(std::string_view str, T& value)
     return false;
 }
 
-bool ConvertValue<signed char>::operator()(std::string_view str, signed char& value) const
+bool ConvertValue<signed char>::operator()(string_view str, signed char& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed short>::operator()(std::string_view str, signed short& value) const
+bool ConvertValue<signed short>::operator()(string_view str, signed short& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed int>::operator()(std::string_view str, signed int& value) const
+bool ConvertValue<signed int>::operator()(string_view str, signed int& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed long>::operator()(std::string_view str, signed long& value) const
+bool ConvertValue<signed long>::operator()(string_view str, signed long& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed long long>::operator()(std::string_view str, signed long long& value) const
+bool ConvertValue<signed long long>::operator()(string_view str, signed long long& value) const
 {
     return StrToLongLong(str, value);
 }
 
 // (See above)
-static bool StrToUnsignedLongLong(std::string_view str, unsigned long long& value)
+static bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
 template <typename T>
-static bool ParseUnsignedInt(std::string_view str, T& value)
+static bool ParseUnsignedInt(string_view str, T& value)
 {
     unsigned long long v = 0;
     if (StrToUnsignedLongLong(str, v) && v <= std::numeric_limits<T>::max())
@@ -827,47 +938,47 @@ static bool ParseUnsignedInt(std::string_view str, T& value)
     return false;
 }
 
-bool ConvertValue<unsigned char>::operator()(std::string_view str, unsigned char& value) const
+bool ConvertValue<unsigned char>::operator()(string_view str, unsigned char& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned short>::operator()(std::string_view str, unsigned short& value) const
+bool ConvertValue<unsigned short>::operator()(string_view str, unsigned short& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned int>::operator()(std::string_view str, unsigned int& value) const
+bool ConvertValue<unsigned int>::operator()(string_view str, unsigned int& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned long>::operator()(std::string_view str, unsigned long& value) const
+bool ConvertValue<unsigned long>::operator()(string_view str, unsigned long& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned long long>::operator()(std::string_view str, unsigned long long& value) const
+bool ConvertValue<unsigned long long>::operator()(string_view str, unsigned long long& value) const
 {
     return StrToUnsignedLongLong(str, value);
 }
 
-bool ConvertValue<float>::operator()(std::string_view str, float& value) const
+bool ConvertValue<float>::operator()(string_view str, float& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtof(p, end); });
 }
 
-bool ConvertValue<double>::operator()(std::string_view str, double& value) const
+bool ConvertValue<double>::operator()(string_view str, double& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtod(p, end); });
 }
 
-bool ConvertValue<long double>::operator()(std::string_view str, long double& value) const
+bool ConvertValue<long double>::operator()(string_view str, long double& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
 }
 
-bool cl::ConvertValue<std::string>::operator()(std::string_view str, std::string& value) const
+bool cl::ConvertValue<std::string>::operator()(string_view str, std::string& value) const
 {
     value.assign(str.data(), str.size());
     return true;

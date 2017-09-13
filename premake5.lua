@@ -66,7 +66,7 @@ solution "Cmdline"
 
     configuration { "vs*" }
         buildoptions {
-            "/std:c++17",
+            -- "/std:c++17",
             -- "/permissive-",
             -- "/arch:AVX2",
             -- "/GR-",

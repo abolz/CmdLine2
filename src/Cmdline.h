@@ -22,15 +22,140 @@
 #define CL_CMDLINE_H 1
 
 #include <cassert>
+#include <cstring>
 #include <iosfwd>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace cl {
 
 class Cmdline;
+
+class string_view // Minimal std::string_view replacement for C++14 compatibility
+{
+public:
+    using value_type      = char;
+    using const_pointer   = char const*;
+    using const_reference = char const&;
+    using const_iterator  = char const*;
+
+private:
+    const_pointer data_ = nullptr;
+    size_t        size_ = 0;
+
+    static size_t Min(size_t x, size_t y) { return y < x ? y : x; }
+
+public:
+    static constexpr size_t npos = static_cast<size_t>(-1);
+
+    constexpr string_view() noexcept = default;
+    constexpr string_view(string_view const&) noexcept = default;
+
+    /*constexpr*/ string_view(const_pointer ptr, size_t len) noexcept
+        : data_(ptr)
+        , size_(len)
+    {
+        assert(size_ == 0 || data_ != nullptr);
+    }
+
+    string_view(const_pointer c_str) noexcept
+        : data_(c_str)
+        , size_(c_str ? ::strlen(c_str) : 0u) // std does not allow c_str to be nullptr
+    {
+    }
+
+    template <
+        typename String,
+        typename DataT = decltype(std::declval<String const&>().data()),
+        typename SizeT = decltype(std::declval<String const&>().size()),
+        typename = typename std::enable_if<
+            std::is_convertible<DataT, const_pointer>::value &&
+            std::is_convertible<SizeT, size_t>::value
+        >::type
+    >
+    /*implicit*/ string_view(String const& str)
+        : data_(str.data())
+        , size_(str.size())
+    {
+        assert(size_ == 0 || data_ != nullptr);
+    }
+
+    explicit operator std::string() const
+    {
+        // Construct from iterators!
+        // Constructing from data/size requires data != null...
+        return std::string(begin(), end());
+    }
+
+    // Returns a pointer to the start of the string.
+    constexpr const_pointer data() const noexcept { return data_; }
+
+    // Returns the length of the string.
+    constexpr size_t size() const noexcept { return size_; }
+
+    // Returns whether the string is empty.
+    constexpr bool empty() const noexcept { return size_ == 0; }
+
+    // Returns a reference to the N-th character of the string.
+    /*constexpr*/ const_reference operator[](size_t n) const noexcept {
+        assert(n < size_);
+        return data_[n];
+    }
+
+    // Returns an iterator pointing to the start of the string.
+    constexpr const_iterator begin() const noexcept { return data_; }
+
+    // Returns an iterator pointing past the end of the string.
+    constexpr const_iterator end() const noexcept { return data_ + size_; }
+
+    bool _cmp_eq(string_view other) const noexcept;
+    bool _cmp_lt(string_view other) const noexcept;
+
+    // Lexicographically compare this string with another string OTHER.
+    int compare(string_view other) const noexcept;
+
+    // Removes the first N characters from the string.
+    void remove_prefix(size_t n) noexcept {
+        assert(n <= size_);
+        data_ += n;
+        size_ -= n;
+    }
+
+    // Removes the last N characters from the string.
+    void remove_suffix(size_t n) noexcept {
+        assert(n <= size_);
+        size_ -= n;
+    }
+
+    // Returns the substring [first, +count)
+    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const noexcept {
+        assert(first <= size_);
+        return { data_ + first, Min(count, size_ - first) };
+    }
+
+    // Search for the first character ch in the sub-string [from, end)
+    size_t find(char ch, size_t from = 0) const noexcept;
+
+    // Search for the last character ch in the sub-string [0, from)
+    size_t rfind(char ch, size_t from = npos) const noexcept;
+
+    // Search for the first character in the sub-string [from, end)
+    // which matches any of the characters in chars.
+    size_t find_first_of(string_view chars, size_t from = 0) const noexcept;
+
+    // Search for the last character in the sub-string [0, from)
+    // which matches any of the characters in chars.
+    size_t find_last_of(string_view chars, size_t from = npos) const noexcept;
+};
+
+inline bool operator==(string_view s1, string_view s2) noexcept {
+    return s1._cmp_eq(s2);
+}
+
+inline bool operator!=(string_view s1, string_view s2) noexcept {
+    return !(s1 == s2);
+}
 
 //------------------------------------------------------------------------------
 //
@@ -129,10 +254,10 @@ enum class ConsumeRemaining : unsigned char {
 // The members are only valid inside the callback (parser).
 struct ParseContext
 {
-    std::string_view name;    // Name of the option being parsed    (only valid in callback!)
-    std::string_view arg;     // Option argument                    (only valid in callback!)
-    int              index;   // Current index in the argv array
-    Cmdline*         cmdline; // The command line parser which currently parses the argument list (never null)
+    string_view name;    // Name of the option being parsed    (only valid in callback!)
+    string_view arg;     // Option argument                    (only valid in callback!)
+    int         index;   // Current index in the argv array
+    Cmdline*    cmdline; // The command line parser which currently parses the argument list (never null)
 };
 
 class OptionBase
@@ -266,12 +391,12 @@ class Cmdline
 {
     struct NameOptionPair
     {
-        std::string_view name   = {}; // Points into option->name_
-        OptionBase*      option = nullptr;
+        string_view name   = {}; // Points into option->name_
+        OptionBase* option = nullptr;
 
         // For VS2015
         NameOptionPair() = default;
-        NameOptionPair(std::string_view name_, OptionBase* option_)
+        NameOptionPair(string_view name_, OptionBase* option_)
             : name(name_)
             , option(option_)
         {
@@ -349,16 +474,16 @@ public:
     void PrintDiag() const;
 
     // Returns a short help message listing all registered options.
-    std::string GetHelp(std::string_view program_name) const;
+    std::string GetHelp(string_view program_name) const;
 
     // Prints the help message to stderr
-    void PrintHelp(std::string_view program_name) const;
+    void PrintHelp(string_view program_name) const;
 
 private:
     enum class Result { success, error, ignored };
 
-    OptionBase* FindOption(std::string_view name) const;
-    OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
+    OptionBase* FindOption(string_view name) const;
+    OptionBase* FindOption(string_view name, bool& ambiguous) const;
 
     void DoAdd(std::unique_ptr<OptionBase> opt);
 
@@ -366,35 +491,35 @@ private:
     bool DoParse(It& curr, EndIt last, Sink sink);
 
     template <typename It, typename EndIt>
-    Result Handle1(std::string_view optstr, It& curr, EndIt last);
+    Result Handle1(string_view optstr, It& curr, EndIt last);
 
     // <file>
-    Result HandlePositional(std::string_view optstr);
+    Result HandlePositional(string_view optstr);
 
     // -f
     // -f <file>
     template <typename It, typename EndIt>
-    Result HandleStandardOption(std::string_view optstr, It& curr, EndIt last);
+    Result HandleStandardOption(string_view optstr, It& curr, EndIt last);
 
     // -f=<file>
-    Result HandleOption(std::string_view optstr);
+    Result HandleOption(string_view optstr);
 
     // -I<dir>
-    Result HandlePrefix(std::string_view optstr);
+    Result HandlePrefix(string_view optstr);
 
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(std::string_view optstr, std::vector<OptionBase*>& group);
+    Result DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It, typename EndIt>
-    Result HandleGroup(std::string_view optstr, It& curr, EndIt last);
+    Result HandleGroup(string_view optstr, It& curr, EndIt last);
 
     template <typename It, typename EndIt>
-    Result HandleOccurrence(OptionBase* opt, std::string_view name, It& curr, EndIt last);
-    Result HandleOccurrence(OptionBase* opt, std::string_view name, std::string_view arg);
+    Result HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last);
+    Result HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
 
-    Result ParseOptionArgument(OptionBase* opt, std::string_view name, std::string_view arg);
+    Result ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
 };
 
 //------------------------------------------------------------------------------
@@ -418,7 +543,7 @@ auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&..
 template <typename It, typename EndIt>
 bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing)
 {
-    auto sink = [&](std::string_view curr, int index)
+    auto sink = [&](string_view curr, int index)
     {
         FormatDiag(Diagnostic::error, index, "Unknown option '%.*s'", static_cast<int>(curr.size()), curr.data());
         return false;
@@ -471,7 +596,7 @@ bool Cmdline::DoParse(It& curr, EndIt last, Sink sink)
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::Handle1(std::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 {
     assert(curr != last);
 
@@ -536,7 +661,7 @@ Cmdline::Result Cmdline::Handle1(std::string_view optstr, It& curr, EndIt last)
 
 // If OPTSTR is the name of an option, handle the option.
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
 {
     bool ambiguous = false;
     if (auto const opt = FindOption(optstr, ambiguous))
@@ -557,7 +682,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string_view optstr, It& curr,
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 {
     std::vector<OptionBase*> group;
 
@@ -598,7 +723,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, EndIt la
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
 {
     assert(curr != last);
 
@@ -630,19 +755,12 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 //
 //------------------------------------------------------------------------------
 
-//
-// XXX
-//
-// ParseValue<>::operator() and predicates have the same signature...
-// Combine?!?!
-//
-
 // Convert the string representation in STR into an object of type T.
 template <typename T = void, typename /*Enable*/ = void>
 struct ConvertValue
 {
     template <typename Stream = std::stringstream>
-    bool operator()(std::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         Stream stream{std::string(str)};
         stream >> value;
@@ -650,30 +768,30 @@ struct ConvertValue
     }
 };
 
-template <> struct ConvertValue< bool               > { bool operator()(std::string_view str, bool&               value) const; };
-template <> struct ConvertValue< signed char        > { bool operator()(std::string_view str, signed char&        value) const; };
-template <> struct ConvertValue< signed short       > { bool operator()(std::string_view str, signed short&       value) const; };
-template <> struct ConvertValue< signed int         > { bool operator()(std::string_view str, signed int&         value) const; };
-template <> struct ConvertValue< signed long        > { bool operator()(std::string_view str, signed long&        value) const; };
-template <> struct ConvertValue< signed long long   > { bool operator()(std::string_view str, signed long long&   value) const; };
-template <> struct ConvertValue< unsigned char      > { bool operator()(std::string_view str, unsigned char&      value) const; };
-template <> struct ConvertValue< unsigned short     > { bool operator()(std::string_view str, unsigned short&     value) const; };
-template <> struct ConvertValue< unsigned int       > { bool operator()(std::string_view str, unsigned int&       value) const; };
-template <> struct ConvertValue< unsigned long      > { bool operator()(std::string_view str, unsigned long&      value) const; };
-template <> struct ConvertValue< unsigned long long > { bool operator()(std::string_view str, unsigned long long& value) const; };
-template <> struct ConvertValue< float              > { bool operator()(std::string_view str, float&              value) const; };
-template <> struct ConvertValue< double             > { bool operator()(std::string_view str, double&             value) const; };
-template <> struct ConvertValue< long double        > { bool operator()(std::string_view str, long double&        value) const; };
-template <> struct ConvertValue< std::string        > { bool operator()(std::string_view str, std::string&        value) const; };
+template <> struct ConvertValue< bool               > { bool operator()(string_view str, bool&               value) const; };
+template <> struct ConvertValue< signed char        > { bool operator()(string_view str, signed char&        value) const; };
+template <> struct ConvertValue< signed short       > { bool operator()(string_view str, signed short&       value) const; };
+template <> struct ConvertValue< signed int         > { bool operator()(string_view str, signed int&         value) const; };
+template <> struct ConvertValue< signed long        > { bool operator()(string_view str, signed long&        value) const; };
+template <> struct ConvertValue< signed long long   > { bool operator()(string_view str, signed long long&   value) const; };
+template <> struct ConvertValue< unsigned char      > { bool operator()(string_view str, unsigned char&      value) const; };
+template <> struct ConvertValue< unsigned short     > { bool operator()(string_view str, unsigned short&     value) const; };
+template <> struct ConvertValue< unsigned int       > { bool operator()(string_view str, unsigned int&       value) const; };
+template <> struct ConvertValue< unsigned long      > { bool operator()(string_view str, unsigned long&      value) const; };
+template <> struct ConvertValue< unsigned long long > { bool operator()(string_view str, unsigned long long& value) const; };
+template <> struct ConvertValue< float              > { bool operator()(string_view str, float&              value) const; };
+template <> struct ConvertValue< double             > { bool operator()(string_view str, double&             value) const; };
+template <> struct ConvertValue< long double        > { bool operator()(string_view str, long double&        value) const; };
+template <> struct ConvertValue< std::string        > { bool operator()(string_view str, std::string&        value) const; };
 
 template <typename Key, typename Value>
 struct ConvertValue<std::pair<Key, Value>>
 {
-    bool operator()(std::string_view str, std::pair<Key, Value>& value) const
+    bool operator()(string_view str, std::pair<Key, Value>& value) const
     {
         auto const p = str.find(':');
 
-        if (p == std::string_view::npos)
+        if (p == string_view::npos)
             return false;
 
         return ConvertValue<Key>{}(str.substr(0, p), value.first)
@@ -685,7 +803,7 @@ template <>
 struct ConvertValue<void>
 {
     template <typename T>
-    bool operator()(std::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         return ConvertValue<T>{}(str, value);
     }
@@ -816,10 +934,8 @@ namespace impl
     }
 }
 
-//
 // Default parser for scalar types.
 // Uses an instance of Parser<> to convert the string.
-//
 template <typename T, typename ...Predicates>
 auto Assign(T& target, Predicates&&... preds)
 {
@@ -832,13 +948,10 @@ auto Assign(T& target, Predicates&&... preds)
     };
 }
 
-//
 // Default parser for list types.
 // Uses an instance of Parser<> to convert the string and then inserts the
 // converted value into the container.
-//
 // Predicates apply to the currently parsed value, not the whole list.
-//
 template <typename T, typename ...Predicates>
 auto PushBack(T& container, Predicates&&... preds)
 {
@@ -856,10 +969,8 @@ auto PushBack(T& container, Predicates&&... preds)
     };
 }
 
-//
 // Default parser for enum types.
 // Look up the key in the map and if it exists, returns the mapped value.
-//
 template <typename T, typename ...Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
