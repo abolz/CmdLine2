@@ -32,7 +32,6 @@
 #endif
 
 using namespace cl;
-using namespace cl::flags;
 
 //------------------------------------------------------------------------------
 //
@@ -681,7 +680,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string_view n
 
     Result res = Result::success;
 
-    if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
+    if (opt->comma_separated_ == CommaSeparated::yes)
     {
         SplitString(arg, CharDelimiter(','), [&](std::string_view s)
         {

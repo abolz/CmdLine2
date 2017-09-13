@@ -36,8 +36,6 @@ class Cmdline;
 //
 //------------------------------------------------------------------------------
 
-namespace flags {
-
 // Controls how often an option may/must be specified.
 enum class NumOpts : unsigned char {
     // The option may appear at most once.
@@ -102,7 +100,7 @@ enum class Positional : unsigned char {
 };
 
 // Split the argument between commas?
-enum class CommaSeparatedArg : unsigned char {
+enum class CommaSeparated : unsigned char {
     // Do not split the argument between commas.
     // This is the default.
     no,
@@ -121,58 +119,6 @@ enum class ConsumeRemaining : unsigned char {
     // options are parsed as positional options.
     yes,
 };
-
-} // namespace flags
-
-// The option may appear at most once.
-// This is the default.
-constexpr auto optional = flags::NumOpts::optional;
-
-// The option must appear exactly once.
-constexpr auto required = flags::NumOpts::required;
-
-// The option may appear multiple times.
-constexpr auto zero_or_more = flags::NumOpts::zero_or_more;
-
-// The option must appear at least once.
-constexpr auto one_or_more = flags::NumOpts::one_or_more;
-
-// An argument is not allowed.
-// This is the default.
-constexpr auto arg_disallowed = flags::HasArg::no;
-
-// An argument is optional.
-constexpr auto arg_optional = flags::HasArg::optional;
-
-// An argument is required.
-constexpr auto arg_required = flags::HasArg::required;
-
-// The option may join its argument: "-I dir" and "-Idir" are possible. If the
-// option is specified with an equals sign ("-I=dir") the '=' will be part of
-// the option argument.
-constexpr auto may_join_arg = flags::JoinArg::optional;
-
-// The option must join its argument: "-Idir" is the only possible format. If
-// the option is specified with an equals sign ("-I=dir") the '=' will be part
-// of the option argument.
-constexpr auto joins_arg = flags::JoinArg::yes;
-
-// The option may be grouped with other options. This flag is ignored if the
-// names of the options are not a single letter and option groups must be
-// prefixed with a single '-', e.g. "-xvf=file".
-constexpr auto may_group = flags::MayGroup::yes;
-
-// Positional option, no '-' required.
-constexpr auto positional = flags::Positional::yes;
-
-// If this flag is set, the option's argument is split between commas, e.g.
-// "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
-// Note that each comma-separated argument counts as an option occurrence.
-constexpr auto comma_separated = flags::CommaSeparatedArg::yes;
-
-// If an option with this flag is (successfully) parsed, all the remaining
-// options are parsed as positional options.
-constexpr auto consume_remaining = flags::ConsumeRemaining::yes;
 
 //------------------------------------------------------------------------------
 //
@@ -198,26 +144,26 @@ class OptionBase
     // The description of this option
     std::string const descr_;
     // Flags controlling how the option may/must be specified.
-    flags::NumOpts           num_opts_            = flags::NumOpts::optional;
-    flags::HasArg            has_arg_             = flags::HasArg::no;
-    flags::JoinArg           join_arg_            = flags::JoinArg::no;
-    flags::MayGroup          may_group_           = flags::MayGroup::no;
-    flags::Positional        positional_          = flags::Positional::no;
-    flags::CommaSeparatedArg comma_separated_arg_ = flags::CommaSeparatedArg::no;
-    flags::ConsumeRemaining  consume_remaining_   = flags::ConsumeRemaining::no;
+    NumOpts          num_opts_          = NumOpts::optional;
+    HasArg           has_arg_           = HasArg::no;
+    JoinArg          join_arg_          = JoinArg::no;
+    MayGroup         may_group_         = MayGroup::no;
+    Positional       positional_        = Positional::no;
+    CommaSeparated   comma_separated_   = CommaSeparated::no;
+    ConsumeRemaining consume_remaining_ = ConsumeRemaining::no;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
 private:
     template <typename T> void Apply(T) = delete; // For slightly more useful error messages...
 
-    void Apply(flags::NumOpts           v) { num_opts_ = v; }
-    void Apply(flags::HasArg            v) { has_arg_ = v; }
-    void Apply(flags::JoinArg           v) { join_arg_ = v; }
-    void Apply(flags::MayGroup          v) { may_group_ = v; }
-    void Apply(flags::Positional        v) { positional_ = v; }
-    void Apply(flags::CommaSeparatedArg v) { comma_separated_arg_ = v; }
-    void Apply(flags::ConsumeRemaining  v) { consume_remaining_ = v; }
+    void Apply(NumOpts          v) { num_opts_ = v; }
+    void Apply(HasArg           v) { has_arg_ = v; }
+    void Apply(JoinArg          v) { join_arg_ = v; }
+    void Apply(MayGroup         v) { may_group_ = v; }
+    void Apply(Positional       v) { positional_ = v; }
+    void Apply(CommaSeparated   v) { comma_separated_ = v; }
+    void Apply(ConsumeRemaining v) { consume_remaining_ = v; }
 
 protected:
     template <typename ...Args>
@@ -629,7 +575,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, EndIt la
         auto const opt = group[n];
         auto const name = optstr.substr(n, 1);
 
-        if (opt->has_arg_ == flags::HasArg::no || n + 1 == optstr.size())
+        if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
         {
             if (Result::success != HandleOccurrence(opt, name, curr, last))
                 return Result::error;
@@ -642,7 +588,7 @@ Cmdline::Result Cmdline::HandleGroup(std::string_view optstr, It& curr, EndIt la
 
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->join_arg_ == flags::JoinArg::no)
+        if (optstr[arg_start] == '=' && opt->join_arg_ == JoinArg::no)
         {
             ++arg_start;
         }
@@ -660,9 +606,9 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 
     // We get here if no argument was specified.
     // If the option must join its argument, this is an error.
-    if (opt->join_arg_ != flags::JoinArg::yes)
+    if (opt->join_arg_ != JoinArg::yes)
     {
-        if (opt->has_arg_ != flags::HasArg::required)
+        if (opt->has_arg_ != HasArg::required)
         {
             return ParseOptionArgument(opt, name, {});
         }
