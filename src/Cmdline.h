@@ -51,6 +51,7 @@ public:
 
     constexpr string_view() noexcept = default;
     constexpr string_view(string_view const&) noexcept = default;
+    constexpr string_view& operator=(string_view const&) noexcept = default;
 
     /*constexpr*/ string_view(const_pointer ptr, size_t len) noexcept
         : data_(ptr)
@@ -59,30 +60,19 @@ public:
         assert(size_ == 0 || data_ != nullptr);
     }
 
-    string_view(const_pointer c_str) noexcept
+    /*constexpr*/ /*implicit*/ string_view(const_pointer c_str) noexcept
         : data_(c_str)
-        , size_(c_str ? ::strlen(c_str) : 0u) // std does not allow c_str to be nullptr
+        , size_(c_str ? ::strlen(c_str) : 0u)
     {
     }
 
-    template <
-        typename String,
-        typename DataT = decltype(std::declval<String const&>().data()),
-        typename SizeT = decltype(std::declval<String const&>().size()),
-        typename = typename std::enable_if<
-            std::is_convertible<DataT, const_pointer>::value &&
-            std::is_convertible<SizeT, size_t>::value
-        >::type
-    >
-    /*implicit*/ string_view(String const& str)
+    /*constexpr*/ /*implicit*/ string_view(std::string const& str) noexcept
         : data_(str.data())
         , size_(str.size())
     {
-        assert(size_ == 0 || data_ != nullptr);
     }
 
-    explicit operator std::string() const
-    {
+    explicit operator std::string() const {
         // Construct from iterators!
         // Constructing from data/size requires data != null...
         return std::string(begin(), end());

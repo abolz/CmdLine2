@@ -37,32 +37,34 @@ using namespace cl;
 //
 //------------------------------------------------------------------------------
 
-static int Compare(char const* s1, char const* s2, size_t n) noexcept
+static int MemCompare(char const* s1, char const* s2, size_t n) noexcept
 {
     // memcmp is undefined for nullptr's even if n == 0.
     return n == 0 ? 0 : ::memcmp(s1, s2, n);
 }
 
-static char const* Find(char const* s, size_t n, char ch) noexcept
+static char const* MemFind(char const* s, size_t n, char ch) noexcept
 {
+    // memchr is undefined for nullptr's even if n == 0.
+    // But here it should never be called with n == 0...
     assert(n != 0);
     return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
 }
 
 bool string_view::_cmp_eq(string_view other) const noexcept
 {
-    return size() == other.size() && Compare(data(), other.data(), size()) == 0;
+    return size() == other.size() && MemCompare(data(), other.data(), size()) == 0;
 }
 
 bool string_view::_cmp_lt(string_view other) const noexcept
 {
-    int const c = Compare(data(), other.data(), Min(size(), other.size()));
+    int const c = MemCompare(data(), other.data(), Min(size(), other.size()));
     return c < 0 || (c == 0 && size() < other.size());
 }
 
 int string_view::compare(string_view other) const noexcept
 {
-    int const c = Compare(data(), other.data(), Min(size(), other.size()));
+    int const c = MemCompare(data(), other.data(), Min(size(), other.size()));
     if (c != 0)
         return c;
     if (size() < other.size())
@@ -77,7 +79,7 @@ size_t string_view::find(char ch, size_t from) const noexcept
     if (from >= size())
         return npos;
 
-    if (auto I = Find(data() + from, size() - from, ch))
+    if (auto I = MemFind(data() + from, size() - from, ch))
         return static_cast<size_t>(I - data());
 
     return npos;
@@ -109,7 +111,7 @@ size_t string_view::find_first_of(string_view chars, size_t from) const noexcept
 
     for (auto I = from; I != size(); ++I)
     {
-        if (Find(chars.data(), chars.size(), data()[I]))
+        if (MemFind(chars.data(), chars.size(), data()[I]))
             return I;
     }
 
@@ -131,7 +133,7 @@ size_t string_view::find_last_of(string_view chars, size_t from) const noexcept
 
     for (auto I = from; I != 0; --I)
     {
-        if (Find(chars.data(), chars.size(), data()[I - 1]))
+        if (MemFind(chars.data(), chars.size(), data()[I - 1]))
             return I - 1;
     }
 
