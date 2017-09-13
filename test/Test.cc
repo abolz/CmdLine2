@@ -184,6 +184,91 @@ TEST_CASE("JoinArg")
 
 TEST_CASE("MayGroup")
 {
+    bool a = false;
+    bool b = false;
+    bool c = false;
+    bool ab = false;
+    bool ac = false;
+    bool abc = false;
+
+    cl::Cmdline cl;
+
+    cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
+    cl.Add("b", "", cl::Assign(b), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
+    cl.Add("c", "", cl::Assign(c), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {}));
+    CHECK(true == ParseArgs(cl, {"-a", "-b", "-c=true"}));
+    CHECK(a == true);
+    CHECK(b == true);
+    CHECK(c == true);
+    a = false;
+    b = false;
+    c = false;
+    CHECK(true == ParseArgs(cl, {"-abc=true"}));
+    CHECK(a == true);
+    CHECK(b == true);
+    CHECK(c == true);
+    a = false;
+    b = false;
+    c = false;
+    CHECK(false == ParseArgs(cl, {"--abc=true"})); // "--" => not an option group
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(c == false);
+    CHECK(true == ParseArgs(cl, {"-ababab", "-c", "true"}));
+    CHECK(a == true);
+    CHECK(b == true);
+    CHECK(c == true);
+    a = false;
+    b = false;
+    c = false;
+    CHECK(true == ParseArgs(cl, {"-abbac", "true"}));
+    CHECK(a == true);
+    CHECK(b == true);
+    CHECK(c == true);
+    a = false;
+    b = false;
+    c = false;
+    CHECK(false == ParseArgs(cl, {"-cba"})); // c must be the last option
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(c == false);
+    CHECK(false == ParseArgs(cl, {"-abcab=true"})); // c must be the last option
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(c == false);
+
+    cl.Add("ab", "", cl::Assign(ab), cl::NumOpts::zero_or_more, cl::HasArg::no);
+
+    CHECK(true == ParseArgs(cl, {"-ab", "--ab"}));
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(ab == true);
+    ab = false;
+
+    cl.Add("ac", "", cl::Assign(ac), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {"-ac=true"}));
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(ac == true);
+    ac = false;
+
+    cl.Add("abc", "", cl::Assign(abc), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {"-abc=true"}));
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(c == false);
+    CHECK(abc == true);
+    abc = false;
+    CHECK(true == ParseArgs(cl, {"-abc", "true"}));
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(c == false);
+    CHECK(abc == true);
+    abc = false;
 }
 
 TEST_CASE("Positional")
