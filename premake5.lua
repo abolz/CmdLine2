@@ -66,8 +66,8 @@ solution "Cmdline"
 
     configuration { "vs*" }
         buildoptions {
-            -- "/std:c++latest",
-            "/EHsc",
+            "/std:c++17",
+            -- "/permissive-",
             -- "/arch:AVX2",
             -- "/GR-",
         }
@@ -78,7 +78,7 @@ solution "Cmdline"
         }
 
     configuration { "windows" }
-        characterset "Unicode"
+        characterset "MBCS"
 
     if _OPTIONS["cxxflags"] then
         configuration {}
