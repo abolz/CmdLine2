@@ -19,8 +19,7 @@ int main(int argc, char* argv[])
     // OK   "-f=no"
     // FAIL "-f=abcd"
     cmd.Add("f", "A boolean flag",
-        cl::Assign(flag),
-        cl::Opt::zero_or_more, cl::MayGroup::yes, cl::Arg::optional);
+        cl::Assign(flag), cl::zero_or_more, cl::may_group, cl::arg_optional);
 
     // OK   "-i 0 -i=1,2 -i=0x3 -i 4,5,6"
     // FAIL "-i=-1"
@@ -28,7 +27,7 @@ int main(int argc, char* argv[])
     // FAIL "-i=abc"
     cmd.Add("i|ints", "Some ints in the range [0,6]",
         cl::Assign(i, cl::CheckInRange(0, 6)),
-        cl::Opt::zero_or_more, cl::Arg::required, cl::CommaSeparatedArg::yes);
+        cl::zero_or_more, cl::arg_required, cl::comma_separated);
 
     // OK   "-std c++11"
     // OK   "-std=c++17"
@@ -39,7 +38,7 @@ int main(int argc, char* argv[])
         cl::Map(standard, {{ "c++11", Standard::cxx11 },
                            { "c++14", Standard::cxx14 },
                            { "c++17", Standard::cxx17 }}),
-        cl::Opt::optional, cl::Arg::required);
+        cl::arg_required);
 
     // OK   "-si=eins:1"
     // OK   "-si eins:0x1,zwei:2"
@@ -48,13 +47,12 @@ int main(int argc, char* argv[])
     // FAIL "-si null:abcd"
     cmd.Add("si", "String-Int pairs",
         cl::PushBack(string_map),
-        cl::Arg::required, cl::Opt::zero_or_more, cl::CommaSeparatedArg::yes);
+        cl::arg_required, cl::zero_or_more, cl::comma_separated);
 
     // OK   "eins zwei drei"
     // FAIL ""
     cmd.Add("input-files", "List of input files",
-        cl::PushBack(input_files),
-        cl::Opt::one_or_more, cl::Positional::yes);
+        cl::PushBack(input_files), cl::one_or_more, cl::positional);
 
     bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (!ok)
