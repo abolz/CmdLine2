@@ -351,7 +351,7 @@ private:
     OptionBase* FindOption(std::string_view name) const;
     OptionBase* FindOption(std::string_view name, bool& ambiguous) const;
 
-    void DoAdd(OptionBase* opt);
+    void DoAdd(std::unique_ptr<OptionBase> opt);
 
     template <typename It, typename EndIt, typename Sink>
     bool DoParse(It& curr, EndIt last, Sink sink);
@@ -410,9 +410,7 @@ auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&..
         std::move(name), std::move(descr), std::forward<Parser>(parser), std::forward<Args>(args)...);
     auto const p = opt.get();
 
-    unique_options_.push_back(std::move(opt)); // commit
-
-    DoAdd(p);
+    DoAdd(std::move(opt));
 
     return p;
 }

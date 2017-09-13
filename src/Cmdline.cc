@@ -485,9 +485,12 @@ OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) const
 #endif
 }
 
-void Cmdline::DoAdd(OptionBase* opt)
+void Cmdline::DoAdd(std::unique_ptr<OptionBase> popt)
 {
+    OptionBase* opt = popt.get();
     assert(!opt->name_.empty());
+
+    unique_options_.push_back(std::move(popt)); // commit
 
     SplitString(opt->name_, CharDelimiter('|'), [&](std::string_view name)
     {
