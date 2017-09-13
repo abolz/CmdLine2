@@ -842,19 +842,34 @@ auto CheckLessEqual(T upper)
 namespace impl
 {
     template <typename T>
-    struct RemoveCVRecImpl
+    struct RemoveCVRec
     {
         using type = std::remove_cv_t<T>;
     };
 
     template <template <typename...> class T, typename ...Args>
-    struct RemoveCVRecImpl<T<Args...>>
+    struct RemoveCVRec<T<Args...>>
     {
-        using type = T<typename RemoveCVRecImpl<Args>::type...>;
+        using type = T<typename RemoveCVRec<Args>::type...>;
     };
 
-    template <typename T>
-    using RemoveCVRec = typename RemoveCVRecImpl<T>::type;
+    // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
+    // Returns true iff all f return true.
+    template <typename T, typename ...Funcs>
+    bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
+    {
+        static_cast<void>(ctx);   // may be unused if funcs is empty
+        static_cast<void>(value); // may be unused if funcs is empty
+
+#if __cplusplus >= 201703
+        return (... && funcs(ctx, value));
+#else
+        bool res = true;
+        bool unused[] = { (res = res && funcs(ctx, value))..., false };
+        static_cast<void>(unused);
+        return res;
+#endif
+    }
 }
 
 //
@@ -862,18 +877,14 @@ namespace impl
 // Uses an instance of Parser<> to convert the string.
 //
 template <typename T, typename ...Predicates>
-auto Assign(T& value, Predicates&&... preds)
+auto Assign(T& target, Predicates&&... preds)
 {
-    return [=, &value](ParseContext& ctx)
+    return [=, &target](ParseContext& ctx)
     {
-#if __cplusplus >= 201703
-        return ParseValue<>{}(ctx, value) && (... && preds(ctx, value));
-#else
-        bool res = true;
-        bool unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
-        static_cast<void>(unused);
-        return res;
-#endif
+        // XXX:
+        // Writes to VALUE even if any predicate returns false...
+
+        return impl::ApplyFuncs(ctx, target, ParseValue<>{}, preds...);
     };
 }
 
@@ -889,21 +900,14 @@ auto PushBack(T& container, Predicates&&... preds)
 {
     return [=, &container](ParseContext& ctx)
     {
-        impl::RemoveCVRec<typename T::value_type> value;
+        using V = typename impl::RemoveCVRec<typename T::value_type>::type;
 
-#if __cplusplus >= 201703
-        if (ParseValue<>{}(ctx, value) && (... && preds(ctx, value)))
-#else
-        bool res = true;
-        bool unused[] = { res = ParseValue<>{}(ctx, value), (res = res && preds(ctx, value))... };
-        static_cast<void>(unused);
-        if (res)
-#endif
+        V value;
+        if (impl::ApplyFuncs(ctx, value, ParseValue<>{}, preds...))
         {
             container.insert(container.end(), std::move(value));
             return true;
         }
-
         return false;
     };
 }
@@ -919,22 +923,16 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
     return [=, &value, map = MapType(ilist)](ParseContext& ctx)
     {
+        // XXX:
+        // Writes to VALUE even if any predicate returns false...
+
         for (auto const& p : map)
         {
             if (p.first == ctx.arg)
             {
                 value = p.second;
-#if __cplusplus >= 201703
-                if ((... && preds(ctx, value)))
-#else
-                bool res = true;
-                bool unused[] = { (res = res && preds(ctx, value))..., false };
-                static_cast<void>(unused);
-                if (res)
-#endif
-                {
+                if (impl::ApplyFuncs(ctx, value, preds...))
                     return true;
-                }
             }
         }
 
