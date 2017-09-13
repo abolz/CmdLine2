@@ -204,6 +204,15 @@ private:
 template <typename Parser>
 class Option : public OptionBase
 {
+#if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
+    static_assert(
+        std::is_invocable_r<bool, Parser, ParseContext&>::value ||
+        std::is_invocable_r<void, Parser, ParseContext&>::value,
+        "The parser must be invocable with an argument of type "
+        "'ParseContext&' and the return type should be convertible "
+        "to 'bool'");
+#endif
+
     Parser /*const*/ parser_;
 
 public:
@@ -396,15 +405,6 @@ template <typename Parser, typename ...Args>
 auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&... args)
 {
     using DecayedParser = std::decay_t<Parser>;
-
-#if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
-    static_assert(
-        std::is_invocable_r<bool, DecayedParser, ParseContext&>::value ||
-        std::is_invocable_r<void, DecayedParser, ParseContext&>::value,
-        "The parser must be invocable with an argument of type "
-        "'ParseContext&' and the return type should be convertible "
-        "to 'bool'");
-#endif
 
     auto opt = std::make_unique<Option<DecayedParser>>(
         std::move(name), std::move(descr), std::forward<Parser>(parser), std::forward<Args>(args)...);
