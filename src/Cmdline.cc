@@ -488,7 +488,7 @@ static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
 static constexpr size_t kDescrIndent = 27;
 
-std::string Cmdline::GetHelp(string_view program_name) const
+std::string Cmdline::FormatHelp(string_view program_name) const
 {
     std::string spos;
     std::string sopt;
@@ -551,7 +551,7 @@ std::string Cmdline::GetHelp(string_view program_name) const
 
 void Cmdline::PrintHelp(string_view program_name) const
 {
-    auto const msg = GetHelp(program_name);
+    auto const msg = FormatHelp(program_name);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 

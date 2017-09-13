@@ -474,7 +474,7 @@ public:
     void PrintDiag() const;
 
     // Returns a short help message listing all registered options.
-    std::string GetHelp(string_view program_name) const;
+    std::string FormatHelp(string_view program_name) const;
 
     // Prints the help message to stderr
     void PrintHelp(string_view program_name) const;
