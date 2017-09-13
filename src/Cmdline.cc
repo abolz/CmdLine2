@@ -21,6 +21,7 @@
 #include "Cmdline.h"
 
 #include <cerrno>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -211,6 +212,19 @@ void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string message)
     diag_.push_back({type, index, std::move(message)});
 }
 
+void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...)
+{
+    const size_t kBufSize = 1024;
+    char buf[kBufSize];
+
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buf, kBufSize, format, args);
+    va_end(args);
+
+    diag_.push_back({type, index, std::string(buf)});
+}
+
 void Cmdline::Reset()
 {
     curr_positional_ = 0;
@@ -230,7 +244,7 @@ bool Cmdline::CheckMissingOptions()
     {
         if (opt->IsOccurrenceRequired())
         {
-            EmitDiag(Diagnostic::error, -1, "Option '" + opt->name_ + "' is missing");
+            FormatDiag(Diagnostic::error, -1, "Option '%s' is missing", opt->name_.c_str());
             res = false;
         }
     }
@@ -286,9 +300,6 @@ void Cmdline::PrintDiag() const
 
 void Cmdline::PrintDiag() const
 {
-    if (diag_.empty())
-        return;
-
     for (auto const& d : diag_)
     {
         switch (d.type)
@@ -531,7 +542,7 @@ Cmdline::Result Cmdline::HandleOption(std::string const& optstr)
         {
             if (ambiguous)
             {
-                EmitDiag(Diagnostic::error, curr_index_, "Option '" + optstr + "' is ambiguous");
+                FormatDiag(Diagnostic::error, curr_index_, "Option '%s' is ambiguous", optstr.c_str());
                 return Result::error;
             }
 
@@ -604,7 +615,7 @@ Cmdline::Result Cmdline::DecomposeGroup(std::string const& optstr, std::vector<O
         }
 
         // The option accepts an argument, but may not join its argument.
-        EmitDiag(Diagnostic::error, curr_index_, std::string("Option '") + optstr[n] + "' must be the last in a group");
+        FormatDiag(Diagnostic::error, curr_index_, "Option '%c' must be the last in a group", optstr[n]);
         return Result::error;
     }
 
@@ -617,7 +628,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string const& na
 
     if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
-        EmitDiag(Diagnostic::error, curr_index_, "Option '" + name + "' does not accept an argument");
+        FormatDiag(Diagnostic::error, curr_index_, "Option '%s' does not accept an argument", name.c_str());
         return Result::error;
     }
 
@@ -630,7 +641,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const&
     {
         if (!opt->IsOccurrenceAllowed())
         {
-            EmitDiag(Diagnostic::error, curr_index_, "Option '" + name + "' already specified");
+            FormatDiag(Diagnostic::error, curr_index_, "Option '%s' already specified", name.c_str());
             return Result::error;
         }
 
@@ -652,7 +663,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const&
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
             if (!diagnostic_emitted)
             {
-                EmitDiag(Diagnostic::error, curr_index_, "Invalid argument '" + arg1 + "' for option '" + name + "'");
+                FormatDiag(Diagnostic::error, curr_index_, "Invalid argument '%s' for option '%s'", arg1.c_str(), name.c_str());
             }
 
             return Result::error;

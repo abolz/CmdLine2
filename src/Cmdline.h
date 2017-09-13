@@ -303,6 +303,9 @@ public:
     // Adds a diagnostic message
     void EmitDiag(Diagnostic::Type type, int index, std::string message);
 
+    // Adds a diagnostic message
+    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...);
+
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     // NAME and DESCR must be valid while this command line parse is still alive.
@@ -416,7 +419,7 @@ bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing)
 {
     auto sink = [&](std::string const& curr, int index)
     {
-        EmitDiag(Diagnostic::error, index, "Unknown option '" + curr + "'");
+        FormatDiag(Diagnostic::error, index, "Unknown option '%s'", curr.c_str());
         return false;
     };
 
@@ -533,7 +536,7 @@ Cmdline::Result Cmdline::HandleStandardOption(std::string const& optstr, It& cur
     {
         if (ambiguous)
         {
-            EmitDiag(Diagnostic::error, curr_index_, "Option '" + optstr + "' is ambiguous");
+            FormatDiag(Diagnostic::error, curr_index_, "Option '%s' is ambiguous", optstr.c_str());
             return Result::error;
         }
 
@@ -614,7 +617,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string const& na
         }
     }
 
-    EmitDiag(Diagnostic::error, curr_index_, "Option '" + name + "' requires an argument");
+    FormatDiag(Diagnostic::error, curr_index_, "Option '%s' requires an argument", name.c_str());
     return Result::error;
 }
 
@@ -848,9 +851,9 @@ auto PushBack(T& container, Predicates&&... preds)
 // Look up the key in the map and if it exists, returns the mapped value.
 //
 template <typename T, typename ...Predicates>
-auto Map(T& value, std::initializer_list<std::pair<std::string, T>> ilist, Predicates&&... preds)
+auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
-    using MapType = std::vector<std::pair<std::string, T>>;
+    using MapType = std::vector<std::pair<char const*, T>>;
 
     return [=, &value, map = MapType(ilist)](ParseContext& ctx)
     {
@@ -873,10 +876,10 @@ auto Map(T& value, std::initializer_list<std::pair<std::string, T>> ilist, Predi
             }
         }
 
-        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "Invalid argument '" + ctx.arg + "' for  option '" + ctx.name + "'");
+        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid argument '%s' for  option '%s'", ctx.arg.c_str(), ctx.name.c_str());
         for (auto const& p : map)
         {
-            ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, "Could be '" + p.first + "'");
+            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "Could be '%s'", p.first);
         }
 
         return false;
