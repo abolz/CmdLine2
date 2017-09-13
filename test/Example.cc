@@ -4,7 +4,7 @@
 
 enum class Standard { cxx11, cxx14, cxx17 };
 
-static bool flag = false;
+static bool verbose = false;
 static int i = 0;
 static Standard standard = Standard::cxx11;
 static std::unordered_map<std::string, int> string_map;
@@ -14,12 +14,12 @@ int main(int argc, char* argv[])
 {
     cl::Cmdline cmd;
 
-    // OK   "-f"
-    // OK   "-f=1"
-    // OK   "-f=no"
-    // FAIL "-f=abcd"
-    cmd.Add("f", "A boolean flag",
-        cl::Assign(flag), cl::zero_or_more, cl::may_group, cl::arg_optional);
+    // OK   "-v"
+    // OK   "-v=1"
+    // OK   "-v=no"
+    // FAIL "-v=abcd"
+    cmd.Add("v", "Increase output verbosity",
+        cl::Assign(verbose), cl::zero_or_more, cl::may_group, cl::arg_optional);
 
     // OK   "-i 0 -i=1,2 -i=0x3 -i 4,5,6"
     // FAIL "-i=-1"
