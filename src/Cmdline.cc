@@ -32,6 +32,7 @@
 #endif
 
 using namespace cl;
+using namespace cl::flags;
 
 //------------------------------------------------------------------------------
 //
@@ -183,14 +184,14 @@ OptionBase::~OptionBase()
 
 bool OptionBase::IsOccurrenceAllowed() const
 {
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::optional)
+    if (num_opts_ == NumOpts::required || num_opts_ == NumOpts::optional)
         return count_ == 0;
     return true;
 }
 
 bool OptionBase::IsOccurrenceRequired() const
 {
-    if (num_occurrences_ == Opt::required || num_occurrences_ == Opt::one_or_more)
+    if (num_opts_ == NumOpts::required || num_opts_ == NumOpts::one_or_more)
         return count_ == 0;
     return false;
 }
@@ -387,7 +388,7 @@ std::string Cmdline::GetHelp(std::string_view program_name) const
         if (opt->positional_ == Positional::yes)
         {
             spos += ' ';
-            if ((opt->num_occurrences_ == Opt::optional) || (opt->num_occurrences_ == Opt::zero_or_more))
+            if ((opt->num_opts_ == NumOpts::optional) || (opt->num_opts_ == NumOpts::zero_or_more))
             {
                 spos += '[';
                 spos += opt->name_;
@@ -405,14 +406,14 @@ std::string Cmdline::GetHelp(std::string_view program_name) const
             usage += '-';
             usage += opt->name_;
 
-            switch (opt->num_args_)
+            switch (opt->has_arg_)
             {
-            case Arg::no:
+            case HasArg::no:
                 break;
-            case Arg::optional:
+            case HasArg::optional:
                 usage += "=<arg>";
                 break;
-            case Arg::required:
+            case HasArg::required:
                 usage += " <arg>";
                 break;
             }
@@ -600,7 +601,7 @@ Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vector<Opt
         if (opt == nullptr || opt->may_group_ == MayGroup::no)
             return Result::ignored;
 
-        if (opt->num_args_ == Arg::no || n + 1 == optstr.size())
+        if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
         {
             group.push_back(opt);
             continue;
@@ -627,7 +628,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name
 {
     // An argument was specified for OPT.
 
-    if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
+    if (opt->positional_ == Positional::no && opt->has_arg_ == HasArg::no)
     {
         FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' does not accept an argument",
             static_cast<int>(name.size()), name.data());
