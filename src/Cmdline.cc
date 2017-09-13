@@ -57,7 +57,7 @@ struct CharDelimiter
     char const ch;
     explicit CharDelimiter(char ch_) : ch(ch_) {}
 
-    DelimiterResult operator()(std::string const& str) const
+    DelimiterResult operator()(std::string_view str) const
     {
         return {str.find(ch), 1};
     }
@@ -65,7 +65,7 @@ struct CharDelimiter
 
 struct LineDelimiter
 {
-    DelimiterResult operator()(std::string const& str) const
+    DelimiterResult operator()(std::string_view str) const
     {
         auto const first = str.data();
         auto const last  = str.data() + str.size();
@@ -101,7 +101,7 @@ struct WrapDelimiter
         assert(length != 0 && "invalid parameter");
     }
 
-    DelimiterResult operator()(std::string const& str) const
+    DelimiterResult operator()(std::string_view str) const
     {
         // If the string fits into the current line, just return this last line.
         if (str.size() <= length)
@@ -119,12 +119,12 @@ struct WrapDelimiter
 
 struct DoSplitResult
 {
-    std::string tok; // The current token.
-    std::string str; // The rest of the string.
+    std::string_view tok; // The current token.
+    std::string_view str; // The rest of the string.
     bool last = false;
 };
 
-static bool DoSplit(DoSplitResult& res, std::string const& str, DelimiterResult del)
+static bool DoSplit(DoSplitResult& res, std::string_view str, DelimiterResult del)
 {
     //
     // +-----+-----+------------+
@@ -152,7 +152,7 @@ static bool DoSplit(DoSplitResult& res, std::string const& str, DelimiterResult 
 }
 
 template <typename Delimiter, typename Function>
-static bool SplitString(std::string const& str, Delimiter&& delim, Function&& fn)
+static bool SplitString(std::string_view str, Delimiter&& delim, Function&& fn)
 {
     DoSplitResult curr;
 
@@ -326,7 +326,7 @@ void Cmdline::PrintDiag() const
 
 #endif
 
-static void AppendAligned(std::string& out, std::string const& text, size_t indent, size_t width)
+static void AppendAligned(std::string& out, std::string_view text, size_t indent, size_t width)
 {
     if (text.size() < width && indent < width - text.size())
     {
@@ -343,7 +343,7 @@ static void AppendAligned(std::string& out, std::string const& text, size_t inde
     }
 }
 
-static void AppendWrapped(std::string& out, std::string const& text, size_t indent, size_t width)
+static void AppendWrapped(std::string& out, std::string_view text, size_t indent, size_t width)
 {
     if (width <= indent)
         width = SIZE_MAX;
@@ -351,10 +351,10 @@ static void AppendWrapped(std::string& out, std::string const& text, size_t inde
     bool first = true;
 
     // Break the string into paragraphs
-    SplitString(text, LineDelimiter(), [&](std::string const& par)
+    SplitString(text, LineDelimiter(), [&](std::string_view par)
     {
         // Break the paragraphs at the maximum width into lines
-        return SplitString(par, WrapDelimiter(width), [&](std::string const& line)
+        return SplitString(par, WrapDelimiter(width), [&](std::string_view line)
         {
             if (first)
             {
@@ -377,7 +377,7 @@ static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
 static constexpr size_t kDescrIndent = 27;
 
-std::string Cmdline::GetHelp(std::string const& program_name) const
+std::string Cmdline::GetHelp(std::string_view program_name) const
 {
     std::string spos;
     std::string sopt;
@@ -433,18 +433,18 @@ std::string Cmdline::GetHelp(std::string const& program_name) const
     }
 
     if (sopt.empty())
-        return "Usage: " + program_name + spos + '\n';
+        return "Usage: " + std::string(program_name) + spos + '\n';
     else
-        return "Usage: " + program_name + " [options]" + spos + "\nOptions:\n" + sopt;
+        return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-void Cmdline::PrintHelp(std::string const& program_name) const
+void Cmdline::PrintHelp(std::string_view program_name) const
 {
     auto const msg = GetHelp(program_name);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
-OptionBase* Cmdline::FindOption(std::string const& name) const
+OptionBase* Cmdline::FindOption(std::string_view name) const
 {
     for (auto&& p : options_)
     {
@@ -455,7 +455,7 @@ OptionBase* Cmdline::FindOption(std::string const& name) const
     return nullptr;
 }
 
-OptionBase* Cmdline::FindOption(std::string const& name, bool& ambiguous) const
+OptionBase* Cmdline::FindOption(std::string_view name, bool& ambiguous) const
 {
     ambiguous = false;
 
@@ -489,7 +489,7 @@ void Cmdline::DoAdd(OptionBase* opt)
 {
     assert(!opt->name_.empty());
 
-    SplitString(opt->name_, CharDelimiter('|'), [&](std::string const& name)
+    SplitString(opt->name_, CharDelimiter('|'), [&](std::string_view name)
     {
         assert(!name.empty());
         assert(FindOption(name) == nullptr); // option already exists?!
@@ -507,7 +507,7 @@ void Cmdline::DoAdd(OptionBase* opt)
     });
 }
 
-Cmdline::Result Cmdline::HandlePositional(std::string const& optstr)
+Cmdline::Result Cmdline::HandlePositional(std::string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
     assert(curr_positional_ >= 0);
@@ -528,7 +528,7 @@ Cmdline::Result Cmdline::HandlePositional(std::string const& optstr)
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-Cmdline::Result Cmdline::HandleOption(std::string const& optstr)
+Cmdline::Result Cmdline::HandleOption(std::string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
@@ -542,7 +542,8 @@ Cmdline::Result Cmdline::HandleOption(std::string const& optstr)
         {
             if (ambiguous)
             {
-                FormatDiag(Diagnostic::error, curr_index_, "Option '%s' is ambiguous", optstr.c_str());
+                FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' is ambiguous",
+                    static_cast<int>(optstr.size()), optstr.data());
                 return Result::error;
             }
 
@@ -561,7 +562,7 @@ Cmdline::Result Cmdline::HandleOption(std::string const& optstr)
     return Result::ignored;
 }
 
-Cmdline::Result Cmdline::HandlePrefix(std::string const& optstr)
+Cmdline::Result Cmdline::HandlePrefix(std::string_view optstr)
 {
     // Scan over all known prefix lengths.
     // Start with the longest to allow different prefixes like e.g. "-with" and
@@ -587,7 +588,7 @@ Cmdline::Result Cmdline::HandlePrefix(std::string const& optstr)
 
 // Check if OPTSTR is actually a group of single letter options and store the
 // options in GROUP.
-Cmdline::Result Cmdline::DecomposeGroup(std::string const& optstr, std::vector<OptionBase*>& group)
+Cmdline::Result Cmdline::DecomposeGroup(std::string_view optstr, std::vector<OptionBase*>& group)
 {
     group.reserve(optstr.size());
 
@@ -622,26 +623,28 @@ Cmdline::Result Cmdline::DecomposeGroup(std::string const& optstr, std::vector<O
     return Result::success;
 }
 
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string const& name, std::string const& arg)
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, std::string_view name, std::string_view arg)
 {
     // An argument was specified for OPT.
 
     if (opt->positional_ == Positional::no && opt->num_args_ == Arg::no)
     {
-        FormatDiag(Diagnostic::error, curr_index_, "Option '%s' does not accept an argument", name.c_str());
+        FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' does not accept an argument",
+            static_cast<int>(name.size()), name.data());
         return Result::error;
     }
 
     return ParseOptionArgument(opt, name, arg);
 }
 
-Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const& name, std::string const& arg)
+Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string_view name, std::string_view arg)
 {
-    auto Parse1 = [&](std::string const& arg1)
+    auto Parse1 = [&](std::string_view arg1)
     {
         if (!opt->IsOccurrenceAllowed())
         {
-            FormatDiag(Diagnostic::error, curr_index_, "Option '%s' already specified", name.c_str());
+            FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' already specified",
+                static_cast<int>(name.size()), name.data());
             return Result::error;
         }
 
@@ -663,7 +666,9 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const&
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
             if (!diagnostic_emitted)
             {
-                FormatDiag(Diagnostic::error, curr_index_, "Invalid argument '%s' for option '%s'", arg1.c_str(), name.c_str());
+                FormatDiag(Diagnostic::error, curr_index_, "Invalid argument '%.*s' for option '%.*s'",
+                    static_cast<int>(arg1.size()), arg1.data(),
+                    static_cast<int>(name.size()), name.data());
             }
 
             return Result::error;
@@ -677,7 +682,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const&
 
     if (opt->comma_separated_arg_ == CommaSeparatedArg::yes)
     {
-        SplitString(arg, CharDelimiter(','), [&](std::string const& s)
+        SplitString(arg, CharDelimiter(','), [&](std::string_view s)
         {
             res = Parse1(s);
             return res == Result::success;
@@ -706,7 +711,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, std::string const&
 //------------------------------------------------------------------------------
 
 template <typename ...Match>
-static bool IsAnyOf(std::string const& value, Match&&... match)
+static bool IsAnyOf(std::string_view value, Match&&... match)
 {
 #if __cplusplus >= 201703
     return (... || (value == match));
@@ -718,7 +723,7 @@ static bool IsAnyOf(std::string const& value, Match&&... match)
 #endif
 }
 
-bool cl::ConvertValue<bool>::operator()(std::string const& str, bool& value) const
+bool cl::ConvertValue<bool>::operator()(std::string_view str, bool& value) const
 {
     if (str.empty() || IsAnyOf(str, "1", "y", "true", "True", "yes", "Yes", "on", "On"))
         value = true;
@@ -731,10 +736,12 @@ bool cl::ConvertValue<bool>::operator()(std::string const& str, bool& value) con
 }
 
 template <typename T, typename Fn>
-static bool StrToX(std::string const& str, T& value, Fn fn)
+static bool StrToX(std::string_view sv, T& value, Fn fn)
 {
-    if (str.empty())
+    if (sv.empty())
         return false;
+
+    std::string str(sv);
 
     char const* const ptr = str.c_str();
     char*             end = nullptr;
@@ -757,13 +764,13 @@ static bool StrToX(std::string const& str, T& value, Fn fn)
 // Note:
 // Wrap into local function, to avoid instantiating StrToX with different lambdas which
 // actually all do the same thing: call strtol.
-static bool StrToLongLong(std::string const& str, long long& value)
+static bool StrToLongLong(std::string_view str, long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
 }
 
 template <typename T>
-static bool ParseInt(std::string const& str, T& value)
+static bool ParseInt(std::string_view str, T& value)
 {
     long long v = 0;
     if (StrToLongLong(str, v) && v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max())
@@ -774,39 +781,39 @@ static bool ParseInt(std::string const& str, T& value)
     return false;
 }
 
-bool ConvertValue<signed char>::operator()(std::string const& str, signed char& value) const
+bool ConvertValue<signed char>::operator()(std::string_view str, signed char& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed short>::operator()(std::string const& str, signed short& value) const
+bool ConvertValue<signed short>::operator()(std::string_view str, signed short& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed int>::operator()(std::string const& str, signed int& value) const
+bool ConvertValue<signed int>::operator()(std::string_view str, signed int& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed long>::operator()(std::string const& str, signed long& value) const
+bool ConvertValue<signed long>::operator()(std::string_view str, signed long& value) const
 {
     return ParseInt(str, value);
 }
 
-bool ConvertValue<signed long long>::operator()(std::string const& str, signed long long& value) const
+bool ConvertValue<signed long long>::operator()(std::string_view str, signed long long& value) const
 {
     return StrToLongLong(str, value);
 }
 
 // (See above)
-static bool StrToUnsignedLongLong(std::string const& str, unsigned long long& value)
+static bool StrToUnsignedLongLong(std::string_view str, unsigned long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
 template <typename T>
-static bool ParseUnsignedInt(std::string const& str, T& value)
+static bool ParseUnsignedInt(std::string_view str, T& value)
 {
     unsigned long long v = 0;
     if (StrToUnsignedLongLong(str, v) && v <= std::numeric_limits<T>::max())
@@ -817,47 +824,47 @@ static bool ParseUnsignedInt(std::string const& str, T& value)
     return false;
 }
 
-bool ConvertValue<unsigned char>::operator()(std::string const& str, unsigned char& value) const
+bool ConvertValue<unsigned char>::operator()(std::string_view str, unsigned char& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned short>::operator()(std::string const& str, unsigned short& value) const
+bool ConvertValue<unsigned short>::operator()(std::string_view str, unsigned short& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned int>::operator()(std::string const& str, unsigned int& value) const
+bool ConvertValue<unsigned int>::operator()(std::string_view str, unsigned int& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned long>::operator()(std::string const& str, unsigned long& value) const
+bool ConvertValue<unsigned long>::operator()(std::string_view str, unsigned long& value) const
 {
     return ParseUnsignedInt(str, value);
 }
 
-bool ConvertValue<unsigned long long>::operator()(std::string const& str, unsigned long long& value) const
+bool ConvertValue<unsigned long long>::operator()(std::string_view str, unsigned long long& value) const
 {
     return StrToUnsignedLongLong(str, value);
 }
 
-bool ConvertValue<float>::operator()(std::string const& str, float& value) const
+bool ConvertValue<float>::operator()(std::string_view str, float& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtof(p, end); });
 }
 
-bool ConvertValue<double>::operator()(std::string const& str, double& value) const
+bool ConvertValue<double>::operator()(std::string_view str, double& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtod(p, end); });
 }
 
-bool ConvertValue<long double>::operator()(std::string const& str, long double& value) const
+bool ConvertValue<long double>::operator()(std::string_view str, long double& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
 }
 
-bool cl::ConvertValue<std::string>::operator()(std::string const& str, std::string& value) const
+bool cl::ConvertValue<std::string>::operator()(std::string_view str, std::string& value) const
 {
     value.assign(str.data(), str.size());
     return true;
