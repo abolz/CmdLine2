@@ -19,7 +19,8 @@ int main(int argc, char* argv[])
     // OK   "-v=no"
     // FAIL "-v=abcd"
     cmd.Add("v", "Increase output verbosity",
-        cl::Assign(verbose), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
+        cl::Assign(verbose),
+        cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
 
     // OK   "-i 0 -i=1,2 -i=0x3 -i 4,5,6"
     // FAIL "-i=-1"
