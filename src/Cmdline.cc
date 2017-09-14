@@ -568,36 +568,6 @@ OptionBase* Cmdline::FindOption(string_view name) const
     return nullptr;
 }
 
-OptionBase* Cmdline::FindOption(string_view name, bool& ambiguous) const
-{
-    ambiguous = false;
-
-#if 0 // allow abbreviations
-    OptionBase* opt = nullptr;
-
-    for (auto&& p : options_)
-    {
-        if (p.name == name) // exact match
-        {
-            ambiguous = false;
-            return p.option;
-        }
-
-        if (p.name.size() > name.size() && p.name.compare(0, name.size(), name) == 0)
-        {
-            if (opt == nullptr)
-                opt = p.option;
-            else
-                ambiguous = true;
-        }
-    }
-
-    return opt;
-#else
-    return FindOption(name);
-#endif
-}
-
 void Cmdline::DoAdd(std::unique_ptr<OptionBase> popt)
 {
     OptionBase* opt = popt.get();
@@ -653,16 +623,8 @@ Cmdline::Result Cmdline::HandleOption(string_view optstr)
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
 
-        bool ambiguous = false;
-        if (auto const opt = FindOption(name, ambiguous))
+        if (auto const opt = FindOption(name))
         {
-            if (ambiguous)
-            {
-                FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' is ambiguous",
-                    static_cast<int>(optstr.size()), optstr.data());
-                return Result::error;
-            }
-
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.

@@ -478,7 +478,6 @@ private:
     enum class Result { success, error, ignored };
 
     OptionBase* FindOption(string_view name) const;
-    OptionBase* FindOption(string_view name, bool& ambiguous) const;
 
     void DoAdd(std::unique_ptr<OptionBase> opt);
 
@@ -665,16 +664,8 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 template <typename It, typename EndIt>
 Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
 {
-    bool ambiguous = false;
-    if (auto const opt = FindOption(optstr, ambiguous))
+    if (auto const opt = FindOption(optstr))
     {
-        if (ambiguous)
-        {
-            FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' is ambiguous",
-                static_cast<int>(optstr.size()), optstr.data());
-            return Result::error;
-        }
-
         // OPTSTR is the name of an option, i.e. no argument was specified.
         // If the option requires an argument, steal one from the command line.
         return HandleOccurrence(opt, optstr, curr, last);
