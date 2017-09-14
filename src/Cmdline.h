@@ -429,8 +429,13 @@ public:
     // Adds a diagnostic message
     void EmitDiag(Diagnostic::Type type, int index, std::string message);
 
+#ifdef __GNUC__
+    // Adds a diagnostic message
+    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...) __attribute__((format(printf, 4, 5)));
+#else
     // Adds a diagnostic message
     void FormatDiag(Diagnostic::Type type, int index, char const* format, ...);
+#endif
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -478,7 +483,7 @@ private:
     void DoAdd(std::unique_ptr<OptionBase> opt);
 
     template <typename It, typename EndIt, typename Sink>
-    bool DoParse(It& curr, EndIt last, Sink sink);
+    bool DoParse(It curr, EndIt last, Sink sink);
 
     template <typename It, typename EndIt>
     Result Handle1(string_view optstr, It& curr, EndIt last);
@@ -555,7 +560,7 @@ bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing, Sink sink)
 }
 
 template <typename It, typename EndIt, typename Sink>
-bool Cmdline::DoParse(It& curr, EndIt last, Sink sink)
+bool Cmdline::DoParse(It curr, EndIt last, Sink sink)
 {
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
@@ -563,14 +568,21 @@ bool Cmdline::DoParse(It& curr, EndIt last, Sink sink)
     while (curr != last)
     {
         // Make a copy of the current argument.
-        // This is required in case It is an InputIterator or It::reference is not actually a lvalue-reference.
+        // This is required in case
+        //  - It models InputIterator.
+        //      In this case *CURR might be invalid after the call to Handle1,
+        //      since this function might increment CURR.
+        //  - *CURR does not actually return a lvalue-reference.
+        //      This problem might be solved by wrapping the loop-body into
+        //      another function, though.
+        //
+        // TODO:
+        // Use some meta-progamming to check if the copy is required...
         std::string optstr(*curr);
 
         Result const res = Handle1(optstr, curr, last);
-
         if (res == Result::error)
             return false;
-
         if (res == Result::ignored && !sink(optstr, curr_index_))
             return false;
 
