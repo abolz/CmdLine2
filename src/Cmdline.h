@@ -823,10 +823,12 @@ struct ParseValue<void>
     }
 };
 
+namespace check {
+
 // Returns a function object which checks whether a given value is in the range [lower, upper].
 // Emits a diagnostic on error.
 template <typename T, typename U>
-auto CheckInRange(T lower, U upper)
+auto InRange(T lower, U upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
@@ -841,7 +843,7 @@ auto CheckInRange(T lower, U upper)
 // Returns a function object which checks whether a given value is > lower.
 // Emits a diagnostic on error.
 template <typename T>
-auto CheckGreaterThan(T lower)
+auto GreaterThan(T lower)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
@@ -855,7 +857,7 @@ auto CheckGreaterThan(T lower)
 // Returns a function object which checks whether a given value is >= lower.
 // Emits a diagnostic on error.
 template <typename T>
-auto CheckGreaterEqual(T lower)
+auto GreaterEqual(T lower)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
@@ -869,7 +871,7 @@ auto CheckGreaterEqual(T lower)
 // Returns a function object which checks whether a given value is < upper.
 // Emits a diagnostic on error.
 template <typename T>
-auto CheckLessThan(T upper)
+auto LessThan(T upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
@@ -883,7 +885,7 @@ auto CheckLessThan(T upper)
 // Returns a function object which checks whether a given value is <= upper.
 // Emits a diagnostic on error.
 template <typename T>
-auto CheckLessEqual(T upper)
+auto LessEqual(T upper)
 {
     return [=](ParseContext& ctx, auto const& value)
     {
@@ -893,6 +895,8 @@ auto CheckLessEqual(T upper)
         return false;
     };
 }
+
+} // namespace check
 
 namespace impl
 {
