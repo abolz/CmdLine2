@@ -1,4 +1,4 @@
-#include "../src/Cmdline.h"
+#include "Cmdline.h"
 
 #include <unordered_map>
 
@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     // FAIL "-i=0x7"
     // FAIL "-i=abc"
     cmd.Add("i|ints", "Some ints in the range [0,6]",
-        cl::Assign(i, cl::CheckInRange(0, 6)),
+        cl::Assign(i, cl::check::InRange(0, 6)),
         cl::NumOpts::zero_or_more, cl::HasArg::required, cl::CommaSeparated::yes);
 
     // OK   "-std c++11"

@@ -1,7 +1,37 @@
-#include "../src/Cmdline.h"
+#include "Cmdline.h"
 
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
+
+struct fancy_iterator
+{
+    using It                = std::initializer_list<char const*>::iterator;
+    //using iterator_category = std::input_iterator_tag; // std::iterator_traits<It>::iterator_category;
+    //using reference         = std::iterator_traits<It>::reference;
+    //using pointer           = std::iterator_traits<It>::pointer;
+    //using value_type        = std::iterator_traits<It>::value_type;
+    //using difference_type   = std::iterator_traits<It>::difference_type;
+
+    It it;
+
+    fancy_iterator() = default;
+    explicit fancy_iterator(It it_) : it(it_) {}
+
+#if 1
+    char const* operator*() { return *it; }
+#endif
+#if 0
+    std::string operator*() const { return std::string(*it); }
+#endif
+
+    fancy_iterator& operator++() {
+        ++it;
+        return *this;
+    }
+
+    friend bool operator==(fancy_iterator lhs, fancy_iterator rhs) { return lhs.it == rhs.it; }
+    friend bool operator!=(fancy_iterator lhs, fancy_iterator rhs) { return lhs.it != rhs.it; }
+};
 
 //
 // XXX:
@@ -9,7 +39,10 @@
 //
 static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
 {
-    return cl.Parse(args.begin(), args.end());
+    fancy_iterator first{args.begin()};
+    fancy_iterator last {args.end()};
+
+    return cl.Parse(first, last);
 }
 
 TEST_CASE("Opt")
@@ -292,23 +325,6 @@ TEST_CASE("Positional")
         CHECK(strings[2] == "drei");
     }
 
-    SECTION("strings (as standard options)")
-    {
-        std::vector<std::string> strings;
-
-        cl::Cmdline cl;
-        cl.Add("a", "", cl::PushBack(strings), cl::Positional::yes, cl::NumOpts::zero_or_more, cl::HasArg::required);
-
-        CHECK(true == ParseArgs(cl, {"-a=eins"}));
-        CHECK(strings.size() == 1);
-        CHECK(strings[0] == "eins");
-        CHECK(true == ParseArgs(cl, {"-a", "zwei", "-a=drei"}));
-        CHECK(strings.size() == 3);
-        CHECK(strings[0] == "eins");
-        CHECK(strings[1] == "zwei");
-        CHECK(strings[2] == "drei");
-    }
-
     SECTION("ints")
     {
         std::vector<int> ints;
@@ -381,6 +397,18 @@ TEST_CASE("ConsumeRemaining")
     CHECK(sink.size() == 6);
     CHECK(sink[4] == "-a");
     CHECK(sink[5] == "false");
+}
+
+TEST_CASE("Strings")
+{
+    std::string str;
+
+    cl::Cmdline cl;
+    cl.Add("s", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {"-s=hello hello hello hello hello hello hello hello hello hello hello hello",
+                                 "-s=world world world world world world world world world world world world"}));
+    CHECK(str == "world world world world world world world world world world world world");
 }
 
 static_assert(INT_MIN == -INT_MAX - 1, "Tests assume two's complement");
@@ -562,6 +590,94 @@ TEST_CASE("Map")
     CHECK(simpson == Simpson::Maggie);
     CHECK(false == ParseArgs(cl, {"-simpson", "Granpa"})); // invalid argument
     CHECK(false == ParseArgs(cl, {"-simpson", "homer"})); // case-sensitive
+}
+
+TEST_CASE("Checks")
+{
+    SECTION("InRange")
+    {
+        int32_t a = 0;
+        int32_t b = 0;
+
+        cl::Cmdline cl;
+        cl.Add("a", "", cl::Assign(a, cl::check::InRange(-3, 3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("b", "", cl::Assign(b, cl::check::InRange(INT32_MIN, INT32_MAX)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+        CHECK(true == ParseArgs(cl, {"-a=0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a=-3"}));
+        CHECK(a == -3);
+        CHECK(true == ParseArgs(cl, {"-a=3"}));
+        CHECK(a == 3);
+        CHECK(true == ParseArgs(cl, {"-a=+3"}));
+        CHECK(a == 3);
+        CHECK(false == ParseArgs(cl, {"-a=-4"}));
+        CHECK(false == ParseArgs(cl, {"-a=+4"}));
+
+        CHECK(true == ParseArgs(cl, {"-b=2147483647"}));
+        CHECK(b == INT32_MAX);
+        CHECK(true == ParseArgs(cl, {"-b=-2147483648"}));
+        CHECK(b == INT32_MIN);
+    }
+
+    SECTION("GreaterThan")
+    {
+        int32_t a = 0;
+
+        cl::Cmdline cl;
+        cl.Add("a", "", cl::Assign(a, cl::check::GreaterThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+        CHECK(true == ParseArgs(cl, {"-a=0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a=-2"}));
+        CHECK(a == -2);
+        CHECK(true == ParseArgs(cl, {"-a=3"}));
+        CHECK(a == 3);
+        CHECK(false == ParseArgs(cl, {"-a=-3"}));
+        CHECK(false == ParseArgs(cl, {"-a=-4"}));
+    }
+
+    SECTION("GreaterEqual")
+    {
+        int32_t a = 0;
+
+        cl::Cmdline cl;
+        cl.Add("a", "", cl::Assign(a, cl::check::GreaterEqual(7)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+        CHECK(true == ParseArgs(cl, {"-a=7"}));
+        CHECK(a == 7);
+        CHECK(true == ParseArgs(cl, {"-a=2147483647"}));
+        CHECK(a == INT32_MAX);
+        CHECK(false == ParseArgs(cl, {"-a=6"}));
+    }
+
+    SECTION("LessThan")
+    {
+        int32_t a = 0;
+
+        cl::Cmdline cl;
+        cl.Add("a", "", cl::Assign(a, cl::check::LessThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+        CHECK(true == ParseArgs(cl, {"-a=-4"}));
+        CHECK(a == -4);
+        CHECK(true == ParseArgs(cl, {"-a=-2147483648"}));
+        CHECK(a == INT32_MIN);
+        CHECK(false == ParseArgs(cl, {"-a=-3"}));
+        CHECK(false == ParseArgs(cl, {"-a=-2"}));
+    }
+
+    SECTION("LessEqual")
+    {
+        int32_t a = 0;
+
+        cl::Cmdline cl;
+        cl.Add("a", "", cl::Assign(a, cl::check::LessEqual(INT32_MIN)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+        CHECK(true == ParseArgs(cl, {"-a=-2147483648"}));
+        CHECK(a == INT32_MIN);
+        CHECK(false == ParseArgs(cl, {"-a=-2147483647"}));
+        CHECK(false == ParseArgs(cl, {"-a=+2147483647"}));
+    }
 }
 
 #if 0
