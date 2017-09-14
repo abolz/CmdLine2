@@ -561,6 +561,9 @@ OptionBase* Cmdline::FindOption(string_view name) const
 {
     for (auto&& p : options_)
     {
+        if (p.option->positional_ == Positional::yes)
+            continue;
+
         if (p.name == name)
             return p.option;
     }
