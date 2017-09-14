@@ -118,6 +118,9 @@ group "Tests"
 project "Test"
     language "C++"
     kind "ConsoleApp"
+    includedirs {
+        "src/",
+    }
     files {
         "test/Test.cc",
     }
@@ -128,6 +131,9 @@ project "Test"
 project "Example"
     language "C++"
     kind "ConsoleApp"
+    includedirs {
+        "src/",
+    }
     files {
         "test/Example.cc",
     }
