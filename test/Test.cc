@@ -1,4 +1,6 @@
 #include "Cmdline.h"
+#include <cstdint>
+#include <climits>
 
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
