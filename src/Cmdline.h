@@ -51,7 +51,6 @@ public:
 
     constexpr string_view() noexcept = default;
     constexpr string_view(string_view const&) noexcept = default;
-    constexpr string_view& operator=(string_view const&) noexcept = default;
 
     /*constexpr*/ string_view(const_pointer ptr, size_t len) noexcept
         : data_(ptr)
