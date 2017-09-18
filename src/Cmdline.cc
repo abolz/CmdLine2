@@ -37,13 +37,13 @@ using namespace cl;
 //
 //------------------------------------------------------------------------------
 
-static int MemCompare(char const* s1, char const* s2, size_t n) noexcept
+static int MemCompare(char const* s1, char const* s2, size_t n)
 {
     // memcmp is undefined for nullptr's even if n == 0.
     return n == 0 ? 0 : ::memcmp(s1, s2, n);
 }
 
-static char const* MemFind(char const* s, size_t n, char ch) noexcept
+static char const* MemFind(char const* s, size_t n, char ch)
 {
     // memchr is undefined for nullptr's even if n == 0.
     // But here it should never be called with n == 0...
@@ -51,18 +51,18 @@ static char const* MemFind(char const* s, size_t n, char ch) noexcept
     return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
 }
 
-bool string_view::_cmp_eq(string_view other) const noexcept
+bool string_view::_cmp_eq(string_view other) const
 {
     return size() == other.size() && MemCompare(data(), other.data(), size()) == 0;
 }
 
-bool string_view::_cmp_lt(string_view other) const noexcept
+bool string_view::_cmp_lt(string_view other) const
 {
     int const c = MemCompare(data(), other.data(), Min(size(), other.size()));
     return c < 0 || (c == 0 && size() < other.size());
 }
 
-int string_view::compare(string_view other) const noexcept
+int string_view::compare(string_view other) const
 {
     int const c = MemCompare(data(), other.data(), Min(size(), other.size()));
     if (c != 0)
@@ -74,7 +74,7 @@ int string_view::compare(string_view other) const noexcept
     return 0;
 }
 
-size_t string_view::find(char ch, size_t from) const noexcept
+size_t string_view::find(char ch, size_t from) const
 {
     if (from >= size())
         return npos;

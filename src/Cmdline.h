@@ -49,23 +49,23 @@ private:
 public:
     static constexpr size_t npos = static_cast<size_t>(-1);
 
-    constexpr string_view() noexcept = default;
-    constexpr string_view(string_view const&) noexcept = default;
+    constexpr string_view() = default;
+    constexpr string_view(string_view const&) = default;
 
-    /*constexpr*/ string_view(const_pointer ptr, size_t len) noexcept
+    /*constexpr*/ string_view(const_pointer ptr, size_t len)
         : data_(ptr)
         , size_(len)
     {
         assert(size_ == 0 || data_ != nullptr);
     }
 
-    /*constexpr*/ /*implicit*/ string_view(const_pointer c_str) noexcept
+    /*constexpr*/ /*implicit*/ string_view(const_pointer c_str)
         : data_(c_str)
         , size_(c_str ? ::strlen(c_str) : 0u)
     {
     }
 
-    /*constexpr*/ /*implicit*/ string_view(std::string const& str) noexcept
+    /*constexpr*/ /*implicit*/ string_view(std::string const& str)
         : data_(str.data())
         , size_(str.size())
     {
@@ -78,60 +78,60 @@ public:
     }
 
     // Returns a pointer to the start of the string.
-    constexpr const_pointer data() const noexcept { return data_; }
+    constexpr const_pointer data() const { return data_; }
 
     // Returns the length of the string.
-    constexpr size_t size() const noexcept { return size_; }
+    constexpr size_t size() const { return size_; }
 
     // Returns whether the string is empty.
-    constexpr bool empty() const noexcept { return size_ == 0; }
+    constexpr bool empty() const { return size_ == 0; }
 
     // Returns a reference to the N-th character of the string.
-    /*constexpr*/ const_reference operator[](size_t n) const noexcept {
+    /*constexpr*/ const_reference operator[](size_t n) const {
         assert(n < size_);
         return data_[n];
     }
 
     // Returns an iterator pointing to the start of the string.
-    constexpr const_iterator begin() const noexcept { return data_; }
+    constexpr const_iterator begin() const { return data_; }
 
     // Returns an iterator pointing past the end of the string.
-    constexpr const_iterator end() const noexcept { return data_ + size_; }
+    constexpr const_iterator end() const { return data_ + size_; }
 
-    bool _cmp_eq(string_view other) const noexcept;
-    bool _cmp_lt(string_view other) const noexcept;
+    bool _cmp_eq(string_view other) const;
+    bool _cmp_lt(string_view other) const;
 
     // Lexicographically compare this string with another string OTHER.
-    int compare(string_view other) const noexcept;
+    int compare(string_view other) const;
 
     // Removes the first N characters from the string.
-    void remove_prefix(size_t n) noexcept {
+    void remove_prefix(size_t n) {
         assert(n <= size_);
         data_ += n;
         size_ -= n;
     }
 
     // Removes the last N characters from the string.
-    void remove_suffix(size_t n) noexcept {
+    void remove_suffix(size_t n) {
         assert(n <= size_);
         size_ -= n;
     }
 
     // Returns the substring [first, +count)
-    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const noexcept {
+    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const {
         assert(first <= size_);
         return { data_ + first, Min(count, size_ - first) };
     }
 
     // Search for the first character ch in the sub-string [from, end)
-    size_t find(char ch, size_t from = 0) const noexcept;
+    size_t find(char ch, size_t from = 0) const;
 };
 
-inline bool operator==(string_view s1, string_view s2) noexcept {
+inline bool operator==(string_view s1, string_view s2) {
     return s1._cmp_eq(s2);
 }
 
-inline bool operator!=(string_view s1, string_view s2) noexcept {
+inline bool operator!=(string_view s1, string_view s2) {
     return !(s1 == s2);
 }
 
