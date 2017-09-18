@@ -457,10 +457,10 @@ public:
     void PrintDiag() const;
 
     // Returns a short help message listing all registered options.
-    std::string FormatHelp(string_view program_name) const;
+    std::string FormatHelp(string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
 
     // Prints the help message to stderr
-    void PrintHelp(string_view program_name) const;
+    void PrintHelp(string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
 
 private:
     enum class Result { success, error, ignored };

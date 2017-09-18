@@ -406,11 +406,7 @@ static void AppendAligned(std::string& out, string_view text, size_t indent, siz
 
 static void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
-    if (width <= indent)
-    {
-        out += text;
-        return;
-    }
+    assert(indent < width);
 
     bool first = true;
 
@@ -437,12 +433,11 @@ static void AppendWrapped(std::string& out, string_view text, size_t indent, siz
     });
 }
 
-static constexpr size_t kOptIndent   = 2;
-static constexpr size_t kDescrIndent = 27;
-static constexpr size_t kDescrWidth  = 0; // 100 - kDescrIndent;
-
-std::string Cmdline::FormatHelp(string_view program_name) const
+std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t descr_indent, size_t max_width) const
 {
+    assert(descr_indent > indent);
+    assert(max_width == 0 || max_width > descr_indent);
+
     std::string spos;
     std::string sopt;
 
@@ -483,13 +478,16 @@ std::string Cmdline::FormatHelp(string_view program_name) const
 
             if (opt->descr_.empty())
             {
-                sopt.append(kOptIndent, ' ');
+                sopt.append(indent, ' ');
                 sopt += usage;
             }
             else
             {
-                AppendAligned(sopt, usage, kOptIndent, kDescrIndent);
-                AppendWrapped(sopt, opt->descr_, kDescrIndent, kDescrWidth);
+                AppendAligned(sopt, usage, indent, descr_indent);
+                if (max_width == 0)
+                    sopt += opt->descr_;
+                else
+                    AppendWrapped(sopt, opt->descr_, descr_indent, max_width - descr_indent);
             }
 
             sopt += '\n'; // One option per line
@@ -502,9 +500,9 @@ std::string Cmdline::FormatHelp(string_view program_name) const
         return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-void Cmdline::PrintHelp(string_view program_name) const
+void Cmdline::PrintHelp(string_view program_name, size_t indent, size_t descr_indent, size_t max_width) const
 {
-    auto const msg = FormatHelp(program_name);
+    auto const msg = FormatHelp(program_name, indent, descr_indent, max_width);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
