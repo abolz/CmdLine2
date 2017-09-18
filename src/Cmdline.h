@@ -394,17 +394,6 @@ class Cmdline
     bool            dashdash_        = false; // "--" seen?
 
 public:
-    // Controls whether the Parse() methods should check for missing options.
-    enum class CheckMissing : unsigned char {
-        // Do not check for missing required options in Cmdline::Parse().
-        no,
-        // Check for missing required options in Cmdline::Parse().
-        // Any missing option will be reported as an error.
-        // This is the default.
-        yes,
-    };
-
-public:
     Cmdline();
     ~Cmdline();
 
@@ -437,7 +426,7 @@ public:
     // Parse the command line arguments in [first, last).
     // Emits an error for unknown options.
     template <typename It, typename EndIt>
-    bool Parse(It first, EndIt last, CheckMissing check_missing = CheckMissing::yes);
+    bool Parse(It first, EndIt last, bool check_missing = true);
 
     // Parse the command line arguments in [first, last).
     // Calls sink() for unknown options.
@@ -446,12 +435,12 @@ public:
     // the parser should stop, or return true to continue parsing command line
     // arguments.
     template <typename It, typename EndIt, typename Sink>
-    bool Parse(It first, EndIt last, CheckMissing check_missing, Sink sink);
+    bool Parse(It first, EndIt last, bool check_missing, Sink sink);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
-    // Returns true if all required options have been (successfully) parsed.
-    bool CheckMissingOptions();
+    // Returns true if any required options have not yet been (successfully) parsed.
+    bool AnyMissing();
 
     // Prints error messages to stderr.
     void PrintDiag() const;
@@ -523,7 +512,7 @@ auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&..
 }
 
 template <typename It, typename EndIt>
-bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing)
+bool Cmdline::Parse(It first, EndIt last, bool check_missing)
 {
     auto sink = [&](string_view curr, int index)
     {
@@ -535,13 +524,13 @@ bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing)
 }
 
 template <typename It, typename EndIt, typename Sink>
-bool Cmdline::Parse(It first, EndIt last, CheckMissing check_missing, Sink sink)
+bool Cmdline::Parse(It first, EndIt last, bool check_missing, Sink sink)
 {
     if (!DoParse(first, last, sink))
         return false;
 
-    if (check_missing == CheckMissing::yes)
-        return CheckMissingOptions();
+    if (check_missing)
+        return !AnyMissing();
 
     return true;
 }

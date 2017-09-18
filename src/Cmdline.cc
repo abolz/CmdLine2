@@ -297,16 +297,16 @@ void Cmdline::Reset()
 }
 
 // Emit errors for ALL missing options.
-bool Cmdline::CheckMissingOptions()
+bool Cmdline::AnyMissing()
 {
-    bool res = true;
+    bool res = false;
 
     for (auto const& opt : unique_options_)
     {
         if (opt->IsOccurrenceRequired())
         {
             FormatDiag(Diagnostic::error, -1, "Option '%s' is missing", opt->name_.c_str());
-            res = false;
+            res = true;
         }
     }
 
@@ -469,10 +469,10 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
             case HasArg::no:
                 break;
             case HasArg::optional:
-                usage += "=<arg>";
+                usage += "=<ARG>";
                 break;
             case HasArg::required:
-                usage += " <arg>";
+                usage += " <ARG>";
                 break;
             }
 
