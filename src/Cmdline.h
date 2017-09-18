@@ -982,8 +982,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
             if (p.first == ctx.arg)
             {
                 value = p.second;
-                if (impl::ApplyFuncs(ctx, value, preds...))
-                    return true;
+                return impl::ApplyFuncs(ctx, value, preds...);
             }
         }
 
