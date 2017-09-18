@@ -428,15 +428,6 @@ public:
     template <typename It, typename EndIt>
     bool Parse(It first, EndIt last, bool check_missing = true);
 
-    // Parse the command line arguments in [first, last).
-    // Calls sink() for unknown options.
-    //
-    // Sink must have signature "bool sink(It, int)" and should return false if
-    // the parser should stop, or return true to continue parsing command line
-    // arguments.
-    template <typename It, typename EndIt, typename Sink>
-    bool Parse(It first, EndIt last, bool check_missing, Sink sink);
-
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
     // Returns true if any required options have not yet been (successfully) parsed.
@@ -457,9 +448,6 @@ private:
     OptionBase* FindOption(string_view name) const;
 
     void DoAdd(std::unique_ptr<OptionBase> opt);
-
-    template <typename It, typename EndIt, typename Sink>
-    bool DoParse(It curr, EndIt last, Sink sink);
 
     template <typename It, typename EndIt>
     Result Handle1(string_view optstr, It& curr, EndIt last);
@@ -512,31 +500,7 @@ auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&..
 }
 
 template <typename It, typename EndIt>
-bool Cmdline::Parse(It first, EndIt last, bool check_missing)
-{
-    auto sink = [&](string_view curr, int index)
-    {
-        FormatDiag(Diagnostic::error, index, "Unknown option '%.*s'", static_cast<int>(curr.size()), curr.data());
-        return false;
-    };
-
-    return Parse(first, last, check_missing, sink);
-}
-
-template <typename It, typename EndIt, typename Sink>
-bool Cmdline::Parse(It first, EndIt last, bool check_missing, Sink sink)
-{
-    if (!DoParse(first, last, sink))
-        return false;
-
-    if (check_missing)
-        return !AnyMissing();
-
-    return true;
-}
-
-template <typename It, typename EndIt, typename Sink>
-bool Cmdline::DoParse(It curr, EndIt last, Sink sink)
+bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
 {
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
@@ -557,10 +521,16 @@ bool Cmdline::DoParse(It curr, EndIt last, Sink sink)
         std::string optstr(*curr);
 
         Result const res = Handle1(optstr, curr, last);
+
         if (res == Result::error)
             return false;
-        if (res == Result::ignored && !sink(optstr, curr_index_))
+
+        if (res == Result::ignored)
+        {
+            FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%.*s'",
+                static_cast<int>(optstr.size()), optstr.data());
             return false;
+        }
 
         // Handle1 might have changed CURR.
         // Need to recheck if we're done.
@@ -569,6 +539,9 @@ bool Cmdline::DoParse(It curr, EndIt last, Sink sink)
         ++curr;
         ++curr_index_;
     }
+
+    if (check_missing)
+        return !AnyMissing();
 
     return true;
 }
