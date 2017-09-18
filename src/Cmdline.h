@@ -125,17 +125,6 @@ public:
 
     // Search for the first character ch in the sub-string [from, end)
     size_t find(char ch, size_t from = 0) const noexcept;
-
-    // Search for the last character ch in the sub-string [0, from)
-    size_t rfind(char ch, size_t from = npos) const noexcept;
-
-    // Search for the first character in the sub-string [from, end)
-    // which matches any of the characters in chars.
-    size_t find_first_of(string_view chars, size_t from = 0) const noexcept;
-
-    // Search for the last character in the sub-string [0, from)
-    // which matches any of the characters in chars.
-    size_t find_last_of(string_view chars, size_t from = npos) const noexcept;
 };
 
 inline bool operator==(string_view s1, string_view s2) noexcept {

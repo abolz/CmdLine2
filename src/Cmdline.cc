@@ -85,61 +85,6 @@ size_t string_view::find(char ch, size_t from) const noexcept
     return npos;
 }
 
-size_t string_view::rfind(char ch, size_t from) const noexcept
-{
-    if (from < size())
-        ++from;
-    else
-        from = size();
-
-    for (auto I = from; I != 0; --I)
-    {
-        if (static_cast<unsigned char>(ch) == static_cast<unsigned char>(data()[I - 1]))
-            return I - 1;
-    }
-
-    return npos;
-}
-
-size_t string_view::find_first_of(string_view chars, size_t from) const noexcept
-{
-    if (chars.size() == 1)
-        return find(chars[0], from);
-
-    if (from >= size() || chars.empty())
-        return npos;
-
-    for (auto I = from; I != size(); ++I)
-    {
-        if (MemFind(chars.data(), chars.size(), data()[I]))
-            return I;
-    }
-
-    return npos;
-}
-
-size_t string_view::find_last_of(string_view chars, size_t from) const noexcept
-{
-    if (chars.size() == 1)
-        return rfind(chars[0], from);
-
-    if (chars.empty())
-        return npos;
-
-    if (from < size())
-        ++from;
-    else
-        from = size();
-
-    for (auto I = from; I != 0; --I)
-    {
-        if (MemFind(chars.data(), chars.size(), data()[I - 1]))
-            return I - 1;
-    }
-
-    return npos;
-}
-
 static std::string& operator+=(std::string& lhs, string_view rhs)
 {
     lhs.append(rhs.data(), rhs.size());
@@ -221,10 +166,13 @@ struct WrapDelimiter
             return {string_view::npos, 0};
 
         // Otherwise, search for the first space preceding the line length.
-        auto I = str.find_last_of(" \t", length);
+        for (size_t i = length; i != 0; /**/)
+        {
+            char const ch = str[--i];
 
-        if (I != string_view::npos) // There is a space.
-            return {I, 1};
+            if (ch == ' ' || ch == '\t')
+                return {i, 1};
+        }
 
         return {length, 0}; // No space in current line, break at length.
     }
@@ -459,7 +407,10 @@ static void AppendAligned(std::string& out, string_view text, size_t indent, siz
 static void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
     if (width <= indent)
-        width = SIZE_MAX;
+    {
+        out += text;
+        return;
+    }
 
     bool first = true;
 
@@ -486,9 +437,9 @@ static void AppendWrapped(std::string& out, string_view text, size_t indent, siz
     });
 }
 
-static constexpr size_t kMaxWidth    = 0;
 static constexpr size_t kOptIndent   = 2;
 static constexpr size_t kDescrIndent = 27;
+static constexpr size_t kDescrWidth  = 0; // 100 - kDescrIndent;
 
 std::string Cmdline::FormatHelp(string_view program_name) const
 {
@@ -538,7 +489,7 @@ std::string Cmdline::FormatHelp(string_view program_name) const
             else
             {
                 AppendAligned(sopt, usage, kOptIndent, kDescrIndent);
-                AppendWrapped(sopt, opt->descr_, kDescrIndent, kMaxWidth);
+                AppendWrapped(sopt, opt->descr_, kDescrIndent, kDescrWidth);
             }
 
             sopt += '\n'; // One option per line
