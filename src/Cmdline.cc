@@ -356,7 +356,7 @@ void Cmdline::PrintDiag() const
 
 #define CL_VT100_RESET      "\x1B[0m"
 #define CL_VT100_RED        "\x1B[31;1m"
-#define CL_VT100_MAGENTA    "\x1B[36;1m"
+#define CL_VT100_MAGENTA    "\x1B[35;1m"
 #define CL_VT100_CYAN       "\x1B[36;1m"
 
 void Cmdline::PrintDiag() const
