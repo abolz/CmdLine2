@@ -58,8 +58,8 @@ int main(int argc, char* argv[])
     bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (!ok)
     {
-        cmd.PrintDiag();        // Print error message(s) to stderr.
-        cmd.PrintHelp(argv[0]); // Print help message to stderr.
+        cmd.PrintDiag();          // Print error message(s) to stderr.
+        cmd.PrintHelp("Example"); // Print help message to stderr.
         return -1;
     }
 

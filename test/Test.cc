@@ -682,6 +682,17 @@ TEST_CASE("Checks")
     }
 }
 
+TEST_CASE("Unicode")
+{
+    std::string str;
+
+    cl::Cmdline cl;
+    cl.Add(u8"😃-😜", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
+    CHECK(str == u8"hello😍😎world");
+}
+
 #if 0
 
 struct c_str_end {
