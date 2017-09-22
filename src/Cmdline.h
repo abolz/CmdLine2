@@ -274,7 +274,7 @@ protected:
         : name_(name)
         , descr_(descr)
     {
-#if __cplusplus >= 201703
+#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411
         (Apply(args), ...);
 #else
         int unused[] = {(Apply(args), 0)..., 0};
@@ -342,6 +342,13 @@ private:
         return true;
     }
 };
+
+#if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
+
+template <typename ParserInit, typename Args>
+Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
+
+#endif
 
 //------------------------------------------------------------------------------
 //
@@ -420,6 +427,15 @@ public:
     template <typename Parser, typename ...Args>
     auto Add(char const* name, char const* descr, Parser&& parser, Args&&... args);
 
+    // Add an option to the commond line.
+    // The Cmdline object takes ownership.
+    void Add(std::unique_ptr<OptionBase> opt);
+
+    // Add an option to the commond line.
+    // The Cmdline object does not own this option.
+    void Add(OptionBase* opt);
+    void Add(std::initializer_list<OptionBase*> opts);
+
     // Resets the parser. Sets the COUNT members of all registered options to 0.
     void Reset();
 
@@ -446,8 +462,6 @@ private:
     enum class Result { success, error, ignored };
 
     OptionBase* FindOption(string_view name) const;
-
-    void DoAdd(std::unique_ptr<OptionBase> opt);
 
     template <typename It, typename EndIt>
     Result Handle1(string_view optstr, It& curr, EndIt last);
@@ -479,6 +493,9 @@ private:
     Result HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
 
     Result ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
+
+    template <typename Fn>
+    bool ForEachUniqueOption(Fn fn) const;
 };
 
 //------------------------------------------------------------------------------
@@ -493,7 +510,7 @@ auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&..
     auto opt = std::make_unique<Option<DecayedParser>>(name, descr, std::forward<Parser>(parser), std::forward<Args>(args)...);
     auto const p = opt.get();
 
-    DoAdd(std::move(opt));
+    Add(std::move(opt));
 
     return p;
 }
@@ -869,7 +886,7 @@ namespace impl
         static_cast<void>(ctx);   // may be unused if funcs is empty
         static_cast<void>(value); // may be unused if funcs is empty
 
-#if __cplusplus >= 201703
+#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411
         return (... && funcs(ctx, value));
 #else
         bool res = true;

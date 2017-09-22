@@ -286,14 +286,56 @@ void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, .
     diag_.push_back({type, index, std::string(buf)});
 }
 
+void Cmdline::Add(std::unique_ptr<OptionBase> opt)
+{
+    auto const p = opt.get();
+
+    unique_options_.push_back(std::move(opt));
+
+    Add(p);
+}
+
+void Cmdline::Add(OptionBase* opt)
+{
+    assert(opt != nullptr);
+
+    SplitString(opt->name_, CharDelimiter('|'), [&](string_view name)
+    {
+        assert(!name.empty());
+        assert(FindOption(name) == nullptr); // option already exists?!
+
+        if (opt->join_arg_ != JoinArg::no)
+        {
+            int const n = static_cast<int>(name.size());
+            if (max_prefix_len_ < n)
+                max_prefix_len_ = n;
+        }
+
+        options_.push_back({name, opt});
+
+        return true;
+    });
+}
+
+void Cmdline::Add(std::initializer_list<OptionBase*> opts)
+{
+    for (auto& opt : opts)
+    {
+        Add(opt);
+    }
+}
+
 void Cmdline::Reset()
 {
     curr_positional_ = 0;
     curr_index_      = 0;
     dashdash_        = false;
 
-    for (auto& opt : unique_options_)
+    ForEachUniqueOption([](string_view /*name*/, OptionBase* opt)
+    {
         opt->count_ = 0;
+        return true;
+    });
 }
 
 // Emit errors for ALL missing options.
@@ -301,14 +343,16 @@ bool Cmdline::AnyMissing()
 {
     bool res = false;
 
-    for (auto const& opt : unique_options_)
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
     {
         if (opt->IsOccurrenceRequired())
         {
             FormatDiag(Diagnostic::error, -1, "Option '%.*s' is missing", static_cast<int>(opt->name_.size()), opt->name_.data());
             res = true;
         }
-    }
+
+        return true;
+    });
 
     return res;
 }
@@ -441,7 +485,7 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
     std::string spos;
     std::string sopt;
 
-    for (auto const& opt : unique_options_)
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
     {
         if (opt->positional_ == Positional::yes)
         {
@@ -492,7 +536,9 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
 
             sopt += '\n'; // One option per line
         }
-    }
+
+        return true;
+    });
 
     if (sopt.empty())
         return "Usage: " + std::string(program_name) + spos + '\n';
@@ -518,31 +564,6 @@ OptionBase* Cmdline::FindOption(string_view name) const
     }
 
     return nullptr;
-}
-
-void Cmdline::DoAdd(std::unique_ptr<OptionBase> popt)
-{
-    OptionBase* opt = popt.get();
-    assert(!opt->name_.empty());
-
-    unique_options_.push_back(std::move(popt)); // commit
-
-    SplitString(opt->name_, CharDelimiter('|'), [&](string_view name)
-    {
-        assert(!name.empty());
-        assert(FindOption(name) == nullptr); // option already exists?!
-
-        if (opt->join_arg_ != JoinArg::no)
-        {
-            int const n = static_cast<int>(name.size());
-            if (max_prefix_len_ < n)
-                max_prefix_len_ = n;
-        }
-
-        options_.push_back({name, opt});
-
-        return true;
-    });
 }
 
 Cmdline::Result Cmdline::HandlePositional(string_view optstr)
@@ -736,6 +757,32 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, 
     return res;
 }
 
+template <typename Fn>
+bool Cmdline::ForEachUniqueOption(Fn fn) const
+{
+    auto I = options_.begin();
+    auto E = options_.end();
+
+    if (I == E)
+        return true;
+
+    for (;;)
+    {
+        if (!fn(I->name, I->option))
+            return false;
+
+        // Skip duplicate options.
+        auto const* curr_opt = I->option;
+        for (;;)
+        {
+            if (++I == E)
+                return true;
+            if (I->option != curr_opt)
+                break;
+        }
+    }
+}
+
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
@@ -743,7 +790,7 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, 
 template <typename ...Match>
 static bool IsAnyOf(string_view value, Match&&... match)
 {
-#if __cplusplus >= 201703
+#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411
     return (... || (value == match));
 #else
     bool res = false;
