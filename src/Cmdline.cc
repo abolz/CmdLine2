@@ -305,7 +305,7 @@ bool Cmdline::AnyMissing()
     {
         if (opt->IsOccurrenceRequired())
         {
-            FormatDiag(Diagnostic::error, -1, "Option '%s' is missing", opt->name_.c_str());
+            FormatDiag(Diagnostic::error, -1, "Option '%.*s' is missing", static_cast<int>(opt->name_.size()), opt->name_.data());
             res = true;
         }
     }

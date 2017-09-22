@@ -243,9 +243,9 @@ class OptionBase
     friend class Cmdline;
 
     // The name of the option.
-    std::string const name_;
+    string_view name_;
     // The description of this option
-    std::string const descr_;
+    string_view descr_;
     // Flags controlling how the option may/must be specified.
     NumOpts          num_opts_          = NumOpts::optional;
     HasArg           has_arg_           = HasArg::no;
@@ -270,9 +270,9 @@ private:
 
 protected:
     template <typename ...Args>
-    explicit OptionBase(std::string name, std::string descr, Args&&... args)
-        : name_(std::move(name))
-        , descr_(std::move(descr))
+    explicit OptionBase(char const* name, char const* descr, Args&&... args)
+        : name_(name)
+        , descr_(descr)
     {
 #if __cplusplus >= 201703
         (Apply(args), ...);
@@ -287,10 +287,10 @@ public:
 
 public:
     // Returns the name of this option
-    std::string const& name() const { return name_; }
+    string_view name() const { return name_; }
 
     // Returns the description of this option
-    std::string const& descr() const { return descr_; }
+    string_view descr() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -320,8 +320,8 @@ class Option : public OptionBase
 
 public:
     template <typename ParserInit, typename ...Args>
-    Option(std::string name, std::string descr, ParserInit&& parser, Args&&... args)
-        : OptionBase(std::move(name), std::move(descr), std::forward<Args>(args)...)
+    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+        : OptionBase(name, descr, std::forward<Args>(args)...)
         , parser_(std::forward<ParserInit>(parser))
     {
     }
@@ -416,9 +416,9 @@ public:
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
-    // NAME and DESCR must be valid while this command line parse is still alive.
+    // The Cmdline object owns this option.
     template <typename Parser, typename ...Args>
-    auto Add(std::string name, std::string descr, Parser&& parser, Args&&... args);
+    auto Add(char const* name, char const* descr, Parser&& parser, Args&&... args);
 
     // Resets the parser. Sets the COUNT members of all registered options to 0.
     void Reset();
@@ -486,12 +486,11 @@ private:
 //------------------------------------------------------------------------------
 
 template <typename Parser, typename ...Args>
-auto Cmdline::Add(std::string name, std::string descr, Parser&& parser, Args&&... args)
+auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&... args)
 {
     using DecayedParser = std::decay_t<Parser>;
 
-    auto opt = std::make_unique<Option<DecayedParser>>(
-        std::move(name), std::move(descr), std::forward<Parser>(parser), std::forward<Args>(args)...);
+    auto opt = std::make_unique<Option<DecayedParser>>(name, descr, std::forward<Parser>(parser), std::forward<Args>(args)...);
     auto const p = opt.get();
 
     DoAdd(std::move(opt));
