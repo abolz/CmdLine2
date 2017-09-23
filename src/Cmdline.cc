@@ -378,13 +378,13 @@ static void AppendAligned(std::string& out, string_view text, size_t indent, siz
     if (text.size() < width && indent < width - text.size())
     {
         out.append(indent, ' ');
-        out += text;
+        out.append(text.data(), text.size());
         out.append(width - text.size() - indent, ' ');
     }
     else
     {
         out.append(indent, ' ');
-        out += text;
+        out.append(text.data(), text.size());
         out += '\n';
         out.append(width, ' ');
     }
@@ -412,7 +412,7 @@ static void AppendWrapped(std::string& out, string_view text, size_t indent, siz
                 out.append(indent, ' ');
             }
 
-            out += line;
+            out.append(line.data(), line.size());
 
             return true;
         });
@@ -435,12 +435,12 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
             if ((opt->num_opts_ == NumOpts::optional) || (opt->num_opts_ == NumOpts::zero_or_more))
             {
                 spos += '[';
-                spos += opt->name_;
+                spos.append(opt->name_.data(), opt->name_.size());
                 spos += ']';
             }
             else
             {
-                spos += opt->name_;
+                spos.append(opt->name_.data(), opt->name_.size());
             }
         }
         else
@@ -448,7 +448,7 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
             std::string usage;
 
             usage += '-';
-            usage += opt->name_;
+            usage.append(opt->name_.data(), opt->name_.size());
 
             switch (opt->has_arg_)
             {
@@ -471,7 +471,7 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
             {
                 AppendAligned(sopt, usage, indent, descr_indent);
                 if (max_width == 0)
-                    sopt += opt->descr_;
+                    sopt.append(opt->descr_.data(), opt->descr_.size());
                 else
                     AppendWrapped(sopt, opt->descr_, descr_indent, max_width - descr_indent);
             }
