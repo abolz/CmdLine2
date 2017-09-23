@@ -644,7 +644,16 @@ template <> struct ConvertValue< unsigned long long > { bool operator()(string_v
 template <> struct ConvertValue< float              > { bool operator()(string_view str, float&              value) const; };
 template <> struct ConvertValue< double             > { bool operator()(string_view str, double&             value) const; };
 template <> struct ConvertValue< long double        > { bool operator()(string_view str, long double&        value) const; };
-template <> struct ConvertValue< std::string        > { bool operator()(string_view str, std::string&        value) const; };
+
+template <typename Alloc>
+struct ConvertValue<std::basic_string<char, std::char_traits<char>, Alloc>>
+{
+    bool operator()(string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
+    {
+        value.assign(str.data(), str.size());
+        return true;
+    }
+};
 
 template <typename Key, typename Value>
 struct ConvertValue<std::pair<Key, Value>>

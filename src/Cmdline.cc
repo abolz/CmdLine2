@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+
 #if defined(_WIN32)
 #include <windows.h>
 #undef min
@@ -881,10 +882,4 @@ bool ConvertValue<double>::operator()(string_view str, double& value) const
 bool ConvertValue<long double>::operator()(string_view str, long double& value) const
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
-}
-
-bool cl::ConvertValue<std::string>::operator()(string_view str, std::string& value) const
-{
-    value.assign(str.data(), str.size());
-    return true;
 }
