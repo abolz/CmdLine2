@@ -22,118 +22,38 @@
 #define CL_CMDLINE_H 1
 
 #include <cassert>
-#include <cstring>
 #include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
 
+#if defined(__has_include)
+#define CL_HAS_INCLUDE(X) __has_include(X)
+#else
+#define CL_HAS_INCLUDE(X) 0
+#endif
+
+#if (CL_HAS_INCLUDE(<string_view>) && __cplusplus >= 201703) || (_MSC_VER >= 1910 && _HAS_CXX17)
+#define CL_HAS_STD_STRING_VIEW 1
+#include <string_view>
+#endif
+
+#if (CL_HAS_INCLUDE(<experimental/string_view>) && __cplusplus > 201103)
+#define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
+#include <experimental/string_view>
+#endif
+
 namespace cl {
 
+#if CL_HAS_STD_STRING_VIEW
+using std::string_view;
+#elif CL_HAS_STD_EXPERIMENTAL_STRING_VIEW
+using std::experimental::string_view;
+#else
+#error "The Cmdline library requires a <string_view> implementation"
+#endif
+
 class Cmdline;
-
-class string_view // Minimal std::string_view replacement for C++14 compatibility
-{
-public:
-    using value_type      = char;
-    using const_pointer   = char const*;
-    using const_reference = char const&;
-    using const_iterator  = char const*;
-
-private:
-    const_pointer data_ = nullptr;
-    size_t        size_ = 0;
-
-    static size_t Min(size_t x, size_t y) { return y < x ? y : x; }
-
-public:
-    static constexpr size_t npos = static_cast<size_t>(-1);
-
-    constexpr string_view() = default;
-    constexpr string_view(string_view const&) = default;
-
-    /*constexpr*/ string_view(const_pointer ptr, size_t len)
-        : data_(ptr)
-        , size_(len)
-    {
-        assert(size_ == 0 || data_ != nullptr);
-    }
-
-    /*constexpr*/ /*implicit*/ string_view(const_pointer c_str)
-        : data_(c_str)
-        , size_(c_str ? ::strlen(c_str) : 0u)
-    {
-    }
-
-    /*constexpr*/ /*implicit*/ string_view(std::string const& str)
-        : data_(str.data())
-        , size_(str.size())
-    {
-    }
-
-    explicit operator std::string() const {
-        // Construct from iterators!
-        // Constructing from data/size requires data != null...
-        return std::string(begin(), end());
-    }
-
-    // Returns a pointer to the start of the string.
-    constexpr const_pointer data() const { return data_; }
-
-    // Returns the length of the string.
-    constexpr size_t size() const { return size_; }
-
-    // Returns whether the string is empty.
-    constexpr bool empty() const { return size_ == 0; }
-
-    // Returns a reference to the N-th character of the string.
-    /*constexpr*/ const_reference operator[](size_t n) const {
-        assert(n < size_);
-        return data_[n];
-    }
-
-    // Returns an iterator pointing to the start of the string.
-    constexpr const_iterator begin() const { return data_; }
-
-    // Returns an iterator pointing past the end of the string.
-    constexpr const_iterator end() const { return data_ + size_; }
-
-    bool _cmp_eq(string_view other) const;
-    bool _cmp_lt(string_view other) const;
-
-    // Lexicographically compare this string with another string OTHER.
-    int compare(string_view other) const;
-
-    // Removes the first N characters from the string.
-    void remove_prefix(size_t n) {
-        assert(n <= size_);
-        data_ += n;
-        size_ -= n;
-    }
-
-    // Removes the last N characters from the string.
-    void remove_suffix(size_t n) {
-        assert(n <= size_);
-        size_ -= n;
-    }
-
-    // Returns the substring [first, +count)
-    /*constexpr*/ string_view substr(size_t first = 0, size_t count = npos) const {
-        assert(first <= size_);
-        return { data_ + first, Min(count, size_ - first) };
-    }
-
-    // Search for the first character ch in the sub-string [from, end)
-    size_t find(char ch, size_t from = 0) const;
-};
-
-inline bool operator==(string_view s1, string_view s2) {
-    return s1._cmp_eq(s2);
-}
-
-inline bool operator!=(string_view s1, string_view s2) {
-    return !(s1 == s2);
-}
 
 //------------------------------------------------------------------------------
 //
@@ -377,7 +297,7 @@ class Cmdline
     struct NameOptionPair
     {
         string_view name   = {}; // Points into option->name_
-        OptionBase* option = nullptr;
+        OptionBase*      option = nullptr;
 
         // For VS2015
         NameOptionPair() = default;
