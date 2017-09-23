@@ -281,15 +281,6 @@ struct Diagnostic
     Type        type    = Type::error;
     int         index   = -1;
     std::string message = {};
-
-    // For VS2015
-    Diagnostic() = default;
-    Diagnostic(Type type_, int index_, std::string message_)
-        : type(type_)
-        , index(index_)
-        , message(std::move(message_))
-    {
-    }
 };
 
 class Cmdline
@@ -297,15 +288,7 @@ class Cmdline
     struct NameOptionPair
     {
         string_view name   = {}; // Points into option->name_
-        OptionBase*      option = nullptr;
-
-        // For VS2015
-        NameOptionPair() = default;
-        NameOptionPair(string_view name_, OptionBase* option_)
-            : name(name_)
-            , option(option_)
-        {
-        }
+        OptionBase* option = nullptr;
     };
 
     using Diagnostics   = std::vector<Diagnostic>;
