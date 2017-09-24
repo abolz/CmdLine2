@@ -374,23 +374,6 @@ void Cmdline::PrintDiag() const
 
 #endif
 
-static void AppendAligned(std::string& out, string_view text, size_t indent, size_t width)
-{
-    if (text.size() < width && indent < width - text.size())
-    {
-        out.append(indent, ' ');
-        out.append(text.data(), text.size());
-        out.append(width - text.size() - indent, ' ');
-    }
-    else
-    {
-        out.append(indent, ' ');
-        out.append(text.data(), text.size());
-        out += '\n';
-        out.append(width, ' ');
-    }
-}
-
 static void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
     assert(indent < width);
@@ -425,6 +408,8 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
     assert(descr_indent > indent);
     assert(max_width == 0 || max_width > descr_indent);
 
+    const size_t descr_width = (max_width == 0) ? SIZE_MAX : (max_width - descr_indent);
+
     std::string spos;
     std::string sopt;
 
@@ -446,36 +431,37 @@ std::string Cmdline::FormatHelp(string_view program_name, size_t indent, size_t 
         }
         else
         {
-            std::string usage;
+            const size_t col0 = sopt.size();
+            assert(col0 == 0 || sopt[col0 - 1] == '\n');
 
-            usage += '-';
-            usage.append(opt->name_.data(), opt->name_.size());
+            sopt.append(indent, ' ');
+            sopt += '-';
+            sopt.append(opt->name_.data(), opt->name_.size());
 
             switch (opt->has_arg_)
             {
             case HasArg::no:
                 break;
             case HasArg::optional:
-                usage += "=<ARG>";
+                sopt += "=<ARG>";
                 break;
             case HasArg::required:
-                usage += " <ARG>";
+                sopt += " <ARG>";
                 break;
             }
 
-            if (opt->descr_.empty())
+            const size_t col = sopt.size() - col0;
+            if (col < descr_indent)
             {
-                sopt.append(indent, ' ');
-                sopt += usage;
+                sopt.append(descr_indent - col, ' ');
             }
             else
             {
-                AppendAligned(sopt, usage, indent, descr_indent);
-                if (max_width == 0)
-                    sopt.append(opt->descr_.data(), opt->descr_.size());
-                else
-                    AppendWrapped(sopt, opt->descr_, descr_indent, max_width - descr_indent);
+                sopt += '\n';
+                sopt.append(descr_indent, ' ');
             }
+
+            AppendWrapped(sopt, opt->descr_, descr_indent, descr_width);
 
             sopt += '\n'; // One option per line
         }
