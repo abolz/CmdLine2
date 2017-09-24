@@ -134,7 +134,7 @@ enum class CommaSeparated : unsigned char {
 };
 
 // Parse all following options as positional options?
-enum class ConsumeRemaining : unsigned char {
+enum class EndsOptions : unsigned char {
     // Nothing special.
     // This is the default.
     no,
@@ -167,26 +167,26 @@ class OptionBase
     // The description of this option
     string_view descr_;
     // Flags controlling how the option may/must be specified.
-    NumOpts          num_opts_          = NumOpts::optional;
-    HasArg           has_arg_           = HasArg::no;
-    JoinArg          join_arg_          = JoinArg::no;
-    MayGroup         may_group_         = MayGroup::no;
-    Positional       positional_        = Positional::no;
-    CommaSeparated   comma_separated_   = CommaSeparated::no;
-    ConsumeRemaining consume_remaining_ = ConsumeRemaining::no;
+    NumOpts        num_opts_        = NumOpts::optional;
+    HasArg         has_arg_         = HasArg::no;
+    JoinArg        join_arg_        = JoinArg::no;
+    MayGroup       may_group_       = MayGroup::no;
+    Positional     positional_      = Positional::no;
+    CommaSeparated comma_separated_ = CommaSeparated::no;
+    EndsOptions    ends_options_    = EndsOptions::no;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
 private:
     template <typename T> void Apply(T) = delete; // For slightly more useful error messages...
 
-    void Apply(NumOpts          v) { num_opts_ = v; }
-    void Apply(HasArg           v) { has_arg_ = v; }
-    void Apply(JoinArg          v) { join_arg_ = v; }
-    void Apply(MayGroup         v) { may_group_ = v; }
-    void Apply(Positional       v) { positional_ = v; }
-    void Apply(CommaSeparated   v) { comma_separated_ = v; }
-    void Apply(ConsumeRemaining v) { consume_remaining_ = v; }
+    void Apply(NumOpts        v) { num_opts_ = v; }
+    void Apply(HasArg         v) { has_arg_ = v; }
+    void Apply(JoinArg        v) { join_arg_ = v; }
+    void Apply(MayGroup       v) { may_group_ = v; }
+    void Apply(Positional     v) { positional_ = v; }
+    void Apply(CommaSeparated v) { comma_separated_ = v; }
+    void Apply(EndsOptions    v) { ends_options_ = v; }
 
 protected:
     template <typename ...Args>
@@ -345,7 +345,7 @@ public:
     // Parse the command line arguments in [first, last).
     // Emits an error for unknown options.
     template <typename It, typename EndIt>
-    bool Parse(It first, EndIt last, bool check_missing = true);
+    /*Result<It, StatusCode>*/ bool Parse(It first, EndIt last, bool check_missing = true);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.

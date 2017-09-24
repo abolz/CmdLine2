@@ -374,13 +374,13 @@ TEST_CASE("CommaSeparatedArg")
     CHECK(ints[3] == 4);
 }
 
-TEST_CASE("ConsumeRemaining")
+TEST_CASE("EndsOptions")
 {
     std::vector<std::string> sink;
     bool a = false;
 
     cl::Cmdline cl;
-    cl.Add("a", "", cl::Assign(a), cl::ConsumeRemaining::yes, cl::HasArg::required);
+    cl.Add("a", "", cl::Assign(a), cl::EndsOptions::yes, cl::HasArg::required);
     cl.Add("!", "", cl::PushBack(sink), cl::Positional::yes, cl::NumOpts::zero_or_more);
 
     CHECK(true == ParseArgs(cl, {"eins", "zwei"}));

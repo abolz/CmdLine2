@@ -689,9 +689,9 @@ Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, 
 
     if (res == Result::success)
     {
-        // If the current option has the ConsumeRemaining flag set, parse all
+        // If the current option has the StopsParsing flag set, parse all
         // following options as positional options.
-        if (opt->consume_remaining_ == ConsumeRemaining::yes)
+        if (opt->ends_options_ == EndsOptions::yes)
         {
             dashdash_ = true;
         }
