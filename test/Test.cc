@@ -8,11 +8,11 @@
 struct fancy_iterator
 {
     using It                = std::initializer_list<char const*>::iterator;
-    //using iterator_category = std::input_iterator_tag; // std::iterator_traits<It>::iterator_category;
-    //using reference         = std::iterator_traits<It>::reference;
-    //using pointer           = std::iterator_traits<It>::pointer;
-    //using value_type        = std::iterator_traits<It>::value_type;
-    //using difference_type   = std::iterator_traits<It>::difference_type;
+    using iterator_category = std::input_iterator_tag; //std::iterator_traits<It>::iterator_category;
+    using reference         = std::iterator_traits<It>::reference;
+    using pointer           = std::iterator_traits<It>::pointer;
+    using value_type        = std::iterator_traits<It>::value_type;
+    using difference_type   = std::iterator_traits<It>::difference_type;
 
     It it;
 
@@ -44,7 +44,7 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
     fancy_iterator first{args.begin()};
     fancy_iterator last {args.end()};
 
-    return cl.Parse(first, last);
+    return cl.Parse({first, last});
 }
 
 TEST_CASE("Opt")

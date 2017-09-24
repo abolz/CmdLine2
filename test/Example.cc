@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
         cl::PushBack(input_files), cl::NumOpts::one_or_more, cl::Positional::yes);
     cmd.Add(&opt4);
 
-    bool const ok = cmd.Parse(argv + 1, argv + argc);
+    bool const ok = cmd.Parse({argv + 1, argv + argc});
     if (!ok)
     {
         cmd.PrintDiag();          // Print error message(s) to stderr.
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
     cmd.Add("input-files", "List of input files",
         cl::PushBack(input_files), cl::NumOpts::one_or_more, cl::Positional::yes);
 
-    bool const ok = cmd.Parse(argv + 1, argv + argc);
+    bool const ok = cmd.Parse({argv + 1, argv + argc});
     if (!ok)
     {
         cmd.PrintDiag();          // Print error message(s) to stderr.

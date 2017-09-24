@@ -281,6 +281,41 @@ void Cmdline::Reset()
     });
 }
 
+bool Cmdline::Parse(std::vector<std::string> const& args, bool check_missing)
+{
+    assert(curr_positional_ >= 0);
+    assert(curr_index_ >= 0);
+
+    auto curr = args.begin();
+    auto last = args.end();
+
+    while (curr != last)
+    {
+        Result const res = Handle1(*curr, curr, last);
+
+        if (res == Result::error)
+            return false;
+
+        if (res == Result::ignored)
+        {
+            FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%s'", curr->c_str());
+            return false;
+        }
+
+        // Handle1 might have changed CURR.
+        // Need to recheck if we're done.
+        if (curr == last)
+            break;
+        ++curr;
+        ++curr_index_;
+    }
+
+    if (check_missing)
+        return !AnyMissing();
+
+    return true;
+}
+
 // Emit errors for ALL missing options.
 bool Cmdline::AnyMissing()
 {
@@ -495,6 +530,70 @@ OptionBase* Cmdline::FindOption(string_view name) const
     return nullptr;
 }
 
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
+{
+    assert(curr != last);
+
+    // This cannot happen if we're parsing the main's argv[] array, but it might
+    // happen if we're parsing a user-supplied array of command line arguments.
+    if (optstr.empty())
+    {
+        return Result::success;
+    }
+
+    // Stop parsing if "--" has been found
+    if (optstr == "--" && !dashdash_)
+    {
+        dashdash_ = true;
+        return Result::success;
+    }
+
+    // This argument is considered to be positional if it doesn't start with
+    // '-', if it is "-" itself, or if we have seen "--" already.
+    if (optstr[0] != '-' || optstr == "-" || dashdash_)
+    {
+        return HandlePositional(optstr);
+    }
+
+    // Starts with a dash, must be an option.
+
+    optstr.remove_prefix(1); // Remove the first dash.
+
+    // If the name starts with a single dash, this is a short option and might
+    // actually be an option group.
+    bool const is_short = (optstr[0] != '-');
+    if (!is_short)
+    {
+        optstr.remove_prefix(1); // Remove the second dash.
+    }
+
+    // 1. Try to handle options like "-f" and "-f file"
+    Result res = HandleStandardOption(optstr, curr, last);
+
+    // 2. Try to handle options like "-f=file"
+    if (res == Result::ignored)
+    {
+        res = HandleOption(optstr);
+    }
+
+    // 3. Try to handle options like "-Idir"
+    if (res == Result::ignored)
+    {
+        res = HandlePrefix(optstr);
+    }
+
+    // 4. Try to handle options like "-xvf=file" and "-xvf file"
+    if (res == Result::ignored && is_short)
+    {
+        res = HandleGroup(optstr, curr, last);
+    }
+
+    // Otherwise this is an unknown option.
+
+    return res;
+}
+
 Cmdline::Result Cmdline::HandlePositional(string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
@@ -510,6 +609,20 @@ Cmdline::Result Cmdline::HandlePositional(string_view optstr)
             // The "argument" of a positional option, is the option name itself.
             return HandleOccurrence(opt, opt->name_, optstr);
         }
+    }
+
+    return Result::ignored;
+}
+
+// If OPTSTR is the name of an option, handle the option.
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
+{
+    if (auto const opt = FindOption(optstr))
+    {
+        // OPTSTR is the name of an option, i.e. no argument was specified.
+        // If the option requires an argument, steal one from the command line.
+        return HandleOccurrence(opt, optstr, curr, last);
     }
 
     return Result::ignored;
@@ -601,6 +714,76 @@ Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<OptionBa
     }
 
     return Result::success;
+}
+
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
+{
+    std::vector<OptionBase*> group;
+
+    // First determine if this is a valid option group.
+    auto const res = DecomposeGroup(optstr, group);
+
+    if (res != Result::success)
+        return res;
+
+    // Then process all options.
+    for (size_t n = 0; n < group.size(); ++n)
+    {
+        auto const opt = group[n];
+        auto const name = optstr.substr(n, 1);
+
+        if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
+        {
+            if (Result::success != HandleOccurrence(opt, name, curr, last))
+                return Result::error;
+            continue;
+        }
+
+        // Almost done. Process the last option which accepts an argument.
+
+        size_t arg_start = n + 1;
+
+        // If the next character is '=' and the option may not join its
+        // argument, discard the equals sign.
+        if (optstr[arg_start] == '=' && opt->join_arg_ == JoinArg::no)
+        {
+            ++arg_start;
+        }
+
+        return HandleOccurrence(opt, name, optstr.substr(arg_start));
+    }
+
+    return Result::success;
+}
+
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
+{
+    assert(curr != last);
+
+    // We get here if no argument was specified.
+    // If the option must join its argument, this is an error.
+    if (opt->join_arg_ != JoinArg::yes)
+    {
+        if (opt->has_arg_ != HasArg::required)
+        {
+            return ParseOptionArgument(opt, name, {});
+        }
+
+        // If the option requires an argument, steal one from the command line.
+        ++curr;
+        ++curr_index_;
+
+        if (curr != last)
+        {
+            return ParseOptionArgument(opt, name, *curr);
+        }
+    }
+
+    FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' requires an argument",
+        static_cast<int>(name.size()), name.data());
+    return Result::error;
 }
 
 Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg)
