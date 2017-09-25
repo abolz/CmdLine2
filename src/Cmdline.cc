@@ -283,11 +283,13 @@ void Cmdline::Reset()
 
 bool Cmdline::Parse(std::vector<std::string> const& args, bool check_missing)
 {
+    return Parse(args.cbegin(), args.cend(), check_missing);
+}
+
+bool Cmdline::Parse(std::vector<std::string>::const_iterator curr, std::vector<std::string>::const_iterator last, bool check_missing)
+{
     assert(curr_positional_ >= 0);
     assert(curr_index_ >= 0);
-
-    auto curr = args.begin();
-    auto last = args.end();
 
     while (curr != last)
     {

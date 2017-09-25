@@ -346,6 +346,10 @@ public:
     // Emits an error for unknown options.
     bool Parse(std::vector<std::string> const& args, bool check_missing = true);
 
+    // Parse the command line arguments in [CURR, LAST).
+    // Emits an error for unknown options.
+    bool Parse(std::vector<std::string>::const_iterator curr, std::vector<std::string>::const_iterator last, bool check_missing = true);
+
 #ifdef _WIN32
     // Parse the command line obtained from GetCommandLineW and CommandLineToArgvW.
     // The program-name is discarded.
