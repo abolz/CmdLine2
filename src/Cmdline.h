@@ -346,6 +346,13 @@ public:
     // Emits an error for unknown options.
     bool Parse(std::vector<std::string> const& args, bool check_missing = true);
 
+#ifdef _WIN32
+    // Parse the command line obtained from GetCommandLineW and CommandLineToArgvW.
+    // The program-name is discarded.
+    // The arguments are converted to UTF-8 before parsing.
+    bool ParseCommandLine(bool check_missing = true);
+#endif
+
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
     // Returns true if any required options have not yet been (successfully) parsed.

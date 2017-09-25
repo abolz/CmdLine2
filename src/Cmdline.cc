@@ -316,6 +316,99 @@ bool Cmdline::Parse(std::vector<std::string> const& args, bool check_missing)
     return true;
 }
 
+#ifdef _WIN32
+
+static bool ConvertUTF16ToUTF8(std::string& mbstr, wchar_t const* wstr, int wstr_length)
+{
+    mbstr.clear();
+
+    if (wstr_length == 0)
+    {
+        return true;
+    }
+
+    auto const num_bytes = ::WideCharToMultiByte(CP_UTF8, 0, wstr, wstr_length, nullptr, 0, nullptr, nullptr);
+    if (num_bytes == 0)
+    {
+        return false;
+    }
+
+    assert(num_bytes > 0);
+    mbstr.resize(static_cast<size_t>(num_bytes));
+
+    if (0 == ::WideCharToMultiByte(CP_UTF8, 0, wstr, wstr_length, &mbstr[0], num_bytes, nullptr, nullptr))
+    {
+        mbstr.clear();
+        return false;
+    }
+
+    return true;
+}
+
+static bool ConvertUTF16ToUTF8(std::string& mbstr, wchar_t const* wstr)
+{
+    if (wstr == nullptr)
+    {
+        return false;
+    }
+
+    auto const wstr_length = std::char_traits<wchar_t>::length(wstr);
+    if (wstr_length > INT_MAX)
+    {
+        return false;
+    }
+
+    return ConvertUTF16ToUTF8(mbstr, wstr, static_cast<int>(wstr_length));
+}
+
+static bool ConvertUTF16ToUTF8(std::vector<std::string>& argv, wchar_t const* const* first, wchar_t const* const* last)
+{
+    argv.resize(static_cast<size_t>(last - first));
+
+    for (auto& arg : argv)
+    {
+        if (!ConvertUTF16ToUTF8(arg, *first))
+            return false;
+        ++first;
+    }
+
+    return true;
+}
+
+bool Cmdline::ParseCommandLine(bool check_missing)
+{
+    auto const command_line = ::GetCommandLineW();
+    if (command_line == nullptr)
+    {
+        FormatDiag(Diagnostic::error, -1, "GetCommandLineW failed [GetLastError = 0x%x]", ::GetLastError());
+        return false;
+    }
+
+    int argc = 0;
+
+    std::unique_ptr<LPWSTR, decltype(&::LocalFree)> wargv(::CommandLineToArgvW(command_line, &argc), &::LocalFree);
+    if (!wargv)
+    {
+        FormatDiag(Diagnostic::error, -1, "CommandLineToArgvW failed [GetLastError = 0x%x]", ::GetLastError());
+        return false;
+    }
+
+    std::vector<std::string> argv;
+
+    auto const* first = wargv.get() + 1; // +1: skip program name
+    auto const* last  = wargv.get() + argc;
+
+    if (!ConvertUTF16ToUTF8(argv, first, last))
+    {
+        EmitDiag(Diagnostic::error, -1, "Invalid UTF-16");
+        return false;
+    }
+
+    return Parse(argv, check_missing);
+}
+
+#endif
+
 // Emit errors for ALL missing options.
 bool Cmdline::AnyMissing()
 {
@@ -419,7 +512,7 @@ static void AppendWrapped(std::string& out, string_view text, size_t indent, siz
     SplitString(text, LineDelimiter(), [&](string_view par)
     {
         // Break the paragraphs at the maximum width into lines
-        return SplitString(par, WrapDelimiter(width), [&](string_view line)
+        SplitString(par, WrapDelimiter(width), [&](string_view line)
         {
             if (first)
             {
@@ -435,6 +528,8 @@ static void AppendWrapped(std::string& out, string_view text, size_t indent, siz
 
             return true;
         });
+
+        return true;
     });
 }
 
