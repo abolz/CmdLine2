@@ -407,10 +407,6 @@ private:
     bool ForEachUniqueOption(Fn fn) const;
 };
 
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
-
 template <typename Parser, typename ...Args>
 auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&... args)
 {
@@ -423,6 +419,18 @@ auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&..
 
     return p;
 }
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
+// Parse arguments from a command line string into an argv-array.
+// Using Bash-style escaping.
+std::vector<std::string> TokenizeUnix(string_view str);
+
+// Parse arguments from a command line string into an argv-array.
+// Using Windows-style escaping.
+std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = false, bool discard_program_name = false);
 
 //------------------------------------------------------------------------------
 //
