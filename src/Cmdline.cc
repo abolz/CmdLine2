@@ -380,7 +380,7 @@ bool Cmdline::ParseCommandLine(bool check_missing)
     auto const command_line = ::GetCommandLineW();
     if (command_line == nullptr)
     {
-        FormatDiag(Diagnostic::error, -1, "GetCommandLineW failed [GetLastError = 0x%x]", ::GetLastError());
+        FormatDiag(Diagnostic::error, -1, "GetCommandLineW failed [GetLastError = 0x%lX]", ::GetLastError());
         return false;
     }
 
@@ -389,7 +389,7 @@ bool Cmdline::ParseCommandLine(bool check_missing)
     std::unique_ptr<LPWSTR, decltype(&::LocalFree)> wargv(::CommandLineToArgvW(command_line, &argc), &::LocalFree);
     if (!wargv)
     {
-        FormatDiag(Diagnostic::error, -1, "CommandLineToArgvW failed [GetLastError = 0x%x]", ::GetLastError());
+        FormatDiag(Diagnostic::error, -1, "CommandLineToArgvW failed [GetLastError = 0x%lX]", ::GetLastError());
         return false;
     }
 
