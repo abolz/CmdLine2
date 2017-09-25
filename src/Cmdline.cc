@@ -363,6 +363,29 @@ static bool ConvertUTF16ToUTF8(std::string& mbstr, wchar_t const* wstr)
     return ConvertUTF16ToUTF8(mbstr, wstr, static_cast<int>(wstr_length));
 }
 
+#if 0
+
+bool Cmdline::ParseCommandLine(bool check_missing)
+{
+    auto const command_line = ::GetCommandLineW();
+    if (command_line == nullptr)
+    {
+        FormatDiag(Diagnostic::error, -1, "GetCommandLineW failed [GetLastError = 0x%lX]", ::GetLastError());
+        return false;
+    }
+
+    std::string command_line_utf8;
+    if (!ConvertUTF16ToUTF8(command_line_utf8, command_line))
+    {
+        EmitDiag(Diagnostic::error, -1, "Invalid UTF-16");
+        return false;
+    }
+
+    return Parse( TokenizeWindows(command_line_utf8, /*parse_program_name*/ true, /*discard_program_name*/ true), check_missing );
+}
+
+#else
+
 static bool ConvertUTF16ToUTF8(std::vector<std::string>& argv, wchar_t const* const* first, wchar_t const* const* last)
 {
     argv.resize(static_cast<size_t>(last - first));
@@ -389,7 +412,7 @@ bool Cmdline::ParseCommandLine(bool check_missing)
     int argc = 0;
 
     std::unique_ptr<LPWSTR, decltype(&::LocalFree)> wargv(::CommandLineToArgvW(command_line, &argc), &::LocalFree);
-    if (!wargv)
+    if (!wargv || argc <= 0)
     {
         FormatDiag(Diagnostic::error, -1, "CommandLineToArgvW failed [GetLastError = 0x%lX]", ::GetLastError());
         return false;
@@ -408,6 +431,8 @@ bool Cmdline::ParseCommandLine(bool check_missing)
 
     return Parse(argv, check_missing);
 }
+
+#endif
 
 #endif
 
