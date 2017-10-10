@@ -21,37 +21,15 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#include "cxx_string_view.h"
+
 #include <cassert>
 #include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
 
-#if defined(__has_include)
-#define CL_HAS_INCLUDE(X) __has_include(X)
-#else
-#define CL_HAS_INCLUDE(X) 0
-#endif
-
-#if (CL_HAS_INCLUDE(<string_view>) && __cplusplus >= 201703) || (_MSC_VER >= 1910 && _HAS_CXX17)
-#define CL_HAS_STD_STRING_VIEW 1
-#include <string_view>
-#endif
-
-#if (CL_HAS_INCLUDE(<experimental/string_view>) && __cplusplus > 201103)
-#define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
-#include <experimental/string_view>
-#endif
-
 namespace cl {
-
-#if CL_HAS_STD_STRING_VIEW
-using std::string_view;
-#elif CL_HAS_STD_EXPERIMENTAL_STRING_VIEW
-using std::experimental::string_view;
-#else
-#error "The Cmdline library requires a <string_view> implementation"
-#endif
 
 class Cmdline;
 
@@ -152,10 +130,10 @@ enum class EndsOptions : unsigned char {
 // The members are only valid inside the callback (parser).
 struct ParseContext
 {
-    string_view name;    // Name of the option being parsed    (only valid in callback!)
-    string_view arg;     // Option argument                    (only valid in callback!)
-    int         index;   // Current index in the argv array
-    Cmdline*    cmdline; // The command line parser which currently parses the argument list (never null)
+    cxx::string_view name;    // Name of the option being parsed    (only valid in callback!)
+    cxx::string_view arg;     // Option argument                    (only valid in callback!)
+    int              index;   // Current index in the argv array
+    Cmdline*         cmdline; // The command line parser which currently parses the argument list (never null)
 };
 
 class OptionBase
@@ -163,9 +141,9 @@ class OptionBase
     friend class Cmdline;
 
     // The name of the option.
-    string_view name_;
+    cxx::string_view name_;
     // The description of this option
-    string_view descr_;
+    cxx::string_view descr_;
     // Flags controlling how the option may/must be specified.
     NumOpts        num_opts_        = NumOpts::optional;
     HasArg         has_arg_         = HasArg::no;
@@ -207,10 +185,10 @@ public:
 
 public:
     // Returns the name of this option
-    string_view name() const { return name_; }
+    cxx::string_view name() const { return name_; }
 
     // Returns the description of this option
-    string_view descr() const { return descr_; }
+    cxx::string_view descr() const { return descr_; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
@@ -266,7 +244,7 @@ private:
 #if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
 
 template <typename ParserInit, typename Args>
-Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
+Option(char const*, char const*, ParserInit&&, Args&&...)->Option<std::decay_t<ParserInit>>;
 
 #endif
 
@@ -287,8 +265,8 @@ class Cmdline
 {
     struct NameOptionPair
     {
-        string_view name   = {}; // Points into option->name_
-        OptionBase* option = nullptr;
+        cxx::string_view name = {}; // Points into option->name_
+        OptionBase*      option = nullptr;
     };
 
     using Diagnostics   = std::vector<Diagnostic>;
@@ -366,52 +344,52 @@ public:
     void PrintDiag() const;
 
     // Returns a short help message listing all registered options.
-    std::string FormatHelp(string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
+    std::string FormatHelp(cxx::string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
 
     // Prints the help message to stderr
-    void PrintHelp(string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
+    void PrintHelp(cxx::string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
 
 private:
     enum class Result { success, error, ignored };
 
-    OptionBase* FindOption(string_view name) const;
+    OptionBase* FindOption(cxx::string_view name) const;
 
     template <typename It, typename EndIt>
-    Result Handle1(string_view optstr, It& curr, EndIt last);
+    Result Handle1(cxx::string_view optstr, It& curr, EndIt last);
 
     // <file>
-    Result HandlePositional(string_view optstr);
+    Result HandlePositional(cxx::string_view optstr);
 
     // -f
     // -f <file>
     template <typename It, typename EndIt>
-    Result HandleStandardOption(string_view optstr, It& curr, EndIt last);
+    Result HandleStandardOption(cxx::string_view optstr, It& curr, EndIt last);
 
     // -f=<file>
-    Result HandleOption(string_view optstr);
+    Result HandleOption(cxx::string_view optstr);
 
     // -I<dir>
-    Result HandlePrefix(string_view optstr);
+    Result HandlePrefix(cxx::string_view optstr);
 
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group);
+    Result DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It, typename EndIt>
-    Result HandleGroup(string_view optstr, It& curr, EndIt last);
+    Result HandleGroup(cxx::string_view optstr, It& curr, EndIt last);
 
     template <typename It, typename EndIt>
-    Result HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last);
-    Result HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
+    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, EndIt last);
+    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
-    Result ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
+    Result ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
 
     template <typename Fn>
     bool ForEachUniqueOption(Fn fn) const;
 };
 
-template <typename Parser, typename ...Args>
+template <typename Parser, typename... Args>
 auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&... args)
 {
     using DecayedParser = std::decay_t<Parser>;
@@ -430,11 +408,11 @@ auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&..
 
 // Parse arguments from a command line string into an argv-array.
 // Using Bash-style escaping.
-std::vector<std::string> TokenizeUnix(string_view str);
+std::vector<std::string> TokenizeUnix(cxx::string_view str);
 
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
-std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = false, bool discard_program_name = false);
+std::vector<std::string> TokenizeWindows(cxx::string_view str, bool parse_program_name = false, bool discard_program_name = false);
 
 //------------------------------------------------------------------------------
 //
@@ -445,7 +423,7 @@ template <typename T = void, typename /*Enable*/ = void>
 struct ConvertValue
 {
     template <typename Stream = std::stringstream>
-    bool operator()(string_view str, T& value) const
+    bool operator()(cxx::string_view str, T& value) const
     {
         Stream stream{std::string(str)};
         stream >> value;
@@ -453,25 +431,25 @@ struct ConvertValue
     }
 };
 
-template <> struct ConvertValue< bool               > { bool operator()(string_view str, bool&               value) const; };
-template <> struct ConvertValue< signed char        > { bool operator()(string_view str, signed char&        value) const; };
-template <> struct ConvertValue< signed short       > { bool operator()(string_view str, signed short&       value) const; };
-template <> struct ConvertValue< signed int         > { bool operator()(string_view str, signed int&         value) const; };
-template <> struct ConvertValue< signed long        > { bool operator()(string_view str, signed long&        value) const; };
-template <> struct ConvertValue< signed long long   > { bool operator()(string_view str, signed long long&   value) const; };
-template <> struct ConvertValue< unsigned char      > { bool operator()(string_view str, unsigned char&      value) const; };
-template <> struct ConvertValue< unsigned short     > { bool operator()(string_view str, unsigned short&     value) const; };
-template <> struct ConvertValue< unsigned int       > { bool operator()(string_view str, unsigned int&       value) const; };
-template <> struct ConvertValue< unsigned long      > { bool operator()(string_view str, unsigned long&      value) const; };
-template <> struct ConvertValue< unsigned long long > { bool operator()(string_view str, unsigned long long& value) const; };
-template <> struct ConvertValue< float              > { bool operator()(string_view str, float&              value) const; };
-template <> struct ConvertValue< double             > { bool operator()(string_view str, double&             value) const; };
-template <> struct ConvertValue< long double        > { bool operator()(string_view str, long double&        value) const; };
+template <> struct ConvertValue< bool               > { bool operator()(cxx::string_view str, bool&               value) const; };
+template <> struct ConvertValue< signed char        > { bool operator()(cxx::string_view str, signed char&        value) const; };
+template <> struct ConvertValue< signed short       > { bool operator()(cxx::string_view str, signed short&       value) const; };
+template <> struct ConvertValue< signed int         > { bool operator()(cxx::string_view str, signed int&         value) const; };
+template <> struct ConvertValue< signed long        > { bool operator()(cxx::string_view str, signed long&        value) const; };
+template <> struct ConvertValue< signed long long   > { bool operator()(cxx::string_view str, signed long long&   value) const; };
+template <> struct ConvertValue< unsigned char      > { bool operator()(cxx::string_view str, unsigned char&      value) const; };
+template <> struct ConvertValue< unsigned short     > { bool operator()(cxx::string_view str, unsigned short&     value) const; };
+template <> struct ConvertValue< unsigned int       > { bool operator()(cxx::string_view str, unsigned int&       value) const; };
+template <> struct ConvertValue< unsigned long      > { bool operator()(cxx::string_view str, unsigned long&      value) const; };
+template <> struct ConvertValue< unsigned long long > { bool operator()(cxx::string_view str, unsigned long long& value) const; };
+template <> struct ConvertValue< float              > { bool operator()(cxx::string_view str, float&              value) const; };
+template <> struct ConvertValue< double             > { bool operator()(cxx::string_view str, double&             value) const; };
+template <> struct ConvertValue< long double        > { bool operator()(cxx::string_view str, long double&        value) const; };
 
 template <typename Alloc>
 struct ConvertValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
-    bool operator()(string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
+    bool operator()(cxx::string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
         value.assign(str.data(), str.size());
         return true;
@@ -481,11 +459,11 @@ struct ConvertValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 template <typename Key, typename Value>
 struct ConvertValue<std::pair<Key, Value>>
 {
-    bool operator()(string_view str, std::pair<Key, Value>& value) const
+    bool operator()(cxx::string_view str, std::pair<Key, Value>& value) const
     {
         auto const p = str.find(':');
 
-        if (p == string_view::npos)
+        if (p == cxx::string_view::npos)
             return false;
 
         return ConvertValue<Key>{}(str.substr(0, p), value.first)
@@ -497,7 +475,7 @@ template <>
 struct ConvertValue<void>
 {
     template <typename T>
-    bool operator()(string_view str, T& value) const
+    bool operator()(cxx::string_view str, T& value) const
     {
         return ConvertValue<T>{}(str, value);
     }
