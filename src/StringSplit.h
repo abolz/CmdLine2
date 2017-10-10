@@ -67,10 +67,7 @@ struct ByString
 {
     cxx::string_view const delim;
 
-    explicit ByString(char const* delim_)
-        : delim(delim_)
-    {
-    }
+    explicit ByString(char const* delim_) : delim(delim_) {}
 
     DelimiterResult operator()(cxx::string_view str) const
     {
@@ -102,13 +99,9 @@ struct ByChar
 {
     char const ch;
 
-    explicit ByChar(char ch_)
-        : ch(ch_)
-    {
-    }
+    explicit ByChar(char ch_) : ch(ch_) {}
 
-    DelimiterResult operator()(cxx::string_view const& str) const
-    {
+    DelimiterResult operator()(cxx::string_view const& str) const {
         return {str.find(ch), 1};
     }
 };
@@ -124,10 +117,7 @@ struct ByAnyOf
 {
     cxx::string_view const chars;
 
-    explicit ByAnyOf(char const* chars_)
-        : chars(chars_)
-    {
-    }
+    explicit ByAnyOf(char const* chars_) : chars(chars_) {}
 
     DelimiterResult operator()(cxx::string_view str) const
     {
@@ -161,8 +151,7 @@ struct ByMaxLength
 {
     size_t const length;
 
-    explicit ByMaxLength(size_t length_)
-        : length(length_)
+    explicit ByMaxLength(size_t length_) : length(length_)
     {
         assert(length != 0 && "invalid parameter");
     }
@@ -282,7 +271,9 @@ using DefaultDelimiter =
         std::conditional_t<
             std::is_constructible<ByString, T>::value,
             ByString,
-            U>>;
+            U
+        >
+    >;
 
 } // namespace impl
 
@@ -300,12 +291,14 @@ bool Split(cxx::string_view str, Splitter&& split, Function&& fn)
 
 #if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
     static_assert(
-        std::is_invocable_r<DelimiterResult, S, cxx::string_view>::value || std::is_invocable_r<TokenizerResult, S, cxx::string_view>::value,
+        std::is_invocable_r<DelimiterResult, S, cxx::string_view>::value ||
+        std::is_invocable_r<TokenizerResult, S, cxx::string_view>::value,
         "The delimiter must be invocable with an argument of type 'cxx::string_view' and "
         "its return type must be convertible to either 'DelimiterResult' or 'TokenizerResult'");
 
     static_assert(
-        std::is_invocable_r<bool, Function, cxx::string_view>::value || std::is_invocable_r<void, Function, cxx::string_view>::value,
+        std::is_invocable_r<bool, Function, cxx::string_view>::value ||
+        std::is_invocable_r<void, Function, cxx::string_view>::value,
         "The callback function must be invocable with an argument of type 'cxx::string_view' and "
         "must return either a bool or void");
 #endif
