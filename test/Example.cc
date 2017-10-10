@@ -62,7 +62,11 @@ int main(int argc, char* argv[])
 
 #else // !C++17 ==>
 
+#ifdef _WIN32
+int main()
+#else
 int main(int argc, char* argv[])
+#endif
 {
     cl::Cmdline cmd;
 
@@ -98,7 +102,11 @@ int main(int argc, char* argv[])
     cmd.Add("input-files", "List of input files",
         cl::PushBack(input_files), cl::NumOpts::one_or_more, cl::Positional::yes);
 
+#ifdef _WIN32
+    bool const ok = cmd.ParseCommandLine();
+#else
     bool const ok = cmd.Parse({argv + 1, argv + argc});
+#endif
     if (!ok)
     {
         cmd.PrintDiag();          // Print error message(s) to stderr.
