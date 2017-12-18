@@ -259,6 +259,14 @@ struct Diagnostic
     Type        type    = Type::error;
     int         index   = -1;
     std::string message = {};
+
+    Diagnostic() = default;
+    Diagnostic(Type type_, int index_, std::string message_)
+        : type(type_)
+        , index(index_)
+        , message(message_)
+    {
+    }
 };
 
 class Cmdline
@@ -267,6 +275,13 @@ class Cmdline
     {
         cxx::string_view name = {}; // Points into option->name_
         OptionBase*      option = nullptr;
+
+        NameOptionPair() = default;
+        NameOptionPair(cxx::string_view name_, OptionBase* option_)
+            : name(name_)
+            , option(option_)
+        {
+        }
     };
 
     using Diagnostics   = std::vector<Diagnostic>;
