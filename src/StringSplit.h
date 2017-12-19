@@ -139,7 +139,49 @@ struct ByAnyOf
 //
 struct ByLine
 {
-    DelimiterResult operator()(cxx::string_view str) const;
+    DelimiterResult operator()(cxx::string_view str) const
+    {
+        auto const first = str.data();
+        auto const last = str.data() + str.size();
+
+        // Find the position of the first CR or LF
+        auto const p = FindLineBreak(first, last);
+        if (p == last)
+        {
+            return {cxx::string_view::npos, 0};
+        }
+
+        auto const index = static_cast<size_t>(p - first);
+
+        // If this is CRLF, skip the other half.
+        if (p + 1 != last)
+        {
+            if (p[0] == '\r' && p[1] == '\n')
+            {
+                return {index, 2};
+            }
+        }
+
+        return {index, 1};
+    }
+
+private:
+    static bool IsLineBreak(char ch)
+    {
+        return ch == '\n' || ch == '\r';
+    }
+
+    // Returns the position of the first character in [FIRST, LAST) which is equal to CR or LF.
+    static char const* FindLineBreak(char const* first, char const* last)
+    {
+        assert(first <= last);
+
+        for (; first != last && !IsLineBreak(*first); ++first)
+        {
+        }
+
+        return first;
+    }
 };
 
 //
@@ -156,7 +198,25 @@ struct ByMaxLength
         assert(length != 0 && "invalid parameter");
     }
 
-    DelimiterResult operator()(cxx::string_view str) const;
+    DelimiterResult operator()(cxx::string_view str) const
+    {
+        // If the string fits into the current line, just return this last line.
+        if (str.size() <= length)
+        {
+            return {cxx::string_view::npos, 0};
+        }
+
+        // Otherwise, search for the first space preceding the line length.
+        auto I = str.find_last_of(" \t", length);
+
+        if (I != cxx::string_view::npos)
+        {
+            // There is a space.
+            return {I, 1};
+        }
+
+        return {length, 0}; // No space in current line, break at length.
+    }
 };
 
 namespace impl {
