@@ -93,26 +93,6 @@ solution "Cmdline"
     end
 
 --------------------------------------------------------------------------------
-group "Libs"
-
-project "cmdline"
-    language "C++"
-    kind "StaticLib"
-    files {
-        "src/**.h",
-        "src/**.cc",
-    }
-    configuration { "gmake" }
-        buildoptions {
-            "-Wsign-compare",
-            "-Wsign-conversion",
-            "-Wold-style-cast",
-            "-Wshadow",
-            "-Wconversion",
-            "-pedantic",
-        }
-
---------------------------------------------------------------------------------
 group "Tests"
 
 project "Test"
@@ -122,10 +102,8 @@ project "Test"
         "src/",
     }
     files {
+        "src/**.*",
         "test/Test.cc",
-    }
-    links {
-        "cmdline",
     }
 
 project "Example"
@@ -135,8 +113,6 @@ project "Example"
         "src/",
     }
     files {
+        "src/**.*",
         "test/Example.cc",
-    }
-    links {
-        "cmdline",
     }

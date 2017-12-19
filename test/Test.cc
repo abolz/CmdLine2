@@ -1,8 +1,13 @@
+#define CL_WINDOWS_CONSOLE_COLORS 1
+#define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
+
 #include <cstdint>
 #include <climits>
 
 #define CATCH_CONFIG_MAIN
+#undef min
+#undef max
 #include "catch.hpp"
 
 struct fancy_iterator
@@ -44,7 +49,15 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
     fancy_iterator first{args.begin()};
     fancy_iterator last {args.end()};
 
-    return cl.Parse({first, last});
+#if 0
+    if (cl.Parse(first, last))
+        return true;
+
+    cl.PrintDiag();
+    return false;
+#else
+    return cl.Parse(first, last);
+#endif
 }
 
 TEST_CASE("Opt")

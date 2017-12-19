@@ -1,3 +1,5 @@
+#define CL_WINDOWS_CONSOLE_COLORS 1
+#define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
 
 enum class Standard { cxx11, cxx14, cxx17 };
@@ -7,7 +9,7 @@ static int i = 0;
 static Standard standard = Standard::cxx11;
 static std::vector<std::string> input_files;
 
-#if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
+#if CL_HAS_DEDUCTION_GUIDES
 
 int main(int argc, char* argv[])
 {
@@ -49,7 +51,7 @@ int main(int argc, char* argv[])
         cl::PushBack(input_files), cl::NumOpts::one_or_more, cl::Positional::yes);
     cmd.Add(&opt4);
 
-    bool const ok = cmd.Parse({argv + 1, argv + argc});
+    bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (!ok)
     {
         cmd.PrintDiag();          // Print error message(s) to stderr.
@@ -62,11 +64,7 @@ int main(int argc, char* argv[])
 
 #else // !C++17 ==>
 
-#ifdef _WIN32
-int main()
-#else
 int main(int argc, char* argv[])
-#endif
 {
     cl::Cmdline cmd;
 
@@ -102,11 +100,7 @@ int main(int argc, char* argv[])
     cmd.Add("input-files", "List of input files",
         cl::PushBack(input_files), cl::NumOpts::one_or_more, cl::Positional::yes);
 
-#ifdef _WIN32
-    bool const ok = cmd.ParseCommandLine();
-#else
-    bool const ok = cmd.Parse({argv + 1, argv + argc});
-#endif
+    bool const ok = cmd.Parse(argv + 1, argv + argc);
     if (!ok)
     {
         cmd.PrintDiag();          // Print error message(s) to stderr.
