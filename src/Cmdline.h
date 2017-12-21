@@ -43,11 +43,17 @@
 #if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
 #define CL_HAS_DEDUCTION_GUIDES 1
 #endif
-#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411
+#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411 || (_MSC_VER >= 1912 && _HAS_CXX17)
 #define CL_HAS_FOLD_EXPRESSIONS 1
 #endif
 #if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17) // XXX: stdlib, not compiler...
 #define CL_HAS_STD_INVOCABLE 1
+#endif
+
+#if __GNUC__
+#define CL_ATTRIBUTE_PRINTF(X, Y) __attribute__((format(printf, X, Y)))
+#else
+#define CL_ATTRIBUTE_PRINTF(X, Y)
 #endif
 
 namespace cl {
@@ -435,6 +441,11 @@ public:
         return parser_;
     }
 
+    Parser& parser()
+    {
+        return parser_;
+    }
+
 private:
     bool Parse(ParseContext& ctx) override
     {
@@ -454,7 +465,7 @@ private:
 };
 
 #if CL_HAS_DEDUCTION_GUIDES
-template <typename ParserInit, typename Args>
+template <typename ParserInit, typename ...Args>
 Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
 #endif
 
@@ -524,13 +535,8 @@ public:
     // Adds a diagnostic message
     void EmitDiag(Diagnostic::Type type, int index, std::string message);
 
-#if __GNUC__
     // Adds a diagnostic message
-    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...) __attribute__((format(printf, 4, 5)));
-#else
-    // Adds a diagnostic message
-    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...);
-#endif
+    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...) CL_ATTRIBUTE_PRINTF(4, 5);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -569,11 +575,19 @@ public:
     // Prints error messages to stderr.
     void PrintDiag() const;
 
+    struct HelpFormat {
+        size_t indent;
+        size_t descr_indent;
+        size_t max_width;
+
+        HelpFormat() : indent(2), descr_indent(27), max_width(100) {}
+    };
+
     // Returns a short help message listing all registered options.
-    std::string FormatHelp(cxx::string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
+    std::string FormatHelp(cxx::string_view program_name, HelpFormat const& fmt = {}) const;
 
     // Prints the help message to stderr
-    void PrintHelp(cxx::string_view program_name, size_t indent = 2, size_t descr_indent = 27, size_t max_width = 100) const;
+    void PrintHelp(cxx::string_view program_name, HelpFormat const& fmt = {}) const;
 
 private:
     enum class Result { success, error, ignored };
@@ -633,12 +647,13 @@ inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* fo
     diag_.emplace_back(type, index, std::string(buf));
 }
 
-template <typename Parser, typename... Args>
-auto Cmdline::Add(char const* name, char const* descr, Parser&& parser, Args&&... args)
+template <typename ParserInit, typename... Args>
+auto Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
 {
-    using DecayedParser = std::decay_t<Parser>;
+    using DecayedParser = std::decay_t<ParserInit>;
 
-    auto opt = std::make_unique<Option<DecayedParser>>(name, descr, std::forward<Parser>(parser), std::forward<Args>(args)...);
+    auto opt = std::make_unique<Option<DecayedParser>>(
+            name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 
     auto const p = opt.get();
     Add(std::move(opt));
@@ -732,8 +747,9 @@ bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
         ++curr_index_;
     }
 
-    if (check_missing)
+    if (check_missing) {
         return !AnyMissing();
+    }
 
     return true;
 }
@@ -762,11 +778,17 @@ inline void Cmdline::PrintDiag() const
     }
 
     HANDLE const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+    if (stderr_handle == NULL) { // No console.
+        return;
+    }
+    if (stderr_handle == INVALID_HANDLE_VALUE) { // Error (Print without colors?!)
+        return;
+    }
 
     CONSOLE_SCREEN_BUFFER_INFO sbi;
     GetConsoleScreenBufferInfo(stderr_handle, &sbi);
 
-    WORD const old_color_attributes = sbi.wAttributes;
+    WORD const old_attributes = sbi.wAttributes;
 
     for (auto const& d : diag_)
     {
@@ -787,8 +809,7 @@ inline void Cmdline::PrintDiag() const
             break;
         }
         fflush(stderr);
-        SetConsoleTextAttribute(stderr_handle, old_color_attributes);
-
+        SetConsoleTextAttribute(stderr_handle, old_attributes);
         fprintf(stderr, ": %s\n", d.message.c_str());
     }
 }
@@ -814,16 +835,15 @@ inline void Cmdline::PrintDiag() const
         switch (d.type)
         {
         case Diagnostic::error:
-            fprintf(stderr, CL_VT100_RED "Error" CL_VT100_RESET);
+            fprintf(stderr, CL_VT100_RED "Error" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         case Diagnostic::warning:
-            fprintf(stderr, CL_VT100_MAGENTA "Warning" CL_VT100_RESET);
+            fprintf(stderr, CL_VT100_MAGENTA "Warning" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         case Diagnostic::note:
-            fprintf(stderr, CL_VT100_CYAN "Note" CL_VT100_RESET);
+            fprintf(stderr, CL_VT100_CYAN "Note" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         }
-        fprintf(stderr, ": %s\n", d.message.c_str());
     }
 }
 
@@ -862,12 +882,12 @@ inline void AppendWrapped(std::string& out, cxx::string_view text, size_t indent
 }
 } // namespace impl
 
-inline std::string Cmdline::FormatHelp(cxx::string_view program_name, size_t indent, size_t descr_indent, size_t max_width) const
+inline std::string Cmdline::FormatHelp(cxx::string_view program_name, HelpFormat const& fmt) const
 {
-    assert(descr_indent > indent);
-    assert(max_width == 0 || max_width > descr_indent);
+    assert(fmt.descr_indent > fmt.indent);
+    assert(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
 
-    const size_t descr_width = (max_width == 0) ? SIZE_MAX : (max_width - descr_indent);
+    const size_t descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
 
     std::string spos;
     std::string sopt;
@@ -892,7 +912,7 @@ inline std::string Cmdline::FormatHelp(cxx::string_view program_name, size_t ind
             const size_t col0 = sopt.size();
             assert(col0 == 0 || sopt[col0 - 1] == '\n');
 
-            sopt.append(indent, ' ');
+            sopt.append(fmt.indent, ' ');
             sopt += '-';
             sopt.append(opt->name_.data(), opt->name_.size());
 
@@ -909,17 +929,17 @@ inline std::string Cmdline::FormatHelp(cxx::string_view program_name, size_t ind
             }
 
             const size_t col = sopt.size() - col0;
-            if (col < descr_indent)
+            if (col < fmt.descr_indent)
             {
-                sopt.append(descr_indent - col, ' ');
+                sopt.append(fmt.descr_indent - col, ' ');
             }
             else
             {
                 sopt += '\n';
-                sopt.append(descr_indent, ' ');
+                sopt.append(fmt.descr_indent, ' ');
             }
 
-            impl::AppendWrapped(sopt, opt->descr_, descr_indent, descr_width);
+            impl::AppendWrapped(sopt, opt->descr_, fmt.descr_indent, descr_width);
 
             sopt += '\n'; // One option per line
         }
@@ -934,9 +954,9 @@ inline std::string Cmdline::FormatHelp(cxx::string_view program_name, size_t ind
     return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-inline void Cmdline::PrintHelp(cxx::string_view program_name, size_t indent, size_t descr_indent, size_t max_width) const
+inline void Cmdline::PrintHelp(cxx::string_view program_name, HelpFormat const& fmt) const
 {
-    auto const msg = FormatHelp(program_name, indent, descr_indent, max_width);
+    auto const msg = FormatHelp(program_name, fmt);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
@@ -1683,12 +1703,12 @@ inline bool IsWhitespace(char ch)
 {
     switch (ch)
     {
-    case '\x09': // character tabulation
-    case '\x0A': // line feed
-    case '\x0B': // line tabulation
-    case '\x0C': // form feed
-    case '\x0D': // carriage return
-    case '\x20': // space
+    case '\t':
+    case '\n':
+    case '\v':
+    case '\f':
+    case '\r':
+    case ' ':
         return true;
     default:
         return false;
@@ -1697,64 +1717,199 @@ inline bool IsWhitespace(char ch)
 
 inline void SkipWhitespace(char const*& next, char const* last)
 {
-    char const* p = next;
+    auto p = next;
     while (p != last && IsWhitespace(*p)) {
         ++p;
     }
 
     next = p;
 }
-
-inline std::string ParseArgUnix(char const*& next, char const* last)
-{
-    // See:
-    // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
-    // http://wiki.bash-hackers.org/syntax/quoting
-
-    std::string arg;
-
-    char const* it = next;
-    char        quote_char = '\0';
-
-    SkipWhitespace(it, last);
-
-    for (; it != last; ++it)
-    {
-        const auto ch = *it;
-
-        // Quoting a single character using the backslash?
-        if (quote_char == '\\')
-        {
-            arg += ch;
-            quote_char = '\0';
-        }
-        // Currently quoting using ' or "?
-        else if (quote_char != '\0' && ch != quote_char)
-        {
-            arg += ch;
-        }
-        // Toggle quoting?
-        else if (ch == '\'' || ch == '"' || ch == '\\')
-        {
-            quote_char = (quote_char != '\0') ? '\0' : ch;
-        }
-        // Arguments are separated by whitespace
-        else if (IsWhitespace(ch))
-        {
-            ++it;
-            break;
-        }
-        else
-        {
-            arg += ch;
-        }
-    }
-
-    next = it;
-
-    return arg;
-}
 } // namespace impl
+
+struct ParseArgUnix
+{
+    std::string operator()(char const*& next, char const* last) const
+    {
+        // See:
+        // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
+        // http://wiki.bash-hackers.org/syntax/quoting
+
+        std::string arg;
+
+        auto it = next;
+        char quote_char{};
+
+        impl::SkipWhitespace(it, last);
+
+        for (; it != last; ++it)
+        {
+            const auto ch = *it;
+
+            // Quoting a single character using the backslash?
+            if (quote_char == '\\')
+            {
+                arg += ch;
+                quote_char = char{};
+            }
+            // Currently quoting using ' or "?
+            else if (quote_char != char{} && ch != quote_char)
+            {
+                arg += ch;
+            }
+            // Toggle quoting?
+            else if (ch == '\'' || ch == '"' || ch == '\\')
+            {
+                quote_char = (quote_char != char{}) ? char{} : ch;
+            }
+            // Arguments are separated by whitespace
+            else if (impl::IsWhitespace(ch))
+            {
+                ++it;
+                break;
+            }
+            else
+            {
+                arg += ch;
+            }
+        }
+
+        next = it;
+
+        return arg;
+    }
+};
+
+struct ParseProgramNameWindows
+{
+    std::string operator()(char const*& next, char const* last) const
+    {
+        std::string arg;
+
+        auto it = next;
+
+        impl::SkipWhitespace(it, last);
+
+        if (it != last)
+        {
+            const bool quoting = (*it == '"');
+
+            if (quoting) {
+                ++it;
+            }
+
+            for (; it != last; ++it)
+            {
+                const auto ch = *it;
+                if ((quoting && ch == '"') || (!quoting && impl::IsWhitespace(ch)))
+                {
+                    ++it;
+                    break;
+                }
+                arg += ch;
+            }
+        }
+
+        next = it;
+
+        return arg;
+    }
+};
+
+struct ParseArgWindows
+{
+    std::string operator()(char const*& next, char const* last) const
+    {
+        std::string arg;
+
+        auto    it = next;
+        bool    quoting = false;
+        bool    recently_closed = false;
+        size_t  num_backslashes = 0;
+
+        impl::SkipWhitespace(it, last);
+
+        for (; it != last; ++it)
+        {
+            const auto ch = *it;
+
+            if (ch == '"' && recently_closed)
+            {
+                recently_closed = false;
+
+                // If a closing " is followed immediately by another ", the 2nd
+                // " is accepted literally and added to the parameter.
+                //
+                // See:
+                // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
+
+                arg += '"';
+            }
+            else if (ch == '"')
+            {
+                // If an even number of backslashes is followed by a double
+                // quotation mark, one backslash is placed in the argv array for
+                // every pair of backslashes, and the double quotation mark is
+                // interpreted as a string delimiter.
+                //
+                // If an odd number of backslashes is followed by a double
+                // quotation mark, one backslash is placed in the argv array for
+                // every pair of backslashes, and the double quotation mark is
+                // "escaped" by the remaining backslash, causing a literal
+                // double quotation mark (") to be placed in argv.
+
+                const bool even = (num_backslashes % 2) == 0;
+
+                arg.append(num_backslashes / 2, '\\');
+                num_backslashes = 0;
+
+                if (even)
+                {
+                    recently_closed = quoting; // Remember if this is a closing "
+                    quoting = !quoting;
+                }
+                else
+                {
+                    arg += '"';
+                }
+            }
+            else if (ch == '\\')
+            {
+                recently_closed = false;
+
+                ++num_backslashes;
+            }
+            else
+            {
+                recently_closed = false;
+
+                // Backslashes are interpreted literally, unless they
+                // immediately precede a double quotation mark.
+
+                arg.append(num_backslashes, '\\');
+                num_backslashes = 0;
+
+                if (!quoting && impl::IsWhitespace(ch))
+                {
+                    // Arguments are delimited by white space, which is either a
+                    // space or a tab.
+                    //
+                    // A string surrounded by double quotation marks ("string")
+                    // is interpreted as single argument, regardless of white
+                    // space contained within. A quoted string can be embedded
+                    // in an argument.
+                    ++it;
+                    break;
+                }
+
+                arg += ch;
+            }
+        }
+
+        next = it;
+
+        return arg;
+    }
+};
 
 // Parse arguments from a command line string into an argv-array.
 // Using Bash-style escaping.
@@ -1762,163 +1917,35 @@ inline std::vector<std::string> TokenizeUnix(cxx::string_view str)
 {
     std::vector<std::string> argv;
 
-    char const* next = str.data();
-    char const* last = str.data() + str.size();
+    auto       next = str.data();
+    auto const last = str.data() + str.size();
 
     while (next != last) {
-        argv.push_back(impl::ParseArgUnix(next, last));
+        argv.push_back(ParseArgUnix{}(next, last));
     }
 
     return argv;
 }
 
-namespace impl {
-inline std::string ParseProgramNameWindows(char const*& next, char const* last)
-{
-    std::string arg;
-
-    char const* it = next;
-
-    SkipWhitespace(it, last);
-
-    if (it != last)
-    {
-        const bool quoting = (*it == '"');
-
-        if (quoting) {
-            ++it;
-        }
-
-        for (; it != last; ++it)
-        {
-            const auto ch = *it;
-            if ((quoting && ch == '"') || (!quoting && IsWhitespace(ch)))
-            {
-                ++it;
-                break;
-            }
-            arg += ch;
-        }
-    }
-
-    next = it;
-
-    return arg;
-}
-
-inline std::string ParseArgWindows(char const*& next, char const* last)
-{
-    std::string arg;
-
-    char const* it = next;
-    bool        quoting = false;
-    bool        recently_closed = false;
-    size_t      num_backslashes = 0;
-
-    SkipWhitespace(it, last);
-
-    for (; it != last; ++it)
-    {
-        const auto ch = *it;
-
-        if (ch == '"' && recently_closed)
-        {
-            recently_closed = false;
-
-            // If a closing " is followed immediately by another ", the 2nd
-            // " is accepted literally and added to the parameter.
-            //
-            // See:
-            // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
-
-            arg += '"';
-        }
-        else if (ch == '"')
-        {
-            // If an even number of backslashes is followed by a double
-            // quotation mark, one backslash is placed in the argv array for
-            // every pair of backslashes, and the double quotation mark is
-            // interpreted as a string delimiter.
-            //
-            // If an odd number of backslashes is followed by a double
-            // quotation mark, one backslash is placed in the argv array for
-            // every pair of backslashes, and the double quotation mark is
-            // "escaped" by the remaining backslash, causing a literal
-            // double quotation mark (") to be placed in argv.
-
-            const bool even = (num_backslashes % 2) == 0;
-
-            arg.append(num_backslashes / 2, '\\');
-            num_backslashes = 0;
-
-            if (even)
-            {
-                recently_closed = quoting; // Remember if this is a closing "
-                quoting = !quoting;
-            }
-            else
-            {
-                arg += '"';
-            }
-        }
-        else if (ch == '\\')
-        {
-            recently_closed = false;
-
-            ++num_backslashes;
-        }
-        else
-        {
-            recently_closed = false;
-
-            // Backslashes are interpreted literally, unless they
-            // immediately precede a double quotation mark.
-
-            arg.append(num_backslashes, '\\');
-            num_backslashes = 0;
-
-            if (!quoting && IsWhitespace(ch))
-            {
-                // Arguments are delimited by white space, which is either a
-                // space or a tab.
-                //
-                // A string surrounded by double quotation marks ("string")
-                // is interpreted as single argument, regardless of white
-                // space contained within. A quoted string can be embedded
-                // in an argument.
-                ++it;
-                break;
-            }
-
-            arg += ch;
-        }
-    }
-
-    next = it;
-
-    return arg;
-}
-} // namespace impl
-
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
-inline std::vector<std::string> TokenizeWindows(cxx::string_view str, bool parse_program_name, bool discard_program_name)
+inline std::vector<std::string> TokenizeWindows(cxx::string_view str, bool parse_program_name = true, bool discard_program_name = true)
 {
     std::vector<std::string> argv;
 
-    char const* next = str.data();
-    char const* last = str.data() + str.size();
+    auto       next = str.data();
+    auto const last = str.data() + str.size();
 
-    if (parse_program_name)
+    if (parse_program_name || discard_program_name)
     {
-        auto exe = impl::ParseProgramNameWindows(next, last);
+        auto exe = ParseProgramNameWindows{}(next, last);
         if (!discard_program_name) {
             argv.push_back(std::move(exe));
         }
     }
 
     while (next != last) {
-        argv.push_back(impl::ParseArgWindows(next, last));
+        argv.push_back(ParseArgWindows{}(next, last));
     }
 
     return argv;
