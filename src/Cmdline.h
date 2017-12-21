@@ -1387,7 +1387,7 @@ inline bool StrToUnsignedLongLong(cxx::string_view str, unsigned long long& valu
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
-struct ParseInt
+struct ConvertToInt
 {
     template <typename T>
     bool operator()(cxx::string_view str, T& value) const
@@ -1402,7 +1402,7 @@ struct ParseInt
     }
 };
 
-struct ParseUnsignedInt
+struct ConvertToUnsignedInt
 {
     template <typename T>
     bool operator()(cxx::string_view str, T& value) const
@@ -1421,7 +1421,7 @@ struct ParseUnsignedInt
 
 // Convert the string representation in STR into an object of type T.
 template <typename T = void, typename /*Enable*/ = void>
-struct ConvertValue
+struct ConvertTo
 {
     template <typename Stream = std::stringstream>
     bool operator()(cxx::string_view str, T& value) const
@@ -1433,7 +1433,7 @@ struct ConvertValue
 };
 
 template <>
-struct ConvertValue<bool>
+struct ConvertTo<bool>
 {
     bool operator()(cxx::string_view str, bool& value) const
     {
@@ -1449,19 +1449,19 @@ struct ConvertValue<bool>
     }
 };
 
-template <> struct ConvertValue< signed char        > : impl::ParseInt {};
-template <> struct ConvertValue< signed short       > : impl::ParseInt {};
-template <> struct ConvertValue< signed int         > : impl::ParseInt {};
-template <> struct ConvertValue< signed long        > : impl::ParseInt {};
-template <> struct ConvertValue< signed long long   > : impl::ParseInt {};
-template <> struct ConvertValue< unsigned char      > : impl::ParseUnsignedInt {};
-template <> struct ConvertValue< unsigned short     > : impl::ParseUnsignedInt {};
-template <> struct ConvertValue< unsigned int       > : impl::ParseUnsignedInt {};
-template <> struct ConvertValue< unsigned long      > : impl::ParseUnsignedInt {};
-template <> struct ConvertValue< unsigned long long > : impl::ParseUnsignedInt {};
+template <> struct ConvertTo< signed char        > : impl::ConvertToInt {};
+template <> struct ConvertTo< signed short       > : impl::ConvertToInt {};
+template <> struct ConvertTo< signed int         > : impl::ConvertToInt {};
+template <> struct ConvertTo< signed long        > : impl::ConvertToInt {};
+template <> struct ConvertTo< signed long long   > : impl::ConvertToInt {};
+template <> struct ConvertTo< unsigned char      > : impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned short     > : impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned int       > : impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned long      > : impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned long long > : impl::ConvertToUnsignedInt {};
 
 template <>
-struct ConvertValue<float>
+struct ConvertTo<float>
 {
     bool operator()(cxx::string_view str, float& value) const
     {
@@ -1470,7 +1470,7 @@ struct ConvertValue<float>
 };
 
 template <>
-struct ConvertValue<double>
+struct ConvertTo<double>
 {
     bool operator()(cxx::string_view str, double& value) const
     {
@@ -1479,7 +1479,7 @@ struct ConvertValue<double>
 };
 
 template <>
-struct ConvertValue<long double>
+struct ConvertTo<long double>
 {
     bool operator()(cxx::string_view str, long double& value) const
     {
@@ -1488,7 +1488,7 @@ struct ConvertValue<long double>
 };
 
 template <typename Alloc>
-struct ConvertValue<std::basic_string<char, std::char_traits<char>, Alloc>>
+struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
     bool operator()(cxx::string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
@@ -1498,7 +1498,7 @@ struct ConvertValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 };
 
 template <typename Key, typename Value>
-struct ConvertValue<std::pair<Key, Value>>
+struct ConvertTo<std::pair<Key, Value>>
 {
     bool operator()(cxx::string_view str, std::pair<Key, Value>& value) const
     {
@@ -1508,19 +1508,19 @@ struct ConvertValue<std::pair<Key, Value>>
             return false;
         }
 
-        return ConvertValue<Key>{}(str.substr(0, p), value.first)
-            && ConvertValue<Value>{}(str.substr(p + 1), value.second);
+        return ConvertTo<Key>{}(str.substr(0, p), value.first)
+            && ConvertTo<Value>{}(str.substr(p + 1), value.second);
     }
 };
 
 // The default implementation uses template argument deduction to select the correct specialization.
 template <>
-struct ConvertValue<void>
+struct ConvertTo<void>
 {
     template <typename T>
     bool operator()(cxx::string_view str, T& value) const
     {
-        return ConvertValue<T>{}(str, value);
+        return ConvertTo<T>{}(str, value);
     }
 };
 
@@ -1531,7 +1531,7 @@ struct ParseValue
 {
     bool operator()(ParseContext const& ctx, T& value) const
     {
-        return ConvertValue<T>{}(ctx.arg, value);
+        return ConvertTo<T>{}(ctx.arg, value);
     }
 };
 
