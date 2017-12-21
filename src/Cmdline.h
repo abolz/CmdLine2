@@ -541,17 +541,16 @@ public:
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     // The Cmdline object owns this option.
-    template <typename Parser, typename... Args>
-    auto Add(char const* name, char const* descr, Parser&& parser, Args&&... args);
+    template <typename ParserInit, typename... Args>
+    auto Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args);
 
     // Add an option to the commond line.
     // The Cmdline object takes ownership.
-    void Add(std::unique_ptr<OptionBase> opt);
+    OptionBase* Add(std::unique_ptr<OptionBase> opt);
 
     // Add an option to the commond line.
     // The Cmdline object does not own this option.
-    void Add(OptionBase* opt);
-    void Add(std::initializer_list<OptionBase*> opts);
+    OptionBase* Add(OptionBase* opt);
 
     // Resets the parser. Sets the COUNT members of all registered options to 0.
     void Reset();
@@ -660,14 +659,14 @@ auto Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args
     return p;
 }
 
-inline void Cmdline::Add(std::unique_ptr<OptionBase> opt)
+inline OptionBase* Cmdline::Add(std::unique_ptr<OptionBase> opt)
 {
     auto const p = opt.get();
     unique_options_.push_back(std::move(opt));
-    Add(p);
+    return Add(p);
 }
 
-inline void Cmdline::Add(OptionBase* opt)
+inline OptionBase* Cmdline::Add(OptionBase* opt)
 {
     assert(opt != nullptr);
 
@@ -687,13 +686,8 @@ inline void Cmdline::Add(OptionBase* opt)
 
         return true;
     });
-}
 
-inline void Cmdline::Add(std::initializer_list<OptionBase*> opts)
-{
-    for (auto& opt : opts) {
-        Add(opt);
-    }
+    return opt;
 }
 
 inline void Cmdline::Reset()
