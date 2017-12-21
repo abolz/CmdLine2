@@ -1639,10 +1639,15 @@ bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
 template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds)
 {
-    // XXX:
-    // Writes to VALUE even if any predicate returns false...
     return [=, &target](ParseContext& ctx) {
-        return impl::ApplyFuncs(ctx, target, ParseValue<>{}, preds...);
+        // Parse into a local variable so that target is not assigned if any of the predicates returns false.
+        T temp;
+        if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        {
+            target = std::move(temp);
+            return true;
+        }
+        return false;
     };
 }
 
@@ -1653,13 +1658,13 @@ auto Assign(T& target, Predicates&&... preds)
 template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds)
 {
-    return [=, &container](ParseContext& ctx) {
-        using V = typename impl::RemoveCVRec<typename T::value_type>::type;
+    using V = typename impl::RemoveCVRec<typename T::value_type>::type;
 
-        V value;
-        if (impl::ApplyFuncs(ctx, value, ParseValue<>{}, preds...))
+    return [=, &container](ParseContext& ctx) {
+        V temp;
+        if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
         {
-            container.insert(container.end(), std::move(value));
+            container.insert(container.end(), std::move(temp));
             return true;
         }
         return false;
@@ -1680,8 +1685,13 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
         {
             if (p.first == ctx.arg)
             {
-                value = p.second;
-                return impl::ApplyFuncs(ctx, value, preds...);
+                // Parse into a local variable to allow the predicates to modify the value.
+                T temp = p.second;
+                if (impl::ApplyFuncs(ctx, temp, preds...))
+                {
+                   value = std::move(temp);
+                   return true;
+                }
             }
         }
 
