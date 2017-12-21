@@ -469,6 +469,12 @@ template <typename ParserInit, typename ...Args>
 Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
 #endif
 
+template <typename ParserInit, typename ...Args>
+Option<std::decay_t<ParserInit>> MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+{
+    return Option<std::decay_t<ParserInit>>(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+}
+
 //==================================================================================================
 //
 //==================================================================================================
