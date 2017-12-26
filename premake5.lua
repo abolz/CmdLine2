@@ -5,6 +5,11 @@ newoption {
     description = "Additional build options",
 }
 
+newoption {
+    trigger = "linkflags",
+    description = "Additional linker options",
+}
+
 --------------------------------------------------------------------------------
 solution "Cmdline"
     configurations { "release", "debug" }
@@ -89,6 +94,13 @@ solution "Cmdline"
         configuration { "gmake" }
             buildoptions {
                 "-std=c++14",
+            }
+    end
+
+    if _OPTIONS["linkflags"] then
+        configuration {}
+            linkoptions {
+                _OPTIONS["linkflags"],
             }
     end
 
