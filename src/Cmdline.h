@@ -1678,8 +1678,6 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 {
     using MapType = std::vector<std::pair<char const*, T>>;
 
-    // XXX:
-    // Writes to VALUE even if any predicate returns false...
     return [=, &value, map = MapType(ilist)](ParseContext & ctx) {
         for (auto const& p : map)
         {
