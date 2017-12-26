@@ -93,7 +93,7 @@ before_install:
   - tar -xvf premake5.tar.gz
 
 install:
-  - ./premake5 --cxxflags="$CXXFLAGS" gmake
+  - ./premake5 --cxxflags="$CXXFLAGS" --linkflags="$LINKFLAGS" gmake
 
 script:
   - export CXX=$COMPILER
