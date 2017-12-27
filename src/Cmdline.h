@@ -21,14 +21,14 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#include "cxx_string_view.h"
-
 #include <cassert>
 #include <cerrno>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -38,6 +38,22 @@
 
 #if CL_WINDOWS_CONSOLE_COLORS && _WIN32
 #include <windows.h>
+#endif
+
+#if defined(__has_include)
+#define CL_HAS_INCLUDE(X) __has_include(X)
+#else
+#define CL_HAS_INCLUDE(X) 0
+#endif
+
+#if __cplusplus >= 201703 || (_MSC_VER >= 1910 && _HAS_CXX17)
+#define CL_HAS_STD_STRING_VIEW 1
+#include <string_view>
+#endif
+
+#if CL_HAS_INCLUDE(<experimental/string_view>) && __cplusplus > 201103
+#define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
+#include <experimental/string_view>
 #endif
 
 #if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
@@ -63,6 +79,210 @@
 namespace cl {
 
 class Cmdline;
+
+//==================================================================================================
+//
+//==================================================================================================
+
+#if CL_HAS_STD_STRING_VIEW
+using std::string_view;
+#elif CL_HAS_STD_EXPERIMENTAL_STRING_VIEW
+using std::experimental::string_view;
+#else
+class string_view // A minimal std::string_view replacement
+{
+public:
+    using value_type        = char;
+    using pointer           = char const*;
+    using const_pointer     = char const*;
+    using reference         = char const&;
+    using const_reference   = char const&;
+    using iterator          = char const*;
+    using const_iterator    = char const*;
+    using size_type         = size_t;
+
+private:
+    const_pointer data_ = nullptr;
+    size_t        size_ = 0;
+
+private:
+    static size_t Min(size_t x, size_t y) { return y < x ? y : x; }
+    static size_t Max(size_t x, size_t y) { return y < x ? x : y; }
+
+    static int Compare(char const* s1, char const* s2, size_t n) noexcept
+    {
+        return n == 0 ? 0 : ::memcmp(s1, s2, n);
+    }
+
+    static char const* Find(char const* s, size_t n, char ch) noexcept
+    {
+        CL_DCHECK(n != 0);
+        return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
+    }
+
+public:
+    static constexpr size_t npos = static_cast<size_t>(-1);
+
+    constexpr string_view() noexcept = default;
+    constexpr string_view(string_view const&) noexcept = default;
+
+    string_view(const_pointer ptr, size_t len) noexcept
+        : data_(ptr)
+        , size_(len)
+    {
+        CL_DCHECK(size_ == 0 || data_ != nullptr);
+    }
+
+    string_view(const_pointer c_str) noexcept
+        : data_(c_str)
+        , size_(c_str ? ::strlen(c_str) : 0u)
+    {
+    }
+
+    template <
+        typename String,
+        typename DataT = decltype(std::declval<String const&>().data()),
+        typename SizeT = decltype(std::declval<String const&>().size()),
+        typename = std::enable_if_t< std::is_convertible<DataT, const_pointer>::value && std::is_convertible<SizeT, size_t>::value >
+    >
+    string_view(String const& str) noexcept
+        : data_(str.data())
+        , size_(str.size())
+    {
+        CL_DCHECK(size_ == 0 || data_ != nullptr);
+    }
+
+    template <typename T, typename = std::enable_if_t< std::is_constructible<T, const_iterator, const_iterator>::value >>
+    explicit operator T() const
+    {
+        return T(begin(), end());
+    }
+
+    // Returns a pointer to the start of the string.
+    constexpr const_pointer data() const noexcept { return data_; }
+
+    // Returns the length of the string.
+    constexpr size_t size() const noexcept { return size_; }
+
+    // Returns whether the string is empty.
+    constexpr bool empty() const noexcept { return size_ == 0; }
+
+    // Returns an iterator pointing to the start of the string.
+    constexpr const_iterator begin() const noexcept { return data_; }
+
+    // Returns an iterator pointing past the end of the string.
+    constexpr const_iterator end() const noexcept { return data_ + size_; }
+
+    // Returns a reference to the N-th character of the string.
+    const_reference operator[](size_t n) const noexcept
+    {
+        CL_DCHECK(n < size_);
+        return data_[n];
+    }
+
+    // Removes the first N characters from the string.
+    void remove_prefix(size_t n) noexcept
+    {
+        CL_DCHECK(n <= size_);
+        data_ += n;
+        size_ -= n;
+    }
+
+    // Removes the last N characters from the string.
+    void remove_suffix(size_t n) noexcept
+    {
+        CL_DCHECK(n <= size_);
+        size_ -= n;
+    }
+
+    // Returns the substring [first, +count)
+    string_view substr(size_t first = 0) const noexcept
+    {
+        CL_DCHECK(first <= size_);
+        return string_view(data_ + first, size_ - first);
+    }
+
+    // Returns the substring [first, +count)
+    string_view substr(size_t first, size_t count) const noexcept
+    {
+        CL_DCHECK(first <= size_);
+        return string_view(data_ + first, Min(count, size_ - first));
+    }
+
+    // Search for the first character ch in the sub-string [from, end)
+    size_t find(char ch, size_t from = 0) const noexcept
+    {
+        if (from >= size())
+            return npos;
+
+        if (auto I = Find(data() + from, size() - from, ch))
+            return static_cast<size_t>(I - data());
+
+        return npos;
+    }
+
+    // Search for the last character in the sub-string [0, from)
+    // which matches any of the characters in chars.
+    size_t find_last_of(string_view chars, size_t from = npos) const noexcept
+    {
+        if (chars.empty())
+            return npos;
+
+        if (from < size())
+            ++from;
+        else
+            from = size();
+
+        for (auto I = from; I != 0; --I) {
+            if (Find(chars.data(), chars.size(), data()[I - 1]))
+                return I - 1;
+        }
+
+        return npos;
+    }
+
+    bool _cmp_eq(string_view other) const noexcept
+    {
+        return size() == other.size() && Compare(data(), other.data(), size()) == 0;
+    }
+
+    bool _cmp_lt(string_view other) const noexcept
+    {
+        int const c = Compare(data(), other.data(), Min(size(), other.size()));
+        return c < 0 || (c == 0 && size() < other.size());
+    }
+};
+
+inline bool operator==(string_view s1, string_view s2) noexcept
+{
+    return s1._cmp_eq(s2);
+}
+
+inline bool operator!=(string_view s1, string_view s2) noexcept
+{
+    return !(s1 == s2);
+}
+
+inline bool operator<(string_view s1, string_view s2) noexcept
+{
+    return s1._cmp_lt(s2);
+}
+
+inline bool operator<=(string_view s1, string_view s2) noexcept
+{
+    return !(s2 < s1);
+}
+
+inline bool operator>(string_view s1, string_view s2) noexcept
+{
+    return s2 < s1;
+}
+
+inline bool operator>=(string_view s1, string_view s2) noexcept
+{
+    return !(s1 < s2);
+}
+#endif
 
 //==================================================================================================
 //
@@ -180,7 +400,7 @@ struct ByChar
     {
     }
 
-    DelimiterResult operator()(cxx::string_view const& str) const
+    DelimiterResult operator()(string_view const& str) const
     {
         return {str.find(ch), 1};
     }
@@ -189,7 +409,7 @@ struct ByChar
 // Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
 struct ByLine
 {
-    DelimiterResult operator()(cxx::string_view str) const
+    DelimiterResult operator()(string_view str) const
     {
         auto const first = str.data();
         auto const last = str.data() + str.size();
@@ -201,7 +421,7 @@ struct ByLine
         }
 
         if (p == last) {
-            return {cxx::string_view::npos, 0};
+            return {string_view::npos, 0};
         }
 
         auto const index = static_cast<size_t>(p - first);
@@ -228,17 +448,17 @@ struct ByMaxLength
         CL_DCHECK(length != 0 && "invalid parameter");
     }
 
-    DelimiterResult operator()(cxx::string_view str) const
+    DelimiterResult operator()(string_view str) const
     {
         // If the string fits into the current line, just return this last line.
         if (str.size() <= length) {
-            return {cxx::string_view::npos, 0};
+            return {string_view::npos, 0};
         }
 
         // Otherwise, search for the first space preceding the line length.
         auto I = str.find_last_of(" \t", length);
 
-        if (I != cxx::string_view::npos) { // There is a space.
+        if (I != string_view::npos) { // There is a space.
             return {I, 1};
         }
 
@@ -248,14 +468,14 @@ struct ByMaxLength
 
 struct DoSplitResult
 {
-    cxx::string_view tok; // The current token.
-    cxx::string_view str; // The rest of the string.
+    string_view tok; // The current token.
+    string_view str; // The rest of the string.
     bool             last = false;
 };
 
-inline bool DoSplit(DoSplitResult& res, cxx::string_view str, DelimiterResult del)
+inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
 {
-    if (del.first == cxx::string_view::npos)
+    if (del.first == string_view::npos)
     {
         res.tok = str;
         //res.str = {};
@@ -269,8 +489,8 @@ inline bool DoSplit(DoSplitResult& res, cxx::string_view str, DelimiterResult de
     size_t const off = del.first + del.count;
     CL_DCHECK(off > 0 && "invalid delimiter result");
 
-    res.tok = cxx::string_view(str.data(), del.first);
-    res.str = cxx::string_view(str.data() + off, str.size() - off);
+    res.tok = string_view(str.data(), del.first);
+    res.str = string_view(str.data() + off, str.size() - off);
     return true;
 }
 
@@ -279,11 +499,11 @@ inline bool DoSplit(DoSplitResult& res, cxx::string_view str, DelimiterResult de
 // FN must return void or bool. If FN returns false, this method stops splitting
 // the input string and returns false, too. Otherwise, returns true.
 template <typename Splitter, typename Function>
-bool Split(cxx::string_view str, Splitter&& split, Function&& fn)
+bool Split(string_view str, Splitter&& split, Function&& fn)
 {
     DoSplitResult curr;
 
-    curr.tok = cxx::string_view();
+    curr.tok = string_view();
     curr.str = str;
     curr.last = false;
 
@@ -312,8 +532,8 @@ bool Split(cxx::string_view str, Splitter&& split, Function&& fn)
 // The members are only valid inside the callback (parser).
 struct ParseContext
 {
-    cxx::string_view name;    // Name of the option being parsed    (only valid in callback!)
-    cxx::string_view arg;     // Option argument                    (only valid in callback!)
+    string_view name;    // Name of the option being parsed    (only valid in callback!)
+    string_view arg;     // Option argument                    (only valid in callback!)
     int              index;   // Current index in the argv array
     Cmdline*         cmdline; // The command line parser which currently parses the argument list (never null)
 };
@@ -327,9 +547,9 @@ class OptionBase
     friend class Cmdline;
 
     // The name of the option.
-    cxx::string_view name_;
+    string_view name_;
     // The description of this option
-    cxx::string_view descr_;
+    string_view descr_;
     // Flags controlling how the option may/must be specified.
     NumOpts        num_opts_ = NumOpts::optional;
     HasArg         has_arg_ = HasArg::no;
@@ -372,13 +592,13 @@ public:
 
 public:
     // Returns the name of this option
-    cxx::string_view name() const
+    string_view name() const
     {
         return name_;
     }
 
     // Returns the description of this option
-    cxx::string_view descr() const
+    string_view descr() const
     {
         return descr_;
     }
@@ -508,11 +728,11 @@ class Cmdline
 {
     struct NameOptionPair
     {
-        cxx::string_view name = {}; // Points into option->name_
+        string_view name = {}; // Points into option->name_
         OptionBase*      option = nullptr;
 
         NameOptionPair() = default;
-        NameOptionPair(cxx::string_view name_, OptionBase* option_)
+        NameOptionPair(string_view name_, OptionBase* option_)
             : name(name_)
             , option(option_)
         {
@@ -593,46 +813,46 @@ public:
     };
 
     // Returns a short help message listing all registered options.
-    std::string FormatHelp(cxx::string_view program_name, HelpFormat const& fmt = {}) const;
+    std::string FormatHelp(string_view program_name, HelpFormat const& fmt = {}) const;
 
     // Prints the help message to stderr
-    void PrintHelp(cxx::string_view program_name, HelpFormat const& fmt = {}) const;
+    void PrintHelp(string_view program_name, HelpFormat const& fmt = {}) const;
 
 private:
     enum class Result { success, error, ignored };
 
-    OptionBase* FindOption(cxx::string_view name) const;
+    OptionBase* FindOption(string_view name) const;
 
     template <typename It, typename EndIt>
-    Result Handle1(cxx::string_view optstr, It& curr, EndIt last);
+    Result Handle1(string_view optstr, It& curr, EndIt last);
 
     // <file>
-    Result HandlePositional(cxx::string_view optstr);
+    Result HandlePositional(string_view optstr);
 
     // -f
     // -f <file>
     template <typename It, typename EndIt>
-    Result HandleStandardOption(cxx::string_view optstr, It& curr, EndIt last);
+    Result HandleStandardOption(string_view optstr, It& curr, EndIt last);
 
     // -f=<file>
-    Result HandleOption(cxx::string_view optstr);
+    Result HandleOption(string_view optstr);
 
     // -I<dir>
-    Result HandlePrefix(cxx::string_view optstr);
+    Result HandlePrefix(string_view optstr);
 
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group);
+    Result DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group);
 
     template <typename It, typename EndIt>
-    Result HandleGroup(cxx::string_view optstr, It& curr, EndIt last);
+    Result HandleGroup(string_view optstr, It& curr, EndIt last);
 
     template <typename It, typename EndIt>
-    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, EndIt last);
-    Result HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
+    Result HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last);
+    Result HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
 
-    Result ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg);
+    Result ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
 
     template <typename Fn>
     bool ForEachUniqueOption(Fn fn) const;
@@ -680,7 +900,7 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
 {
     CL_DCHECK(opt != nullptr);
 
-    impl::Split(opt->name_, impl::ByChar('|'), [&](cxx::string_view name) {
+    impl::Split(opt->name_, impl::ByChar('|'), [&](string_view name) {
         CL_DCHECK(!name.empty());
         CL_DCHECK(FindOption(name) == nullptr); // option already exists?!
 
@@ -706,7 +926,7 @@ inline void Cmdline::Reset()
     curr_index_ = 0;
     dashdash_ = false;
 
-    ForEachUniqueOption([](cxx::string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([](string_view /*name*/, OptionBase* opt) {
         opt->count_ = 0;
         return true;
     });
@@ -761,7 +981,7 @@ bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
 inline bool Cmdline::AnyMissing()
 {
     bool res = false;
-    ForEachUniqueOption([&](cxx::string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->IsOccurrenceRequired())
         {
             FormatDiag(Diagnostic::error, -1, "Option '%.*s' is missing", static_cast<int>(opt->name_.size()), opt->name_.data());
@@ -859,16 +1079,16 @@ inline void Cmdline::PrintDiag() const
 #endif
 
 namespace impl {
-inline void AppendWrapped(std::string& out, cxx::string_view text, size_t indent, size_t width)
+inline void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
     CL_DCHECK(indent < width);
 
     bool first = true;
 
     // Break the string into paragraphs
-    impl::Split(text, impl::ByLine(), [&](cxx::string_view par) {
+    impl::Split(text, impl::ByLine(), [&](string_view par) {
         // Break the paragraphs at the maximum width into lines
-        impl::Split(par, impl::ByMaxLength(width), [&](cxx::string_view line) {
+        impl::Split(par, impl::ByMaxLength(width), [&](string_view line) {
             if (first)
             {
                 first = false;
@@ -886,7 +1106,7 @@ inline void AppendWrapped(std::string& out, cxx::string_view text, size_t indent
 }
 } // namespace impl
 
-inline std::string Cmdline::FormatHelp(cxx::string_view program_name, HelpFormat const& fmt) const
+inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
 {
     CL_DCHECK(fmt.descr_indent > fmt.indent);
     CL_DCHECK(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
@@ -896,7 +1116,7 @@ inline std::string Cmdline::FormatHelp(cxx::string_view program_name, HelpFormat
     std::string spos;
     std::string sopt;
 
-    ForEachUniqueOption([&](cxx::string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->positional_ == Positional::yes)
         {
             spos += ' ';
@@ -958,13 +1178,13 @@ inline std::string Cmdline::FormatHelp(cxx::string_view program_name, HelpFormat
     return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
 }
 
-inline void Cmdline::PrintHelp(cxx::string_view program_name, HelpFormat const& fmt) const
+inline void Cmdline::PrintHelp(string_view program_name, HelpFormat const& fmt) const
 {
     auto const msg = FormatHelp(program_name, fmt);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 
-inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
+inline OptionBase* Cmdline::FindOption(string_view name) const
 {
     for (auto&& p : options_)
     {
@@ -980,7 +1200,7 @@ inline OptionBase* Cmdline::FindOption(cxx::string_view name) const
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::Handle1(cxx::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 {
     CL_DCHECK(curr != last);
 
@@ -1037,7 +1257,7 @@ Cmdline::Result Cmdline::Handle1(cxx::string_view optstr, It& curr, EndIt last)
     return res;
 }
 
-inline Cmdline::Result Cmdline::HandlePositional(cxx::string_view optstr)
+inline Cmdline::Result Cmdline::HandlePositional(string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
     CL_DCHECK(curr_positional_ >= 0);
@@ -1058,7 +1278,7 @@ inline Cmdline::Result Cmdline::HandlePositional(cxx::string_view optstr)
 
 // If OPTSTR is the name of an option, handle the option.
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
 {
     if (auto const opt = FindOption(optstr))
     {
@@ -1071,11 +1291,11 @@ Cmdline::Result Cmdline::HandleStandardOption(cxx::string_view optstr, It& curr,
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-inline Cmdline::Result Cmdline::HandleOption(cxx::string_view optstr)
+inline Cmdline::Result Cmdline::HandleOption(string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
-    if (arg_start != cxx::string_view::npos)
+    if (arg_start != string_view::npos)
     {
         // Found an '=' sign. Extract the name of the option.
         auto const name = optstr.substr(0, arg_start);
@@ -1096,7 +1316,7 @@ inline Cmdline::Result Cmdline::HandleOption(cxx::string_view optstr)
     return Result::ignored;
 }
 
-inline Cmdline::Result Cmdline::HandlePrefix(cxx::string_view optstr)
+inline Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
 {
     // Scan over all known prefix lengths.
     // Start with the longest to allow different prefixes like e.g. "-with" and
@@ -1122,7 +1342,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(cxx::string_view optstr)
 
 // Check if OPTSTR is actually a group of single letter options and store the
 // options in GROUP.
-inline Cmdline::Result Cmdline::DecomposeGroup(cxx::string_view optstr, std::vector<OptionBase*>& group)
+inline Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group)
 {
     group.reserve(optstr.size());
 
@@ -1159,7 +1379,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(cxx::string_view optstr, std::vec
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 {
     std::vector<OptionBase*> group;
 
@@ -1201,7 +1421,7 @@ Cmdline::Result Cmdline::HandleGroup(cxx::string_view optstr, It& curr, EndIt la
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, It& curr, EndIt last)
+Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
 {
     CL_DCHECK(curr != last);
 
@@ -1226,7 +1446,7 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name
     return Result::error;
 }
 
-inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
+inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg)
 {
     // An argument was specified for OPT.
 
@@ -1239,9 +1459,9 @@ inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, cxx::string_vi
     return ParseOptionArgument(opt, name, arg);
 }
 
-inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string_view name, cxx::string_view arg)
+inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, string_view arg)
 {
-    auto Parse1 = [&](cxx::string_view arg1) {
+    auto Parse1 = [&](string_view arg1) {
         if (!opt->IsOccurrenceAllowed())
         {
             FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' already specified", static_cast<int>(name.size()), name.data());
@@ -1279,7 +1499,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, cxx::string
 
     if (opt->comma_separated_ == CommaSeparated::yes)
     {
-        impl::Split(arg, impl::ByChar(','), [&](cxx::string_view s) {
+        impl::Split(arg, impl::ByChar(','), [&](string_view s) {
             res = Parse1(s);
             return res == Result::success;
         });
@@ -1338,7 +1558,7 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
 namespace impl {
 
 template <typename... Match>
-bool IsAnyOf(cxx::string_view value, Match&&... match)
+bool IsAnyOf(string_view value, Match&&... match)
 {
 #if CL_HAS_FOLD_EXPRESSIONS
     return (... || (value == match));
@@ -1351,7 +1571,7 @@ bool IsAnyOf(cxx::string_view value, Match&&... match)
 }
 
 template <typename T, typename Fn>
-bool StrToX(cxx::string_view sv, T& value, Fn fn)
+bool StrToX(string_view sv, T& value, Fn fn)
 {
     if (sv.empty()) {
         return false;
@@ -1381,12 +1601,12 @@ bool StrToX(cxx::string_view sv, T& value, Fn fn)
 
 // Note: Wrap into local function, to avoid instantiating StrToX with different
 // lambdas which actually all do the same thing: call strtol.
-inline bool StrToLongLong(cxx::string_view str, long long& value)
+inline bool StrToLongLong(string_view str, long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
 }
 
-inline bool StrToUnsignedLongLong(cxx::string_view str, unsigned long long& value)
+inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
 {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
@@ -1394,7 +1614,7 @@ inline bool StrToUnsignedLongLong(cxx::string_view str, unsigned long long& valu
 struct ConvertToInt
 {
     template <typename T>
-    bool operator()(cxx::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         long long v = 0;
         if (StrToLongLong(str, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
@@ -1409,7 +1629,7 @@ struct ConvertToInt
 struct ConvertToUnsignedInt
 {
     template <typename T>
-    bool operator()(cxx::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         unsigned long long v = 0;
         if (StrToUnsignedLongLong(str, v) && v <= (std::numeric_limits<T>::max)())
@@ -1428,7 +1648,7 @@ template <typename T = void, typename /*Enable*/ = void>
 struct ConvertTo
 {
     template <typename Stream = std::stringstream>
-    bool operator()(cxx::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         Stream stream{std::string(str)};
         stream >> value;
@@ -1439,7 +1659,7 @@ struct ConvertTo
 template <>
 struct ConvertTo<bool>
 {
-    bool operator()(cxx::string_view str, bool& value) const
+    bool operator()(string_view str, bool& value) const
     {
         if (str.empty() || impl::IsAnyOf(str, "1", "y", "true", "True", "yes", "Yes", "on", "On")) {
             value = true;
@@ -1467,7 +1687,7 @@ template <> struct ConvertTo< unsigned long long > : impl::ConvertToUnsignedInt 
 template <>
 struct ConvertTo<float>
 {
-    bool operator()(cxx::string_view str, float& value) const
+    bool operator()(string_view str, float& value) const
     {
         return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtof(p, end); });
     }
@@ -1476,7 +1696,7 @@ struct ConvertTo<float>
 template <>
 struct ConvertTo<double>
 {
-    bool operator()(cxx::string_view str, double& value) const
+    bool operator()(string_view str, double& value) const
     {
         return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtod(p, end); });
     }
@@ -1485,7 +1705,7 @@ struct ConvertTo<double>
 template <>
 struct ConvertTo<long double>
 {
-    bool operator()(cxx::string_view str, long double& value) const
+    bool operator()(string_view str, long double& value) const
     {
         return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
     }
@@ -1494,7 +1714,7 @@ struct ConvertTo<long double>
 template <typename Alloc>
 struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
-    bool operator()(cxx::string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
+    bool operator()(string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
         value.assign(str.data(), str.size());
         return true;
@@ -1504,11 +1724,11 @@ struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
 template <typename Key, typename Value>
 struct ConvertTo<std::pair<Key, Value>>
 {
-    bool operator()(cxx::string_view str, std::pair<Key, Value>& value) const
+    bool operator()(string_view str, std::pair<Key, Value>& value) const
     {
         auto const p = str.find(':');
 
-        if (p == cxx::string_view::npos) {
+        if (p == string_view::npos) {
             return false;
         }
 
@@ -1522,7 +1742,7 @@ template <>
 struct ConvertTo<void>
 {
     template <typename T>
-    bool operator()(cxx::string_view str, T& value) const
+    bool operator()(string_view str, T& value) const
     {
         return ConvertTo<T>{}(str, value);
     }
@@ -1925,7 +2145,7 @@ struct ParseArgWindows
 
 // Parse arguments from a command line string into an argv-array.
 // Using Bash-style escaping.
-inline std::vector<std::string> TokenizeUnix(cxx::string_view str)
+inline std::vector<std::string> TokenizeUnix(string_view str)
 {
     std::vector<std::string> argv;
 
@@ -1941,7 +2161,7 @@ inline std::vector<std::string> TokenizeUnix(cxx::string_view str)
 
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
-inline std::vector<std::string> TokenizeWindows(cxx::string_view str, bool parse_program_name = true, bool discard_program_name = true)
+inline std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = true, bool discard_program_name = true)
 {
     std::vector<std::string> argv;
 

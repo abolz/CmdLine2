@@ -1,7 +1,10 @@
-#define CL_WINDOWS_CONSOLE_COLORS 1
-#define CL_ANSI_CONSOLE_COLORS 1
+//#define CL_WINDOWS_CONSOLE_COLORS 1
+//#define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
 
+#if 0
+int main() {}
+#else
 enum class Standard { cxx11, cxx14, cxx17 };
 
 static bool verbose = false;
@@ -56,3 +59,4 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+#endif
