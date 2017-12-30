@@ -1947,56 +1947,56 @@ inline bool IsWhitespace(char ch)
     }
 }
 
-inline void SkipWhitespace(char const*& next, char const* last)
+template <typename It>
+It SkipWhitespace(It next, It last)
 {
-    auto p = next;
-    while (p != last && IsWhitespace(*p)) {
-        ++p;
+    while (next != last && IsWhitespace(*next)) {
+        ++next;
     }
 
-    next = p;
+    return next;
 }
 } // namespace impl
 
 struct ParseArgUnix
 {
-    std::string operator()(char const*& next, char const* last) const
+    template <typename It, typename Fn>
+    It operator()(It next, It last, Fn fn) const
     {
+        std::string arg;
+
         // See:
         // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
         // http://wiki.bash-hackers.org/syntax/quoting
 
-        std::string arg;
+        char quote_char = '\0';
 
-        auto it = next;
-        char quote_char{};
+        next = impl::SkipWhitespace(next, last);
 
-        impl::SkipWhitespace(it, last);
-
-        for (; it != last; ++it)
+        for ( ; next != last; ++next)
         {
-            const auto ch = *it;
+            const auto ch = *next;
 
             // Quoting a single character using the backslash?
             if (quote_char == '\\')
             {
                 arg += ch;
-                quote_char = char{};
+                quote_char = '\0';
             }
             // Currently quoting using ' or "?
-            else if (quote_char != char{} && ch != quote_char)
+            else if (quote_char != '\0' && ch != quote_char)
             {
                 arg += ch;
             }
             // Toggle quoting?
             else if (ch == '\'' || ch == '"' || ch == '\\')
             {
-                quote_char = (quote_char != char{}) ? char{} : ch;
+                quote_char = (quote_char != '\0') ? '\0' : ch;
             }
             // Arguments are separated by whitespace
             else if (impl::IsWhitespace(ch))
             {
-                ++it;
+                ++next;
                 break;
             }
             else
@@ -2005,64 +2005,66 @@ struct ParseArgUnix
             }
         }
 
-        next = it;
+        fn(std::move(arg));
 
-        return arg;
+        return next;
     }
 };
 
 struct ParseProgramNameWindows
 {
-    std::string operator()(char const*& next, char const* last) const
+    // TODO?!
+    //
+    // If the input string is empty, return a single command line argument
+    // consisting of the absolute path of the executable...
+
+    template <typename It, typename Fn>
+    It operator()(It next, It last, Fn fn) const
     {
         std::string arg;
 
-        auto it = next;
-
-        impl::SkipWhitespace(it, last);
-
-        if (it != last)
+        if (next != last && !impl::IsWhitespace(*next))
         {
-            const bool quoting = (*it == '"');
+            const bool quoting = (*next == '"');
 
             if (quoting) {
-                ++it;
+                ++next;
             }
 
-            for (; it != last; ++it)
+            for (; next != last; ++next)
             {
-                const auto ch = *it;
+                const auto ch = *next;
                 if ((quoting && ch == '"') || (!quoting && impl::IsWhitespace(ch)))
                 {
-                    ++it;
+                    ++next;
                     break;
                 }
                 arg += ch;
             }
         }
 
-        next = it;
+        fn(std::move(arg));
 
-        return arg;
+        return next;
     }
 };
 
 struct ParseArgWindows
 {
-    std::string operator()(char const*& next, char const* last) const
+    template <typename It, typename Fn>
+    It operator()(It next, It last, Fn fn) const
     {
         std::string arg;
 
-        auto    it = next;
-        bool    quoting = false;
-        bool    recently_closed = false;
-        size_t  num_backslashes = 0;
+        bool   quoting = false;
+        bool   recently_closed = false;
+        size_t num_backslashes = 0;
 
-        impl::SkipWhitespace(it, last);
+        next = impl::SkipWhitespace(next, last);
 
-        for (; it != last; ++it)
+        for (; next != last; ++next)
         {
-            const auto ch = *it;
+            const auto ch = *next;
 
             if (ch == '"' && recently_closed)
             {
@@ -2129,7 +2131,7 @@ struct ParseArgWindows
                     // is interpreted as single argument, regardless of white
                     // space contained within. A quoted string can be embedded
                     // in an argument.
-                    ++it;
+                    ++next;
                     break;
                 }
 
@@ -2137,9 +2139,11 @@ struct ParseArgWindows
             }
         }
 
-        next = it;
+        if (!arg.empty() || quoting || recently_closed) {
+            fn(std::move(arg));
+        }
 
-        return arg;
+        return next;
     }
 };
 
@@ -2149,35 +2153,40 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
 {
     std::vector<std::string> argv;
 
+    auto push_back = [&](std::string arg) {
+        argv.push_back(std::move(arg));
+    };
+
     auto       next = str.data();
     auto const last = str.data() + str.size();
 
     while (next != last) {
-        argv.push_back(ParseArgUnix{}(next, last));
+        next = ParseArgUnix{}(next, last, push_back);
     }
 
     return argv;
 }
 
+
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
-inline std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = true, bool discard_program_name = true)
+inline std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = true)
 {
     std::vector<std::string> argv;
+
+    auto push_back = [&](std::string arg) {
+        argv.push_back(std::move(arg));
+    };
 
     auto       next = str.data();
     auto const last = str.data() + str.size();
 
-    if (parse_program_name || discard_program_name)
-    {
-        auto exe = ParseProgramNameWindows{}(next, last);
-        if (!discard_program_name) {
-            argv.push_back(std::move(exe));
-        }
+    if (parse_program_name) {
+        next = ParseProgramNameWindows{}(next, last, push_back);
     }
 
     while (next != last) {
-        argv.push_back(ParseArgWindows{}(next, last));
+        next = ParseArgWindows{}(next, last, push_back);
     }
 
     return argv;

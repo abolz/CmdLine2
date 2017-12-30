@@ -706,16 +706,117 @@ TEST_CASE("Unicode")
     CHECK(str == u8"hello😍😎world");
 }
 
-#if 0
+TEST_CASE("Tokenize Windows 1")
+{
+    struct Test {
+        std::string inp;
+        std::vector<std::string> out;
+    };
 
-struct c_str_end {
-    friend bool operator==(c_str_end, c_str_end) { return true; }
-    friend bool operator!=(c_str_end, c_str_end) { return false; }
-    friend bool operator==(char const* lhs, c_str_end) { return *lhs == '\0'; }
-    friend bool operator!=(char const* lhs, c_str_end) { return *lhs != '\0'; }
-};
+    const Test tests[] = {
+    // with program name
+        { R"(test )",                      { R"(test)" }                                            },
+        { R"(test  )",                     { R"(test)" }                                            },
+        { R"(test  ")",                    { R"(test)", R"()" }                                     },
+        { R"(test  " )",                   { R"(test)", R"( )" }                                    },
+        { R"(test foo""""""""""""bar)",    { R"(test)", R"(foo""""bar)" }                           },
+        { R"(test foo"X""X""X""X"bar)",    { R"(test)", R"(fooX"XXXbar)" }                          },
+        { R"(test    "this is a string")", { R"(test)", R"(this is a string)" }                     },
+        { R"(test "  "this is a string")", { R"(test)", R"(  this)", R"(is)", R"(a)", R"(string)" } },
+        { R"(test  " "this is a string")", { R"(test)", R"( this)", R"(is)", R"(a)", R"(string)" }  },
+        { R"(test "this is a string")",    { R"(test)", R"(this is a string)" }                     },
+        { R"(test "this is a string)",     { R"(test)", R"(this is a string)" }                     },
+        { R"(test """this" is a string)",  { R"(test)", R"("this is a string)" }                    },
+        { R"(test "hello\"there")",        { R"(test)", R"(hello"there)" }                          },
+        { R"(test "hello\\")",             { R"(test)", R"(hello\)" }                               },
+        { R"(test abc)",                   { R"(test)", R"(abc)" }                                  },
+        { R"(test "a b c")",               { R"(test)", R"(a b c)" }                                },
+        { R"(test a"b c d"e)",             { R"(test)", R"(ab c de)" }                              },
+        { R"(test a\"b c)",                { R"(test)", R"(a"b)", R"(c)" }                          },
+        { R"(test "a\"b c")",              { R"(test)", R"(a"b c)" }                                },
+        { R"(test "a b c\\")",             { R"(test)", R"(a b c\)" }                               },
+        { R"(test "a\\\"b")",              { R"(test)", R"(a\"b)" }                                 },
+        { R"(test a\\\b)",                 { R"(test)", R"(a\\\b)" }                                },
+        { R"(test "a\\\b")",               { R"(test)", R"(a\\\b)" }                                },
+        { R"(test "\"a b c\"")",           { R"(test)", R"("a b c")" }                              },
+        { R"(test "a b c" d e)",           { R"(test)", R"(a b c)", R"(d)", R"(e)" }                },
+        { R"(test "ab\"c" "\\" d)",        { R"(test)", R"(ab"c)", R"(\)", R"(d)" }                 },
+        { R"(test a\\\b d"e f"g h)",       { R"(test)", R"(a\\\b)", R"(de fg)", R"(h)" }            },
+        { R"(test a\\\"b c d)",            { R"(test)", R"(a\"b)", R"(c)", R"(d)" }                 },
+        { R"(test a\\\\"b c" d e)",        { R"(test)", R"(a\\b c)", R"(d)", R"(e)" }               },
+        { R"(test "a b c""   )",           { R"(test)", R"(a b c")" }                               },
+        { R"(test """a""" b c)",           { R"(test)", R"("a")", R"(b)", R"(c)" }                  },
+        { R"(test """a b c""")",           { R"(test)", R"("a)", R"(b)", R"(c")" }                  },
+        { R"(test """"a b c"" d e)",       { R"(test)", R"("a b c")", R"(d)", R"(e)" }              },
+        { R"(test "c:\file x.txt")",       { R"(test)", R"(c:\file x.txt)" }                        },
+        { R"(test "c:\dir x\\")",          { R"(test)", R"(c:\dir x\)" }                            },
+        { R"(test "\"c:\dir x\\\"")",      { R"(test)", R"("c:\dir x\")" }                          },
+        { R"(test "a b c")",               { R"(test)", R"(a b c)" }                                },
+        { R"(test "a b c"")",              { R"(test)", R"(a b c")" }                               },
+        { R"(test "a b c""")",             { R"(test)", R"(a b c")" }                               },
+        { R"(test a b c)",                 { R"(test)", R"(a)", R"(b)", R"(c)" }                    },
+        { R"(test a\tb c)",                { R"(test)", R"(a\tb)", R"(c)" }                         },
+        { R"(test a\nb c)",                { R"(test)", R"(a\nb)", R"(c)" }                         },
+        { R"(test a\vb c)",                { R"(test)", R"(a\vb)", R"(c)" }                         },
+        { R"(test a\fb c)",                { R"(test)", R"(a\fb)", R"(c)" }                         },
+        { R"(test a\rb c)",                { R"(test)", R"(a\rb)", R"(c)" }                         },
 
-TEST_CASE("Flags_Tokenize")
+    // without program name
+        { R"( )",                          { R"()" }                                                },
+        { R"( ")",                         { R"()", R"()" }                                         },
+        { R"( " )",                        { R"()", R"( )" }                                        },
+        { R"(foo""""""""""""bar)",         { R"(foo""""""""""""bar)" }                              },
+        { R"(foo"X""X""X""X"bar)",         { R"(foo"X""X""X""X"bar)" }                              },
+        { R"(   "this is a string")",      { R"()", R"(this is a string)" }                         },
+        { R"("  "this is a string")",      { R"(  )", R"(this)", R"(is)", R"(a)", R"(string)" }     },
+        { R"( " "this is a string")",      { R"()", R"( this)", R"(is)", R"(a)", R"(string)" }      },
+        { R"("this is a string")",         { R"(this is a string)" }                                },
+        { R"("this is a string)",          { R"(this is a string)" }                                },
+        { R"("""this" is a string)",       { R"()", R"(this)", R"(is)", R"(a)", R"(string)" }       },
+        { R"("hello\"there")",             { R"(hello\)", R"(there)" }                              },
+        { R"("hello\\")",                  { R"(hello\\)" }                                         },
+        { R"(abc)",                        { R"(abc)" }                                             },
+        { R"("a b c")",                    { R"(a b c)" }                                           },
+        { R"(a"b c d"e)",                  { R"(a"b)", R"(c)", R"(de)" }                            },
+        { R"(a\"b c)",                     { R"(a\"b)", R"(c)" }                                    },
+        { R"("a\"b c")",                   { R"(a\)", R"(b)", R"(c)" }                              },
+        { R"("a b c\\")",                  { R"(a b c\\)" }                                         },
+        { R"("a\\\"b")",                   { R"(a\\\)", R"(b)" }                                    },
+        { R"(a\\\b)",                      { R"(a\\\b)" }                                           },
+        { R"("a\\\b")",                    { R"(a\\\b)" }                                           },
+        { R"("\"a b c\"")",                { R"(\)", R"(a)", R"(b)", R"(c")" }                      },
+        { R"("a b c" d e)",                { R"(a b c)", R"(d)", R"(e)" }                           },
+        { R"("ab\"c" "\\" d)",             { R"(ab\)", R"(c \ d)" }                                 },
+        { R"(a\\\b d"e f"g h)",            { R"(a\\\b)", R"(de fg)", R"(h)" }                       },
+        { R"(a\\\"b c d)",                 { R"(a\\\"b)", R"(c)", R"(d)" }                          },
+        { R"(a\\\\"b c" d e)",             { R"(a\\\\"b)", R"(c d e)" }                             },
+        { R"("a b c""   )",                { R"(a b c)", R"(   )" }                                 },
+        { R"("""a""" b c)",                { R"()", R"(a" b c)" }                                   },
+        { R"("""a b c""")",                { R"()", R"(a b c")" }                                   },
+        { R"(""""a b c"" d e)",            { R"()", R"(a)", R"(b)", R"(c)", R"(d)", R"(e)" }        },
+        { R"("c:\file x.txt")",            { R"(c:\file x.txt)" }                                   },
+        { R"("c:\dir x\\")",               { R"(c:\dir x\\)" }                                      },
+        { R"("\"c:\dir x\\\"")",           { R"(\)", R"(c:\dir)", R"(x\")" }                        },
+        { R"("a b c")",                    { R"(a b c)" }                                           },
+        { R"("a b c"")",                   { R"(a b c)", R"()" }                                    },
+        { R"("a b c""")",                  { R"(a b c)", R"()" }                                    },
+        { R"(a b c)",                      { R"(a)", R"(b)", R"(c)" }                               },
+        { R"(a\tb c)",                     { R"(a\tb)", R"(c)" }                                    },
+        { R"(a\nb c)",                     { R"(a\nb)", R"(c)" }                                    },
+        { R"(a\vb c)",                     { R"(a\vb)", R"(c)" }                                    },
+        { R"(a\fb c)",                     { R"(a\fb)", R"(c)" }                                    },
+        { R"(a\rb c)",                     { R"(a\rb)", R"(c)" }                                    },
+    };
+
+    for (auto const& t : tests)
+    {
+        CAPTURE(t.inp);
+        auto args = cl::TokenizeWindows(t.inp, /*parse_program_name*/ true);
+        CHECK(args == t.out);
+    }
+}
+
+TEST_CASE("Tokenize Windows 2")
 {
     bool a = false;
     bool b = false;
@@ -723,7 +824,7 @@ TEST_CASE("Flags_Tokenize")
     bool d = false;
 
     cl::Cmdline cl;
-    cl.Add("a", "<descr>", cl::Assign(a), cl::NumOpts::zero_or_more, cl::argument_disallowed,       cl::MayGroup::yes);
+    cl.Add("a", "<descr>", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::no,       cl::MayGroup::yes);
     cl.Add("b", "<descr>", cl::Assign(b), cl::NumOpts::zero_or_more, cl::HasArg::optional, cl::MayGroup::yes);
     cl.Add("c", "<descr>", cl::Assign(c), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayGroup::yes);
     cl.Add("d", "<descr>", cl::Assign(d), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::JoinArg::yes);
@@ -731,12 +832,10 @@ TEST_CASE("Flags_Tokenize")
     char const* command_line
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true -dtrue -dno -d1";
 
-    CHECK(true == cl.Parse(cl::argv_begin(command_line, c_str_end{}), cl::argv_end()));
+    CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, /*parse_program_name*/ false)));
     cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);
     CHECK(c == true);
     CHECK(d == true);
 }
-
-#endif
