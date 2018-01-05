@@ -72,8 +72,8 @@
 #define CL_ATTRIBUTE_PRINTF(X, Y)
 #endif
 
-#ifndef CL_DCHECK
-#define CL_DCHECK(X) assert(X)
+#ifndef CL_ASSERT
+#define CL_ASSERT(X) assert(X)
 #endif
 
 namespace cl {
@@ -116,7 +116,7 @@ private:
 
     static char const* Find(char const* s, size_t n, char ch) noexcept
     {
-        CL_DCHECK(n != 0);
+        CL_ASSERT(n != 0);
         return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
     }
 
@@ -130,7 +130,7 @@ public:
         : data_(ptr)
         , size_(len)
     {
-        CL_DCHECK(size_ == 0 || data_ != nullptr);
+        CL_ASSERT(size_ == 0 || data_ != nullptr);
     }
 
     string_view(const_pointer c_str) noexcept
@@ -149,7 +149,7 @@ public:
         : data_(str.data())
         , size_(str.size())
     {
-        CL_DCHECK(size_ == 0 || data_ != nullptr);
+        CL_ASSERT(size_ == 0 || data_ != nullptr);
     }
 
     template <typename T, typename = std::enable_if_t< std::is_constructible<T, const_iterator, const_iterator>::value >>
@@ -176,14 +176,14 @@ public:
     // Returns a reference to the N-th character of the string.
     const_reference operator[](size_t n) const noexcept
     {
-        CL_DCHECK(n < size_);
+        CL_ASSERT(n < size_);
         return data_[n];
     }
 
     // Removes the first N characters from the string.
     void remove_prefix(size_t n) noexcept
     {
-        CL_DCHECK(n <= size_);
+        CL_ASSERT(n <= size_);
         data_ += n;
         size_ -= n;
     }
@@ -191,21 +191,21 @@ public:
     // Removes the last N characters from the string.
     void remove_suffix(size_t n) noexcept
     {
-        CL_DCHECK(n <= size_);
+        CL_ASSERT(n <= size_);
         size_ -= n;
     }
 
     // Returns the substring [first, +count)
     string_view substr(size_t first = 0) const noexcept
     {
-        CL_DCHECK(first <= size_);
+        CL_ASSERT(first <= size_);
         return string_view(data_ + first, size_ - first);
     }
 
     // Returns the substring [first, +count)
     string_view substr(size_t first, size_t count) const noexcept
     {
-        CL_DCHECK(first <= size_);
+        CL_ASSERT(first <= size_);
         return string_view(data_ + first, Min(count, size_ - first));
     }
 
@@ -445,7 +445,7 @@ struct ByMaxLength
     explicit ByMaxLength(size_t length_)
         : length(length_)
     {
-        CL_DCHECK(length != 0 && "invalid parameter");
+        CL_ASSERT(length != 0 && "invalid parameter");
     }
 
     DelimiterResult operator()(string_view str) const
@@ -483,11 +483,11 @@ inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
         return true;
     }
 
-    CL_DCHECK(del.first + del.count >= del.first);
-    CL_DCHECK(del.first + del.count <= str.size());
+    CL_ASSERT(del.first + del.count >= del.first);
+    CL_ASSERT(del.first + del.count <= str.size());
 
     size_t const off = del.first + del.count;
-    CL_DCHECK(off > 0 && "invalid delimiter result");
+    CL_ASSERT(off > 0 && "invalid delimiter result");
 
     res.tok = string_view(str.data(), del.first);
     res.str = string_view(str.data() + off, str.size() - off);
@@ -903,11 +903,11 @@ inline OptionBase* Cmdline::Add(std::unique_ptr<OptionBase> opt)
 
 inline OptionBase* Cmdline::Add(OptionBase* opt)
 {
-    CL_DCHECK(opt != nullptr);
+    CL_ASSERT(opt != nullptr);
 
     impl::Split(opt->name_, impl::ByChar('|'), [&](string_view name) {
-        CL_DCHECK(!name.empty());
-        CL_DCHECK(FindOption(name) == nullptr); // option already exists?!
+        CL_ASSERT(!name.empty());
+        CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
 
         if (opt->join_arg_ != JoinArg::no)
         {
@@ -949,8 +949,8 @@ bool Cmdline::ParseArgs(Container const& args, bool check_missing)
 template <typename It, typename EndIt>
 bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
 {
-    CL_DCHECK(curr_positional_ >= 0);
-    CL_DCHECK(curr_index_ >= 0);
+    CL_ASSERT(curr_positional_ >= 0);
+    CL_ASSERT(curr_index_ >= 0);
 
     while (curr != last)
     {
@@ -1089,7 +1089,7 @@ inline void Cmdline::PrintDiag() const
 namespace impl {
 inline void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
-    CL_DCHECK(indent < width);
+    CL_ASSERT(indent < width);
 
     bool first = true;
 
@@ -1116,8 +1116,8 @@ inline void AppendWrapped(std::string& out, string_view text, size_t indent, siz
 
 inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
 {
-    CL_DCHECK(fmt.descr_indent > fmt.indent);
-    CL_DCHECK(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
+    CL_ASSERT(fmt.descr_indent > fmt.indent);
+    CL_ASSERT(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
 
     const size_t descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
 
@@ -1142,7 +1142,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         else
         {
             const size_t col0 = sopt.size();
-            CL_DCHECK(col0 == 0 || sopt[col0 - 1] == '\n');
+            CL_ASSERT(col0 == 0 || sopt[col0 - 1] == '\n');
 
             sopt.append(fmt.indent, ' ');
             sopt += '-';
@@ -1210,7 +1210,7 @@ inline OptionBase* Cmdline::FindOption(string_view name) const
 template <typename It, typename EndIt>
 Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 {
-    CL_DCHECK(curr != last);
+    CL_ASSERT(curr != last);
 
     // This cannot happen if we're parsing the main's argv[] array, but it might
     // happen if we're parsing a user-supplied array of command line arguments.
@@ -1268,8 +1268,8 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 inline Cmdline::Result Cmdline::HandlePositional(string_view optstr)
 {
     int const E = static_cast<int>(options_.size());
-    CL_DCHECK(curr_positional_ >= 0);
-    CL_DCHECK(curr_positional_ <= E);
+    CL_ASSERT(curr_positional_ >= 0);
+    CL_ASSERT(curr_positional_ <= E);
 
     for (; curr_positional_ != E; ++curr_positional_)
     {
@@ -1431,7 +1431,7 @@ Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 template <typename It, typename EndIt>
 Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
 {
-    CL_DCHECK(curr != last);
+    CL_ASSERT(curr != last);
 
     // We get here if no argument was specified.
     // If the option must join its argument, this is an error.
