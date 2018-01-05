@@ -694,9 +694,17 @@ Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t
 #endif
 
 template <typename ParserInit, typename ...Args>
-Option<std::decay_t<ParserInit>> MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+auto MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
 {
-    return Option<std::decay_t<ParserInit>>(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+    return Option<std::decay_t<ParserInit>>(
+        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+}
+
+template <typename ParserInit, typename ...Args>
+auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+{
+    return std::make_unique<Option<std::decay_t<ParserInit>>>(
+        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 }
 
 //==================================================================================================
@@ -879,10 +887,7 @@ inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* fo
 template <typename ParserInit, typename... Args>
 auto Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
 {
-    using DecayedParser = std::decay_t<ParserInit>;
-
-    auto opt = std::make_unique<Option<DecayedParser>>(
-            name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+    auto opt = MakeUniqueOption(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 
     auto const p = opt.get();
     Add(std::move(opt));
