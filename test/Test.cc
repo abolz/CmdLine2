@@ -26,15 +26,39 @@ struct fancy_iterator
 
 #if 1
     char const* operator*() { return *it; }
-#endif
-#if 0
-    std::string operator*() const { return std::string(*it); }
-#endif
-
     fancy_iterator& operator++() {
         ++it;
         return *this;
     }
+#endif
+#if 0
+    std::string operator*() const
+    {
+        std::string s(*it);
+        size_t k = s.size();
+        s.append(200, '~');
+        s.resize(k);
+        return s;
+    }
+    fancy_iterator& operator++() {
+        ++it;
+        return *this;
+    }
+#endif
+#if 0
+    std::string s_;
+    cl::string_view operator*()
+    {
+        s_ = *it;
+        size_t k = s_.size();
+        s_.append(200, '~');
+        return cl::string_view(s_.c_str(), k);
+    }
+    fancy_iterator& operator++() {
+        ++it;
+        return *this;
+    }
+#endif
 
     friend bool operator==(fancy_iterator lhs, fancy_iterator rhs) { return lhs.it == rhs.it; }
     friend bool operator!=(fancy_iterator lhs, fancy_iterator rhs) { return lhs.it != rhs.it; }
@@ -49,7 +73,7 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
     fancy_iterator first{args.begin()};
     fancy_iterator last {args.end()};
 
-#if 0
+#if 1
     if (cl.Parse(first, last))
         return true;
 

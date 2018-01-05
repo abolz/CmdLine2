@@ -534,8 +534,8 @@ struct ParseContext
 {
     string_view name;    // Name of the option being parsed    (only valid in callback!)
     string_view arg;     // Option argument                    (only valid in callback!)
-    int              index;   // Current index in the argv array
-    Cmdline*         cmdline; // The command line parser which currently parses the argument list (never null)
+    int         index;   // Current index in the argv array
+    Cmdline*    cmdline; // The command line parser which currently parses the argument list (never null)
 };
 
 //==================================================================================================
@@ -547,9 +547,9 @@ class OptionBase
     friend class Cmdline;
 
     // The name of the option.
-    string_view name_;
+    string_view    name_;
     // The description of this option
-    string_view descr_;
+    string_view    descr_;
     // Flags controlling how the option may/must be specified.
     NumOpts        num_opts_ = NumOpts::optional;
     HasArg         has_arg_ = HasArg::no;
@@ -949,7 +949,11 @@ bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
 
     while (curr != last)
     {
-        Result const res = Handle1(*curr, curr, last);
+        // Make a copy of the current value.
+        // NB: This is actually only needed for InputIterator's...
+        std::string arg(*curr);
+
+        Result const res = Handle1(arg, curr, last);
 
         if (res == Result::error) {
             return false;
@@ -957,7 +961,6 @@ bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
 
         if (res == Result::ignored)
         {
-            std::string arg(*curr);
             FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%s'", arg.c_str());
             return false;
         }
@@ -2166,7 +2169,6 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
 
     return argv;
 }
-
 
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
