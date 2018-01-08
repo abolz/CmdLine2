@@ -2175,9 +2175,14 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
     return argv;
 }
 
+enum class ParseProgramName {
+    no,
+    yes,
+};
+
 // Parse arguments from a command line string into an argv-array.
 // Using Windows-style escaping.
-inline std::vector<std::string> TokenizeWindows(string_view str, bool parse_program_name = true)
+inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramName parse_program_name = ParseProgramName::yes)
 {
     std::vector<std::string> argv;
 
@@ -2188,7 +2193,7 @@ inline std::vector<std::string> TokenizeWindows(string_view str, bool parse_prog
     auto       next = str.data();
     auto const last = str.data() + str.size();
 
-    if (parse_program_name) {
+    if (parse_program_name == ParseProgramName::yes) {
         next = ParseProgramNameWindows{}(next, last, push_back);
     }
 

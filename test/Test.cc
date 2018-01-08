@@ -835,7 +835,7 @@ TEST_CASE("Tokenize Windows 1")
     for (auto const& t : tests)
     {
         CAPTURE(t.inp);
-        auto args = cl::TokenizeWindows(t.inp, /*parse_program_name*/ true);
+        auto args = cl::TokenizeWindows(t.inp, cl::ParseProgramName::yes);
         CHECK(args == t.out);
     }
 }
@@ -856,7 +856,7 @@ TEST_CASE("Tokenize Windows 2")
     char const* command_line
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true -dtrue -dno -d1";
 
-    CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, /*parse_program_name*/ false)));
+    CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, cl::ParseProgramName::yes)));
     cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);
