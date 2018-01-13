@@ -1,11 +1,13 @@
 # class `Option<P>`
 
-... Derives from `OptionBase`...
+## Base class `OptionBase`
+
+...
 
 ## Creating options
 
 ```c++
-OptionBase* MakeOption(char const* name, char const* descr, Parser parser, Flags... flags)
+Option<std::decay_t<Parser>> MakeOption(char const* name, char const* descr, Parser parser, Flags... flags)
 ```
 
 This function creates a new `Option`, which might be attached to a `CmdLine`
@@ -34,21 +36,18 @@ object (see below).
     The `CmdLine` parser uses the flags to split a command line argument into a
     name and an argument and then calls the option parser to convert the string.
 
-The return value if of type `Option<std::decay_t<Parser>>`.
-
 ```c++
-std::unique_ptr<OptionBase*> MakeUniqueOption(char const* name, char const* descr, Parser parser, Flags... flags)
+std::unique_ptr<Option<std::decay_t<Parser>>> MakeUniqueOption(char const* name, char const* descr, Parser parser, Flags... flags)
 ```
 
 Works exactly like `MakeOption` above. But instead of returning a new `Option`
 by value, this function returns a `std::unique_ptr` containing a heap-allocated
 `Option`.
 
-The return value is of type `std::unique_ptr<Option<std::decay_t<Parser>>>`.
-
 ```c++
 // Using class template argument deduction (C++17)
 Option(char const* name, char const* descr, Parser&& parser, Flags&&... flags)
+  -> Option<std::decay_t<Parser>>
 ```
 
 ## Flags
@@ -306,6 +305,7 @@ The latter seems slightly more useful in general. So the CmdLine library
 provides some utility classes and methods to easily convert strings into objects
 of other types and assigning the result to user-provided storage.
 
+---
 ```c++
 template <typename T, typename = void>
 struct ConvertTo {
@@ -331,7 +331,7 @@ The library provides some specializations:
     check using the limits of the actual integral type. Returns `true` if
     parsing and the range check succeed, returns `false` otherwise.
 
-* `float`, `double`, `long double` (floating-point types)
+* `float`, `double`, `long double`
 
     Use the `strtod` family of functions to parse the floating-point value.
     Returns `false` if the functions set `errno` to `ERANGE`, returns `true`
@@ -345,6 +345,7 @@ of your custom data type without any additional effort.
 **Note**: Using the default implementation, requires to additionally
 `#include <sstream>`.
 
+---
 ```c++
 template <typename T, typename = void>
 struct ParseValue {
@@ -367,10 +368,9 @@ option as specified on the command line. E.g., a flag parser might convert a
 command line argument to a boolean value depending on whether the option was
 specified as `"--debug"` or `"--no-debug"`.
 
-### function `Assign`
-
+---
 ```c++
-fn Assign(T& target)
+ParseFn Assign(T& target)
 ```
 
 Calls `ParseValue` to convert the string into a temporary object `v` of type
@@ -382,10 +382,9 @@ cmd.Add("i", "int", cl::Assign(i), cl::NumOpts::zero_or_more, cl::HasArg::requir
 // "-i 1 -i=2"  ==>  i == 2
 ```
 
-### function `PushBack`
-
+---
 ```c++
-fn PushBack(T& target)
+ParseFn PushBack(T& target)
 ```
 
 Calls `ParseValue` to convert the string into a temporary object `v` of type
@@ -397,10 +396,9 @@ cmd.Add("i", "int list", cl::PushBack(i), cl::NumOpts::zero_or_more, cl::HasArg:
 // "-i=1 -i 2"  ==>  i == {1,2}
 ```
 
-### function `Map`
-
+---
 ```c++
-fn Map(T& target, std::initializer_list<char const*, T>> map)
+ParseFn Map(T& target, std::initializer_list<char const*, T>> map)
 ```
 
 The returned parser converts strings to objects of type `T` by simply looking
@@ -425,7 +423,7 @@ cmd.Add("simpson", "The name of a Simpson",
 ### Predicates
 
 All of the functions defined above take an arbitrary number of additional
-functions, which can be used to check if a given value satisfies various
+functions which can be used to check if a given value satisfies various
 conditions.
 
 These functions must have the following signature:
@@ -502,33 +500,19 @@ object.
 ## Parse command line arguments
 
 ```c++
-bool Parse(InputIterator first, InputIterator last)
+bool Parse(InputIterator first, InputIterator last, CheckMissingOptions check_missing = yes)
 ```
 
 ...
 
 ```c++
-bool Parse(InputIterator first, InputIterator last, Sink sink)
+bool ParseArgs(Range const& args, CheckMissingOptions check_missing = yes)
 ```
-This is like the `Parse` function shown above. The difference is that instead of
-generating an error for unknown command line arguments, this method calls `sink`
-with the unknown argument as a parameter. This allows the user to ignore unknown
-arguments and continue parsing.
+
+...
 
 **Note**: Ignoring unknown arguments might screw up argument parsing. So use
 with caution.
-
-```c++
-bool ParseArgs(Range const& args)
-```
-
-...
-
-```c++
-bool ParseArgs(Range const& args, Sink sink)
-```
-
-...
 
 ## Diagnostics and help messages
 
@@ -542,12 +526,6 @@ Tokenize a string into command line arguments using `bash`-style escaping.
 
 #### `TokenizeWindows(string_view str) -> vector<string>`
 
-Tokenize a string into command line arguments using Windows-style escaping.
-
-See [CommandLineToArgvW](https://msdn.microsoft.com/en-us/library/windows/desktop/17w5ykft(v=vs.85).aspx)
+Tokenize a string into command line arguments using Windows-style escaping. See
+[CommandLineToArgvW](https://msdn.microsoft.com/en-us/library/windows/desktop/17w5ykft(v=vs.85).aspx)
 for details.
-
-# XXX
-
-* Response files
-* Wildcard expansion
