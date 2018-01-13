@@ -617,7 +617,7 @@ inline bool OptionBase::IsOccurrenceRequired() const
 }
 
 template <typename Parser>
-class Option : public OptionBase
+class Option final : public OptionBase
 {
 #if CL_HAS_STD_INVOCABLE
     static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value || std::is_invocable_r<void, Parser, ParseContext&>::value,
@@ -703,7 +703,7 @@ enum class CheckMissingOptions {
     yes,
 };
 
-class Cmdline
+class Cmdline final
 {
     struct NameOptionPair
     {
@@ -1058,6 +1058,7 @@ inline void Cmdline::PrintDiag() const
 #endif
 
 namespace impl {
+
 inline void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
 {
     CL_ASSERT(indent < width);
@@ -1083,6 +1084,7 @@ inline void AppendWrapped(std::string& out, string_view text, size_t indent, siz
         return true;
     });
 }
+
 } // namespace impl
 
 inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
@@ -1798,6 +1800,7 @@ auto LessEqual(T upper)
 } // namespace check
 
 namespace impl {
+
 template <typename T>
 struct RemoveCVRec
 {
@@ -1827,6 +1830,7 @@ bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
     return res;
 #endif
 }
+
 } // namespace impl
 
 // Default parser for scalar types.
@@ -1902,6 +1906,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 //==================================================================================================
 
 namespace impl {
+
 inline bool IsWhitespace(char ch)
 {
     switch (ch)
@@ -1927,6 +1932,7 @@ It SkipWhitespace(It next, It last)
 
     return next;
 }
+
 } // namespace impl
 
 struct ParseArgUnix
