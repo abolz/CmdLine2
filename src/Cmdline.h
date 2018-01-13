@@ -822,8 +822,6 @@ private:
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
-    Result DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group);
-
     template <typename It, typename EndIt>
     Result HandleGroup(string_view optstr, It& curr, EndIt last);
 
@@ -1321,12 +1319,16 @@ inline Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
     return Result::ignored;
 }
 
-// Check if OPTSTR is actually a group of single letter options and store the
-// options in GROUP.
-inline Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<OptionBase*>& group)
+template <typename It, typename EndIt>
+Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 {
-    group.reserve(optstr.size());
+    //
+    // XXX:
+    // Remove and call FindOption() in the second loop again?!
+    //
+    std::vector<OptionBase*> group;
 
+    // First determine if this is a valid option group.
     for (size_t n = 0; n < optstr.size(); ++n)
     {
         auto const name = optstr.substr(n, 1);
@@ -1336,8 +1338,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<O
             return Result::ignored;
         }
 
-        if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
-        {
+        if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size()) {
             group.push_back(opt);
             continue;
         }
@@ -1345,8 +1346,7 @@ inline Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<O
         // The option accepts an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
-        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::no)
-        {
+        if (optstr[n + 1] == '=' || opt->join_arg_ != JoinArg::no) {
             group.push_back(opt);
             break;
         }
@@ -1356,26 +1356,11 @@ inline Cmdline::Result Cmdline::DecomposeGroup(string_view optstr, std::vector<O
         return Result::error;
     }
 
-    return Result::success;
-}
-
-template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
-{
-    std::vector<OptionBase*> group;
-
-    // First determine if this is a valid option group.
-    auto const res = DecomposeGroup(optstr, group);
-
-    if (res != Result::success) {
-        return res;
-    }
-
     // Then process all options.
     for (size_t n = 0; n < group.size(); ++n)
     {
-        auto const opt = group[n];
         auto const name = optstr.substr(n, 1);
+        auto const opt = group[n];
 
         if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
         {
