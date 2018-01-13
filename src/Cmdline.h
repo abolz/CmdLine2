@@ -1093,54 +1093,53 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     const size_t descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
 
     std::string spos;
-    std::string sopt;
+    std::string sopt = "Options:\n";
+
+    bool has_options = false;
 
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->positional_ == Positional::yes)
         {
+            const auto is_optional = (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more);
+
             spos += ' ';
-            if (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more)
+            if (is_optional)
             {
                 spos += '[';
-                spos.append(opt->name_.data(), opt->name_.size());
-                spos += ']';
             }
-            else
+            spos.append(opt->name_.data(), opt->name_.size());
+            if (is_optional)
             {
-                spos.append(opt->name_.data(), opt->name_.size());
+                spos += ']';
             }
         }
         else
         {
-            const size_t col0 = sopt.size();
+            has_options = true;
+
+            const auto col0 = sopt.size();
             CL_ASSERT(col0 == 0 || sopt[col0 - 1] == '\n');
 
             sopt.append(fmt.indent, ' ');
             sopt += '-';
             sopt.append(opt->name_.data(), opt->name_.size());
 
-            switch (opt->has_arg_)
+            if (opt->has_arg_ != HasArg::no)
             {
-            case HasArg::no:
-                break;
-            case HasArg::optional:
-                sopt += "=<ARG>";
-                break;
-            case HasArg::required:
-                sopt += " <ARG>";
-                break;
+                sopt += (opt->has_arg_ == HasArg::optional)
+                    ? "=<ARG>"
+                    : " <ARG>";
             }
 
-            const size_t col = sopt.size() - col0;
-            if (col < fmt.descr_indent)
-            {
-                sopt.append(fmt.descr_indent - col, ' ');
-            }
-            else
+            const auto col = sopt.size() - col0;
+            const auto wrap = (col >= fmt.descr_indent);
+            const auto descr_indent = wrap ? fmt.descr_indent : fmt.descr_indent - col;
+
+            if (wrap)
             {
                 sopt += '\n';
-                sopt.append(fmt.descr_indent, ' ');
             }
+            sopt.append(descr_indent, ' ');
 
             impl::AppendWrapped(sopt, opt->descr_, fmt.descr_indent, descr_width);
 
@@ -1150,11 +1149,22 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         return true;
     });
 
-    if (sopt.empty()) {
-        return "Usage: " + std::string(program_name) + spos + '\n';
+    std::string res = "Usage: ";
+
+    res.append(program_name.data(), program_name.size());
+
+    if (has_options)
+    {
+        res += " [options]";
+    }
+    res += spos; // Might be empty. If not: starts with a ' '
+    res += '\n';
+    if (has_options)
+    {
+        res += sopt; // Ends with an '\n'
     }
 
-    return "Usage: " + std::string(program_name) + " [options]" + spos + "\nOptions:\n" + sopt;
+    return res;
 }
 
 inline void Cmdline::PrintHelp(string_view program_name, HelpFormat const& fmt) const
