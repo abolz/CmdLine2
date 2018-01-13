@@ -109,13 +109,11 @@ private:
     static size_t Min(size_t x, size_t y) { return y < x ? y : x; }
     static size_t Max(size_t x, size_t y) { return y < x ? x : y; }
 
-    static int Compare(char const* s1, char const* s2, size_t n) noexcept
-    {
+    static int Compare(char const* s1, char const* s2, size_t n) noexcept {
         return n == 0 ? 0 : ::memcmp(s1, s2, n);
     }
 
-    static char const* Find(char const* s, size_t n, char ch) noexcept
-    {
+    static char const* Find(char const* s, size_t n, char ch) noexcept {
         CL_ASSERT(n != 0);
         return static_cast<char const*>( ::memchr(s, static_cast<unsigned char>(ch), n) );
     }
@@ -174,37 +172,32 @@ public:
     constexpr const_iterator end() const noexcept { return data_ + size_; }
 
     // Returns a reference to the N-th character of the string.
-    const_reference operator[](size_t n) const noexcept
-    {
+    const_reference operator[](size_t n) const noexcept {
         CL_ASSERT(n < size_);
         return data_[n];
     }
 
     // Removes the first N characters from the string.
-    void remove_prefix(size_t n) noexcept
-    {
+    void remove_prefix(size_t n) noexcept {
         CL_ASSERT(n <= size_);
         data_ += n;
         size_ -= n;
     }
 
     // Removes the last N characters from the string.
-    void remove_suffix(size_t n) noexcept
-    {
+    void remove_suffix(size_t n) noexcept {
         CL_ASSERT(n <= size_);
         size_ -= n;
     }
 
     // Returns the substring [first, +count)
-    string_view substr(size_t first = 0) const noexcept
-    {
+    string_view substr(size_t first = 0) const noexcept {
         CL_ASSERT(first <= size_);
         return string_view(data_ + first, size_ - first);
     }
 
     // Returns the substring [first, +count)
-    string_view substr(size_t first, size_t count) const noexcept
-    {
+    string_view substr(size_t first, size_t count) const noexcept {
         CL_ASSERT(first <= size_);
         return string_view(data_ + first, Min(count, size_ - first));
     }
@@ -212,11 +205,13 @@ public:
     // Search for the first character ch in the sub-string [from, end)
     size_t find(char ch, size_t from = 0) const noexcept
     {
-        if (from >= size())
+        if (from >= size()) {
             return npos;
+        }
 
-        if (auto I = Find(data() + from, size() - from, ch))
+        if (auto I = Find(data() + from, size() - from, ch)) {
             return static_cast<size_t>(I - data());
+        }
 
         return npos;
     }
@@ -225,24 +220,26 @@ public:
     // which matches any of the characters in chars.
     size_t find_last_of(string_view chars, size_t from = npos) const noexcept
     {
-        if (chars.empty())
+        if (chars.empty()) {
             return npos;
+        }
 
-        if (from < size())
+        if (from < size()) {
             ++from;
-        else
+        } else {
             from = size();
+        }
 
         for (auto I = from; I != 0; --I) {
-            if (Find(chars.data(), chars.size(), data()[I - 1]))
+            if (Find(chars.data(), chars.size(), data()[I - 1])) {
                 return I - 1;
+            }
         }
 
         return npos;
     }
 
-    bool _cmp_eq(string_view other) const noexcept
-    {
+    bool _cmp_eq(string_view other) const noexcept {
         return size() == other.size() && Compare(data(), other.data(), size()) == 0;
     }
 
@@ -253,33 +250,27 @@ public:
     }
 };
 
-inline bool operator==(string_view s1, string_view s2) noexcept
-{
+inline bool operator==(string_view s1, string_view s2) noexcept {
     return s1._cmp_eq(s2);
 }
 
-inline bool operator!=(string_view s1, string_view s2) noexcept
-{
+inline bool operator!=(string_view s1, string_view s2) noexcept {
     return !(s1 == s2);
 }
 
-inline bool operator<(string_view s1, string_view s2) noexcept
-{
+inline bool operator<(string_view s1, string_view s2) noexcept {
     return s1._cmp_lt(s2);
 }
 
-inline bool operator<=(string_view s1, string_view s2) noexcept
-{
+inline bool operator<=(string_view s1, string_view s2) noexcept {
     return !(s2 < s1);
 }
 
-inline bool operator>(string_view s1, string_view s2) noexcept
-{
+inline bool operator>(string_view s1, string_view s2) noexcept {
     return s2 < s1;
 }
 
-inline bool operator>=(string_view s1, string_view s2) noexcept
-{
+inline bool operator>=(string_view s1, string_view s2) noexcept {
     return !(s1 < s2);
 }
 #endif
@@ -308,8 +299,7 @@ struct ByChar
     {
     }
 
-    DelimiterResult operator()(string_view const& str) const
-    {
+    DelimiterResult operator()(string_view const& str) const {
         return {str.find(ch), 1};
     }
 };
@@ -519,10 +509,6 @@ enum class EndsOptions : unsigned char {
     yes,
 };
 
-//==================================================================================================
-//
-//==================================================================================================
-
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
 // The members are only valid inside the callback (parser).
@@ -533,10 +519,6 @@ struct ParseContext
     int         index;   // Current index in the argv array
     Cmdline*    cmdline; // The command line parser which currently parses the argument list (never null)
 };
-
-//==================================================================================================
-//
-//==================================================================================================
 
 class OptionBase
 {
@@ -634,10 +616,6 @@ inline bool OptionBase::IsOccurrenceRequired() const
     return false;
 }
 
-//==================================================================================================
-//
-//==================================================================================================
-
 template <typename Parser>
 class Option : public OptionBase
 {
@@ -703,10 +681,6 @@ auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, 
         name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 }
 
-//==================================================================================================
-//
-//==================================================================================================
-
 struct Diagnostic
 {
     enum Type { error, warning, note };
@@ -723,10 +697,6 @@ struct Diagnostic
     {
     }
 };
-
-//==================================================================================================
-//
-//==================================================================================================
 
 class Cmdline
 {
@@ -1773,10 +1743,6 @@ struct ParseValue<void>
     }
 };
 
-//==================================================================================================
-//
-//==================================================================================================
-
 namespace check {
 
 // Returns a function object which checks whether a given value is in the range [lower, upper].
@@ -1825,10 +1791,6 @@ auto LessEqual(T upper)
 }
 
 } // namespace check
-
-//==================================================================================================
-//
-//==================================================================================================
 
 namespace impl {
 template <typename T>
