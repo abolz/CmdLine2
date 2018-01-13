@@ -107,7 +107,8 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::required);
+        auto opt_a = cl::MakeOption("a", "", cl::Assign(a), cl::NumOpts::required);
+        cl.Add(&opt_a);
 
         CHECK(false == ParseArgs(cl, {}));
         cl.Reset();
@@ -122,7 +123,8 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more);
+        auto opt_a = cl::MakeUniqueOption("a", "", cl::Assign(a), cl::NumOpts::zero_or_more);
+        cl.Add(std::move(opt_a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
