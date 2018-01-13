@@ -698,6 +698,11 @@ struct Diagnostic
     }
 };
 
+enum class CheckMissingOptions {
+    no,
+    yes,
+};
+
 class Cmdline
 {
     struct NameOptionPair
@@ -713,9 +718,9 @@ class Cmdline
         }
     };
 
-    using Diagnostics = std::vector<Diagnostic>;
+    using Diagnostics   = std::vector<Diagnostic>;
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
-    using Options = std::vector<NameOptionPair>;
+    using Options       = std::vector<NameOptionPair>;
 
     Diagnostics   diag_ = {};           // List of diagnostic messages
     UniqueOptions unique_options_ = {}; // Option storage.
@@ -762,12 +767,12 @@ public:
     // Parse the command line arguments in ARGS.
     // Emits an error for unknown options.
     template <typename Container>
-    bool ParseArgs(Container const& args, bool check_missing = true);
+    bool ParseArgs(Container const& args, CheckMissingOptions check_missing = CheckMissingOptions::yes);
 
     // Parse the command line arguments in [CURR, LAST).
     // Emits an error for unknown options.
     template <typename It, typename EndIt>
-    bool Parse(It curr, EndIt last, bool check_missing = true);
+    bool Parse(It curr, EndIt last, CheckMissingOptions check_missing = CheckMissingOptions::yes);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
@@ -904,7 +909,7 @@ inline void Cmdline::Reset()
 }
 
 template <typename Container>
-bool Cmdline::ParseArgs(Container const& args, bool check_missing)
+bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing)
 {
     using std::begin; // using ADL!
     using std::end;   // using ADL!
@@ -913,7 +918,7 @@ bool Cmdline::ParseArgs(Container const& args, bool check_missing)
 }
 
 template <typename It, typename EndIt>
-bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
+bool Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
 {
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_index_ >= 0);
@@ -945,7 +950,7 @@ bool Cmdline::Parse(It curr, EndIt last, bool check_missing)
         ++curr_index_;
     }
 
-    if (check_missing) {
+    if (check_missing == CheckMissingOptions::yes) {
         return !AnyMissing();
     }
 
