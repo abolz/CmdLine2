@@ -1538,17 +1538,14 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
 
 namespace impl {
 
-template <typename... Match>
-bool IsAnyOf(string_view value, Match&&... match)
+inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
 {
-#if CL_HAS_FOLD_EXPRESSIONS
-    return (... || (value == match));
-#else
-    bool res = false;
-    bool unused[] = {false, (res = res || (value == match))...};
-    static_cast<void>(unused);
-    return res;
-#endif
+    for (auto const& m : matches) {
+        if (value == m) {
+            return true;
+        }
+    }
+    return false;
 }
 
 template <typename T, typename Fn>
@@ -1642,9 +1639,9 @@ struct ConvertTo<bool>
 {
     bool operator()(string_view str, bool& value) const
     {
-        if (str.empty() || impl::IsAnyOf(str, "1", "y", "true", "True", "yes", "Yes", "on", "On")) {
+        if (impl::IsAnyOf(str, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"})) {
             value = true;
-        } else if (impl::IsAnyOf(str, "0", "n", "false", "False", "no", "No", "off", "Off")) {
+        } else if (impl::IsAnyOf(str, {"0", "n", "false", "False", "no", "No", "off", "Off"})) {
             value = false;
         } else {
             return false;
