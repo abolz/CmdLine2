@@ -935,6 +935,7 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
 
 inline void Cmdline::Reset()
 {
+    diag_.clear();
     curr_positional_ = 0;
     curr_index_ = 0;
     dashdash_ = false;
