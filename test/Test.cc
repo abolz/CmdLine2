@@ -73,7 +73,7 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
     fancy_iterator first{args.begin()};
     fancy_iterator last {args.end()};
 
-#if 1
+#if 0
     if (cl.Parse(first, last))
         return true;
 
@@ -864,4 +864,126 @@ TEST_CASE("Tokenize Windows 2")
     CHECK(b == true);
     CHECK(c == true);
     CHECK(d == true);
+}
+
+static auto Flag(bool& target)
+{
+    return [&](cl::ParseContext const& ctx) {
+        target = ctx.name.substr(0, 3) != "no-";
+        return true;
+    };
+}
+
+TEST_CASE("Invertible flag")
+{
+    bool a = false;
+    bool b = false;
+
+    cl::Cmdline cl;
+    cl.Add("a|no-a", "bool", Flag(a), cl::NumOpts::zero_or_more, cl::HasArg::no);
+    cl.Add("b|no-b", "bool", Flag(b), cl::NumOpts::zero_or_more, cl::HasArg::no);
+
+    CHECK(true == ParseArgs(cl, {}));
+    CHECK(a == false);
+    CHECK(b == false);
+    CHECK(true == ParseArgs(cl, {"-a", "-b"}));
+    CHECK(a == true);
+    CHECK(b == true);
+    CHECK(true == ParseArgs(cl, {"-no-a", "-no-b"}));
+    CHECK(a == false);
+    CHECK(b == false);
+}
+
+TEST_CASE("Ex 1")
+{
+    // TODO:
+    // Customize PrintHelp with some formatting... tabs, paragraphs etc...?!?!
+
+    enum class OptimizationLevel { O0, O1, O2, O3, Os };
+
+    OptimizationLevel optlevel = OptimizationLevel::O0;
+
+    cl::Cmdline cl;
+    cl.Add(
+        "O0|O1|O2|O3|Os",
+        "Optimization level\n"
+"-O0   No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+"-O1   Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
+"-O2   Full optimization; generates highly optimized code and has the slowest compilation time.\n"
+"-O3   Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
+"-Os   Optimize space usage (code and data) of resulting program.",
+        cl::Map(optlevel, {{"O0", OptimizationLevel::O0},
+                           {"O1", OptimizationLevel::O1},
+                           {"O2", OptimizationLevel::O2},
+                           {"O3", OptimizationLevel::O3},
+                           {"Os", OptimizationLevel::Os}}),
+        cl::HasArg::no,
+        cl::NumOpts::required
+        );
+
+    cl::Cmdline::HelpFormat fmt;
+    fmt.indent = 2;
+    fmt.descr_indent = 20;
+    fmt.max_width = 0;
+
+    CHECK(false == ParseArgs(cl, {}));
+    cl.PrintDiag();
+    cl.PrintHelp("compiler", fmt);
+}
+
+TEST_CASE("Ex 2")
+{
+    // TODO:
+    // Customize PrintHelp with some formatting... tabs, paragraphs etc...?!?!
+
+    enum class OptimizationLevel { O0, O1, O2, O3, Os };
+
+    OptimizationLevel optlevel = OptimizationLevel::O0;
+
+    cl::Cmdline cl;
+    cl.Add(
+        "O",
+        "Optimization level\n"
+"-O0   No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+"-O1   Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
+"-O2   Full optimization; generates highly optimized code and has the slowest compilation time.\n"
+"-O3   Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
+"-Os   Optimize space usage (code and data) of resulting program.",
+        [&](cl::ParseContext const& ctx) {
+            if (ctx.arg == "0")
+                optlevel = OptimizationLevel::O0;
+            else if (ctx.arg == "1")
+                optlevel = OptimizationLevel::O1;
+            else if (ctx.arg == "2")
+                optlevel = OptimizationLevel::O2;
+            else if (ctx.arg == "3")
+                optlevel = OptimizationLevel::O3;
+            else if (ctx.arg == "s")
+                optlevel = OptimizationLevel::Os;
+            else {
+                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option -O<optlevel>. <optlevel> must be 0,1,2,3, or s",
+                                        static_cast<int>(ctx.arg.size()), ctx.arg.data());
+                return false;
+            }
+
+            return true;
+        },
+        cl::JoinArg::yes,
+        cl::HasArg::required,
+        cl::NumOpts::required
+        );
+
+    cl::Cmdline::HelpFormat fmt;
+    fmt.indent = 2;
+    fmt.descr_indent = 4;
+    fmt.max_width = 24;
+
+    CHECK(false == ParseArgs(cl, {"-Oinf"}));
+    cl.PrintDiag();
+    cl.Reset();
+    CHECK(false == ParseArgs(cl, {"-O", "1"}));
+    cl.PrintDiag();
+    cl.Reset();
+    CHECK(true == ParseArgs(cl, {"-Os"}));
+    cl.PrintHelp("compiler", fmt);
 }
