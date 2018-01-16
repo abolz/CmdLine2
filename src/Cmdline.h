@@ -483,7 +483,9 @@ enum class HasArg : unsigned char {
     // An argument is optional.
     optional,
     // An argument is required.
-    required,
+    yes,
+    // An argument is required.
+    required = yes,
 };
 
 // Controls whether the option may/must join its argument.

@@ -208,7 +208,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::yes);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -969,7 +969,7 @@ TEST_CASE("Ex 2")
             return true;
         },
         cl::JoinArg::yes,
-        cl::HasArg::required,
+        cl::HasArg::yes,
         cl::NumOpts::required
         );
 
