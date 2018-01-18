@@ -1958,16 +1958,20 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
     return [=, &value, map = MapType(ilist)](ParseContext & ctx) {
         for (auto const& p : map)
         {
-            if (p.first == ctx.arg)
+            if (p.first != ctx.arg)
             {
-                // Parse into a local variable to allow the predicates to modify the value.
-                T temp = p.second;
-                if (impl::ApplyFuncs(ctx, temp, preds...))
-                {
-                    value = std::move(temp);
-                    return true;
-                }
+                continue;
             }
+
+            // Parse into a local variable to allow the predicates to modify the value.
+            T temp = p.second;
+            if (impl::ApplyFuncs(ctx, temp, preds...))
+            {
+                value = std::move(temp);
+                return true;
+            }
+
+            break;
         }
 
         ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option '%.*s'",
