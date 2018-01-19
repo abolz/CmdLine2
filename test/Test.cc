@@ -141,7 +141,12 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
+#if CL_HAS_DEDUCTION_GUIDES
+        cl::Option opt_a("a", "", cl::Assign(a), cl::NumOpts::one_or_more);
+        cl.Add(&opt_a);
+#else
         cl.Add("a", "", cl::Assign(a), cl::NumOpts::one_or_more);
+#endif
 
         CHECK(false == ParseArgs(cl, {}));
         cl.Reset();
