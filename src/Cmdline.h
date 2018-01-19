@@ -720,7 +720,7 @@ struct Diagnostic
 
     Type type = Type::error;
     int index = -1;
-    std::string message = {};
+    std::string message;
 
     Diagnostic() = default;
     Diagnostic(Type type_, int index_, std::string message_)
@@ -740,7 +740,7 @@ class Cmdline final
 {
     struct NameOptionPair
     {
-        string_view name = {}; // Points into option->name_
+        string_view name; // Points into option->name_
         OptionBase* option = nullptr;
 
         NameOptionPair() = default;
