@@ -128,6 +128,10 @@ public:
 
     constexpr string_view() noexcept = default;
     constexpr string_view(string_view const&) noexcept = default;
+    constexpr string_view(string_view&&) noexcept = default;
+    /*constexpr*/ string_view& operator=(string_view const&) noexcept = default;
+    /*constexpr*/ string_view& operator=(string_view&&) noexcept = default;
+    ~string_view() = default;
 
     string_view(const_pointer ptr, size_t len) noexcept
         : data_(ptr)
@@ -136,9 +140,9 @@ public:
         CL_ASSERT(size_ == 0 || data_ != nullptr);
     }
 
-    string_view(const_pointer c_str) noexcept
+    string_view(const_pointer c_str) noexcept // (NOLINT)
         : data_(c_str)
-        , size_(c_str ? ::strlen(c_str) : 0u)
+        , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
     }
 
@@ -148,7 +152,7 @@ public:
         typename SizeT = decltype(std::declval<String const&>().size()),
         typename = std::enable_if_t<
             std::is_convertible<DataT, const_pointer>::value && std::is_convertible<SizeT, size_t>::value>>
-    string_view(String const& str) noexcept
+    string_view(String const& str) noexcept // (NOLINT)
         : data_(str.data())
         , size_(str.size())
     {
@@ -205,14 +209,14 @@ public:
     string_view substr(size_t first = 0) const noexcept
     {
         CL_ASSERT(first <= size_);
-        return string_view(data_ + first, size_ - first);
+        return {data_ + first, size_ - first};
     }
 
     // Returns the substring [first, +count)
     string_view substr(size_t first, size_t count) const noexcept
     {
         CL_ASSERT(first <= size_);
-        return string_view(data_ + first, Min(count, size_ - first));
+        return {data_ + first, Min(count, size_ - first)};
     }
 
     // Search for the first character ch in the sub-string [from, end)
@@ -251,7 +255,7 @@ public:
 
         for (auto I = from; I != 0; --I)
         {
-            if (Find(chars.data(), chars.size(), data()[I - 1]))
+            if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr)
             {
                 return I - 1;
             }
@@ -553,10 +557,10 @@ enum class EndsOptions : unsigned char {
 // The members are only valid inside the callback (parser).
 struct ParseContext
 {
-    string_view name; // Name of the option being parsed    (only valid in callback!)
-    string_view arg;  // Option argument                    (only valid in callback!)
-    int index;        // Current index in the argv array
-    Cmdline* cmdline; // The command line parser which currently parses the argument list (never null)
+    string_view name;           // Name of the option being parsed    (only valid in callback!)
+    string_view arg;            // Option argument                    (only valid in callback!)
+    int index = 0;              // Current index in the argv array
+    Cmdline* cmdline = nullptr; // The command line parser which currently parses the argument list (never null)
 };
 
 class OptionBase
@@ -580,7 +584,7 @@ class OptionBase
 
 private:
     template <typename T>
-    void Apply(T) = delete; // For slightly more useful error messages...
+    void Apply(T) = delete; // For slightly more useful error messages... (NOLINT)
 
     // clang-format off
     void Apply(NumOpts        v) { num_opts_        = v; }
@@ -607,6 +611,10 @@ protected:
     }
 
 public:
+    OptionBase(OptionBase const&) = default;
+    OptionBase(OptionBase&&) = default;
+    OptionBase& operator=(OptionBase const&) = default;
+    OptionBase& operator=(OptionBase&&) = default;
     virtual ~OptionBase();
 
 public:
@@ -628,9 +636,7 @@ private:
     virtual bool Parse(ParseContext& ctx) = 0;
 };
 
-inline OptionBase::~OptionBase()
-{
-}
+inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const
 {
@@ -764,9 +770,12 @@ class Cmdline final
     bool dashdash_ = false;        // "--" seen?
 
 public:
-    Cmdline() = default;
+    Cmdline();
     Cmdline(Cmdline const&) = delete;
+    Cmdline(Cmdline&&) = delete;
     Cmdline& operator=(Cmdline const&) = delete;
+    Cmdline& operator=(Cmdline&&) = delete;
+    ~Cmdline();
 
     // Returns the diagnostic messages
     std::vector<Diagnostic> const& diag() const { return diag_; }
@@ -815,9 +824,9 @@ public:
 
     struct HelpFormat
     {
-        size_t indent;
-        size_t descr_indent;
-        size_t max_width;
+        size_t indent;       // (NOLINT)
+        size_t descr_indent; // (NOLINT)
+        size_t max_width;    // (NOLINT)
 
         HelpFormat()
             : indent(2)
@@ -875,22 +884,26 @@ private:
     bool ForEachUniqueOption(Fn fn) const;
 };
 
+inline Cmdline::Cmdline() = default;
+
+inline Cmdline::~Cmdline() = default;
+
 inline void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string message)
 {
     diag_.emplace_back(type, index, std::move(message));
 }
 
-inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...)
+inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...) // (NOLINT)
 {
     const size_t kBufSize = 1024;
     char buf[kBufSize];
 
     va_list args;
     va_start(args, format);
-    vsnprintf(buf, kBufSize, format, args);
+    vsnprintf(&buf[0], kBufSize, format, args);
     va_end(args);
 
-    diag_.emplace_back(type, index, std::string(buf));
+    diag_.emplace_back(type, index, std::string(&buf[0]));
 }
 
 template <typename ParserInit, typename... Args>
@@ -920,7 +933,7 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
 
         if (opt->join_arg_ != JoinArg::no)
         {
-            int const n = static_cast<int>(name.size());
+            auto const n = static_cast<int>(name.size());
             if (max_prefix_len_ < n)
             {
                 max_prefix_len_ = n;
@@ -1174,7 +1187,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
 
             if (opt->has_arg_ != HasArg::no)
             {
-                sopt += (opt->has_arg_ == HasArg::optional)
+                sopt += (opt->has_arg_ == HasArg::optional) // (NOLINT)
                             ? "=<ARG>"
                             : " <ARG>";
             }
@@ -1304,7 +1317,7 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 
 inline Cmdline::Result Cmdline::HandlePositional(string_view optstr)
 {
-    int const E = static_cast<int>(options_.size());
+    auto const E = static_cast<int>(options_.size());
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_positional_ <= E);
 
@@ -1368,7 +1381,7 @@ inline Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
     // Start with the longest to allow different prefixes like e.g. "-with" and
     // "-without".
 
-    size_t n = static_cast<size_t>(max_prefix_len_);
+    auto n = static_cast<size_t>(max_prefix_len_);
     if (n > optstr.size())
     {
         n = optstr.size();
@@ -1640,7 +1653,7 @@ bool StrToX(string_view sv, T& value, Fn fn)
     {
         return false;
     }
-    if (end != ptr + str.size())
+    if (end != ptr + str.size()) // (NOLINT)
     {
         return false; // not all characters extracted
     }
