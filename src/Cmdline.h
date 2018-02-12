@@ -1965,10 +1965,9 @@ auto PushBack(T& container, Predicates&&... preds)
 template <typename T, typename... Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
-    // clang-format off
     using MapType = std::vector<std::pair<char const*, T>>;
 
-    return [=, &value, map = MapType(ilist)](ParseContext & ctx) {
+    return [=, &value, map = MapType(ilist)](ParseContext& ctx) {
         for (auto const& p : map)
         {
             if (p.first != ctx.arg)
@@ -1997,7 +1996,6 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
         return false;
     };
-    // clang-format on
 }
 
 //==================================================================================================
@@ -2277,6 +2275,183 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
 
     return argv;
 }
+
+#if 0
+#if _WIN32
+namespace impl {
+
+template <typename It>
+inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
+{
+    constexpr uint32_t kReplacementCharacter = 0xFFFD;
+
+    assert(next != last);
+    if (next == last)
+    {
+        U = kReplacementCharacter;
+        return next;
+    }
+
+    //
+    // Decoding of a single character from UTF-16 to an ISO 10646 character
+    // value proceeds as follows. Let W1 be the next 16-bit integer in the
+    // sequence of integers representing the text. Let W2 be the (eventual)
+    // next integer following W1.
+    //
+
+    uint32_t W1 = static_cast<uint16_t>(*next);
+    ++next;
+
+    //
+    // 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
+    // of W1. Terminate.
+    //
+
+    if (W1 < 0xD800 || W1 > 0xDFFF)
+    {
+        U = W1;
+        return next;
+    }
+
+    //
+    // 2) Determine if W1 is between 0xD800 and 0xDBFF. If not, the sequence
+    // is in error and no valid character can be obtained using W1.
+    // Terminate.
+    //
+
+    if (W1 > 0xDBFF)
+    {
+        U = kReplacementCharacter;
+        return next;
+    }
+
+    //
+    // 3) If there is no W2 (that is, the sequence ends with W1), or if W2
+    // is not between 0xDC00 and 0xDFFF, the sequence is in error.
+    // Terminate.
+    //
+
+    if (next == last)
+    {
+        U = kReplacementCharacter;
+        return next;
+    }
+
+    uint32_t W2 = static_cast<uint16_t>(*next);
+    ++next;
+
+    if (W2 < 0xDC00 || W2 > 0xDFFF)
+    {
+        U = kReplacementCharacter;
+        return next;
+    }
+
+    //
+    // 4) Construct a 20-bit unsigned integer U', taking the 10 low-order
+    // bits of W1 as its 10 high-order bits and the 10 low-order bits of
+    // W2 as its 10 low-order bits.
+    //
+    //
+    // 5) Add 0x10000 to U' to obtain the character value U. Terminate.
+    //
+
+    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
+    return next;
+}
+
+template <typename Put8>
+inline void EncodeUTF8(uint32_t U, Put8 put)
+{
+    //
+    // 1. Characters with values greater than 0x10FFFF cannot be encoded in
+    //    UTF-16.
+    // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
+    //    with UTF-16, and don't have any characters assigned to them.
+    //
+    assert(U <= 0x10FFFF);
+    assert(U < 0xD800 || U > 0xDFFF);
+
+    //
+    // Char. number range  |        UTF-8 octet sequence
+    //    (hexadecimal)    |              (binary)
+    // --------------------+---------------------------------------------
+    // 0000 0000-0000 007F | 0xxxxxxx
+    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    //
+    // Encoding a character to UTF-8 proceeds as follows:
+    //
+    // 1.  Determine the number of octets required from the character number
+    // and the first column of the table above.  It is important to note
+    // that the rows of the table are mutually exclusive, i.e., there is
+    // only one valid way to encode a given character.
+    //
+    // 2.  Prepare the high-order bits of the octets as per the second
+    // column of the table.
+    //
+    // 3.  Fill in the bits marked x from the bits of the character number,
+    // expressed in binary.  Start by putting the lowest-order bit of
+    // the character number in the lowest-order position of the last
+    // octet of the sequence, then put the next higher-order bit of the
+    // character number in the next higher-order position of that octet,
+    // etc.  When the x bits of the last octet are filled in, move on to
+    // the next to last octet, then to the preceding one, etc. until all
+    // x bits are filled in.
+    //
+
+    // clang-format off
+    if (U <= 0x7F)
+    {
+        put( static_cast<char>( U ) );
+    }
+    else if (U <= 0x7FF)
+    {
+        put( static_cast<char>( 0xC0 | ((U >>  6)       ) ) );
+        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    else if (U <= 0xFFFF)
+    {
+        put( static_cast<char>( 0xE0 | ((U >> 12)       ) ) );
+        put( static_cast<char>( 0x80 | ((U >>  6) & 0x3F) ) );
+        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    else if (U <= 0x10FFFF)
+    {
+        put( static_cast<char>( 0xF0 | ((U >> 18)       ) ) );
+        put( static_cast<char>( 0x80 | ((U >> 12) & 0x3F) ) );
+        put( static_cast<char>( 0x80 | ((U >>  6) & 0x3F) ) );
+        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    // clang-format on
+}
+
+template <typename It>
+std::string ConvertUTF16ToUTF8(It next, It last)
+{
+    std::string str;
+
+    while (next != last)
+    {
+        uint32_t U;
+        next = impl::DecodeUTF16Sequence(next, last, U);
+        impl::EncodeUTF8(U, [&](char ch) { str.push_back(ch); });
+    }
+
+    return str;
+}
+
+} // namespace impl
+
+inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
+{
+    auto const next = command_line;
+    auto const last = command_line + std::char_traits<wchar_t>::length(command_line);
+
+    return cl::TokenizeWindows(impl::ConvertUTF16ToUTF8(next, last), parse_program_name);
+}
+#endif // _WIN32
+#endif
 
 } // namespace cl
 
