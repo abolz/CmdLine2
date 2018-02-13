@@ -21,6 +21,12 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#ifndef CL_WIDE_STRING_SUPPORT
+#if _WIN32
+#define CL_WIDE_STRING_SUPPORT 1
+#endif
+#endif
+
 #include <cassert>
 #include <cerrno>
 #include <cstdarg>
@@ -1730,6 +1736,314 @@ struct ConvertToUnsignedInt
     }
 };
 
+#if CL_WIDE_STRING_SUPPORT
+
+constexpr uint32_t kInvalidCodepoint = 0xFFFFFFFF;
+constexpr uint32_t kReplacementCharacter = 0xFFFD;
+
+inline bool IsValidCodePoint(uint32_t U)
+{
+    //
+    // 1. Characters with values greater than 0x10FFFF cannot be encoded in
+    //    UTF-16.
+    // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
+    //    with UTF-16, and don't have any characters assigned to them.
+    //
+    return U <= 0x10FFFF && (U < 0xD800 || U > 0xDFFF);
+}
+
+inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
+{
+    const uint32_t b = static_cast<uint8_t>(ch);
+
+    // clang-format off
+    if (b < 0x80) { U = b;        return 1; }
+    if (b < 0xC0) {               return 0; }
+    if (b < 0xE0) { U = b & 0x1F; return 2; }
+    if (b < 0xF0) { U = b & 0x0F; return 3; }
+    if (b < 0xF8) { U = b & 0x07; return 4; }
+    return 0;
+    // clang-format on
+}
+
+inline int GetUTF8SequenceLengthFromCodepoint(uint32_t U)
+{
+    CL_ASSERT(IsValidCodePoint(U));
+
+    if (U <= 0x7F)
+        return 1;
+    if (U <= 0x7FF)
+        return 2;
+    if (U <= 0xFFFF)
+        return 3;
+    return 4;
+}
+
+inline bool IsUTF8OverlongSequence(uint32_t U, int slen)
+{
+    return slen != GetUTF8SequenceLengthFromCodepoint(U);
+}
+
+inline bool IsUTF8ContinuationByte(char ch)
+{
+    const uint32_t b = static_cast<uint8_t>(ch);
+
+    return 0x80 == (b & 0xC0); // b == 10xxxxxx???
+}
+
+template <typename It>
+inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
+{
+    CL_ASSERT(next != last);
+    if (next == last)
+    {
+        U = kInvalidCodepoint; // Insuffient data
+        return next;
+    }
+
+    //
+    // Char. number range  |        UTF-8 octet sequence
+    //    (hexadecimal)    |              (binary)
+    // --------------------+---------------------------------------------
+    // 0000 0000-0000 007F | 0xxxxxxx
+    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    //
+    // Decoding a UTF-8 character proceeds as follows:
+    //
+    // 1.  Initialize a binary number with all bits set to 0.  Up to 21 bits
+    // may be needed.
+    //
+    // 2.  Determine which bits encode the character number from the number
+    // of octets in the sequence and the second column of the table
+    // above (the bits marked x).
+    //
+
+    const int slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
+    ++next;
+
+    if (slen == 0 || last - next < slen - 1)
+    {
+        U = kInvalidCodepoint; // Invalid lead byte or insufficient data
+        return next;
+    }
+
+    //
+    // 3.  Distribute the bits from the sequence to the binary number, first
+    // the lower-order bits from the last octet of the sequence and
+    // proceeding to the left until no x bits are left.  The binary
+    // number is now equal to the character number.
+    //
+
+    const auto end = next + (slen - 1);
+    for (; next != end; ++next)
+    {
+        if (!IsUTF8ContinuationByte(*next))
+        {
+            U = kInvalidCodepoint; // Invalid continuation byte
+            return next;
+        }
+
+        U = (U << 6) | (static_cast<uint8_t>(*next) & 0x3F);
+    }
+
+    //
+    // Implementations of the decoding algorithm above MUST protect against
+    // decoding invalid sequences.  For instance, a naive implementation may
+    // decode the overlong UTF-8 sequence C0 80 into the character U+0000,
+    // or the surrogate pair ED A1 8C ED BE B4 into U+233B4.  Decoding
+    // invalid sequences may have security consequences or cause other
+    // problems.
+    //
+
+    if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen))
+    {
+        U = kInvalidCodepoint; // Invalid codepoint or overlong sequence
+        return next;
+    }
+
+    return next;
+}
+
+template <typename It>
+inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
+{
+    CL_ASSERT(next != last);
+    if (next == last)
+    {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    //
+    // Decoding of a single character from UTF-16 to an ISO 10646 character
+    // value proceeds as follows. Let W1 be the next 16-bit integer in the
+    // sequence of integers representing the text. Let W2 be the (eventual)
+    // next integer following W1.
+    //
+
+    uint32_t W1 = static_cast<uint16_t>(*next);
+    ++next;
+
+    //
+    // 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
+    // of W1. Terminate.
+    //
+
+    if (W1 < 0xD800 || W1 > 0xDFFF)
+    {
+        U = W1;
+        return next;
+    }
+
+    //
+    // 2) Determine if W1 is between 0xD800 and 0xDBFF. If not, the sequence
+    // is in error and no valid character can be obtained using W1.
+    // Terminate.
+    //
+
+    if (W1 > 0xDBFF)
+    {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    //
+    // 3) If there is no W2 (that is, the sequence ends with W1), or if W2
+    // is not between 0xDC00 and 0xDFFF, the sequence is in error.
+    // Terminate.
+    //
+
+    if (next == last)
+    {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    uint32_t W2 = static_cast<uint16_t>(*next);
+    ++next;
+
+    if (W2 < 0xDC00 || W2 > 0xDFFF)
+    {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    //
+    // 4) Construct a 20-bit unsigned integer U', taking the 10 low-order
+    // bits of W1 as its 10 high-order bits and the 10 low-order bits of
+    // W2 as its 10 low-order bits.
+    //
+    //
+    // 5) Add 0x10000 to U' to obtain the character value U. Terminate.
+    //
+
+    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
+    return next;
+}
+
+template <typename Put8>
+inline void EncodeUTF8(uint32_t U, Put8 put)
+{
+    CL_ASSERT(IsValidCodePoint(U));
+
+    //
+    // Char. number range  |        UTF-8 octet sequence
+    //    (hexadecimal)    |              (binary)
+    // --------------------+---------------------------------------------
+    // 0000 0000-0000 007F | 0xxxxxxx
+    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    //
+    // Encoding a character to UTF-8 proceeds as follows:
+    //
+    // 1.  Determine the number of octets required from the character number
+    // and the first column of the table above.  It is important to note
+    // that the rows of the table are mutually exclusive, i.e., there is
+    // only one valid way to encode a given character.
+    //
+    // 2.  Prepare the high-order bits of the octets as per the second
+    // column of the table.
+    //
+    // 3.  Fill in the bits marked x from the bits of the character number,
+    // expressed in binary.  Start by putting the lowest-order bit of
+    // the character number in the lowest-order position of the last
+    // octet of the sequence, then put the next higher-order bit of the
+    // character number in the next higher-order position of that octet,
+    // etc.  When the x bits of the last octet are filled in, move on to
+    // the next to last octet, then to the preceding one, etc. until all
+    // x bits are filled in.
+    //
+
+    // clang-format off
+    if (U <= 0x7F)
+    {
+        put( static_cast<uint8_t>( U ) );
+    }
+    else if (U <= 0x7FF)
+    {
+        put( static_cast<uint8_t>( 0xC0 | ((U >>  6)       ) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    else if (U <= 0xFFFF)
+    {
+        put( static_cast<uint8_t>( 0xE0 | ((U >> 12)       ) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    else if (U <= 0x10FFFF)
+    {
+        put( static_cast<uint8_t>( 0xF0 | ((U >> 18)       ) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
+        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+    }
+    // clang-format on
+}
+
+template <typename Put16>
+inline void EncodeUTF16(uint32_t U, Put16 put)
+{
+    CL_ASSERT(IsValidCodePoint(U));
+
+    //
+    // Encoding of a single character from an ISO 10646 character value to
+    // UTF-16 proceeds as follows. Let U be the character number, no greater
+    // than 0x10FFFF.
+    //
+    // 1) If U < 0x10000, encode U as a 16-bit unsigned integer and terminate.
+    //
+
+    if (U < 0x10000)
+    {
+        put(static_cast<uint16_t>(U));
+        return;
+    }
+
+    //
+    // 2) Let U' = U - 0x10000. Because U is less than or equal to 0x10FFFF,
+    // U' must be less than or equal to 0xFFFFF. That is, U' can be
+    // represented in 20 bits.
+    //
+    // 3) Initialize two 16-bit unsigned integers, W1 and W2, to 0xD800 and
+    // 0xDC00, respectively. These integers each have 10 bits free to
+    // encode the character value, for a total of 20 bits.
+    //
+    // 4) Assign the 10 high-order bits of the 20-bit U' to the 10 low-order
+    // bits of W1 and the 10 low-order bits of U' to the 10 low-order
+    // bits of W2. Terminate.
+    //
+
+    const uint32_t Up = U - 0x10000;
+
+    put(static_cast<uint16_t>(0xD800 + ((Up >> 10) & 0x3FF)));
+    put(static_cast<uint16_t>(0xDC00 + ((Up      ) & 0x3FF)));
+}
+
+#endif // CL_WIDE_STRING_SUPPORT
+
 } // namespace impl
 
 // Convert the string representation in STR into an object of type T.
@@ -1817,25 +2131,6 @@ struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
     }
 };
 
-#if 0
-template <typename Key, typename Value>
-struct ConvertTo<std::pair<Key, Value>>
-{
-    bool operator()(string_view str, std::pair<Key, Value>& value) const
-    {
-        auto const p = str.find(':');
-
-        if (p == string_view::npos)
-        {
-            return false;
-        }
-
-        return ConvertTo<Key>{}(str.substr(0, p), value.first)
-               && ConvertTo<Value>{}(str.substr(p + 1), value.second);
-    }
-};
-#endif
-
 // The default implementation uses template argument deduction to select the correct specialization.
 template <>
 struct ConvertTo<void>
@@ -1857,6 +2152,52 @@ struct ParseValue
         return ConvertTo<T>{}(ctx.arg, value);
     }
 };
+
+#if CL_WIDE_STRING_SUPPORT
+
+template <typename Alloc>
+struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>& value) const
+    {
+        value.clear();
+
+        auto next = ctx.arg.begin();
+        auto const last = ctx.arg.end();
+
+        while (next != last)
+        {
+            uint32_t U = 0;
+
+            auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
+            CL_ASSERT(next != next1);
+            next = next1;
+
+            if (U == impl::kInvalidCodepoint)
+            {
+#if 1
+                ctx.cmdline->FormatDiag(cl::Diagnostic::warning, ctx.index, "Invalid UTF-8 encoded string detected (invalid sequence at code-unit %d)", static_cast<int>(next - ctx.arg.begin()));
+                U = impl::kReplacementCharacter;
+#else
+                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string detected (invalid sequence at code-unit %d)", static_cast<int>(next - ctx.arg.begin()));
+                return false;
+#endif
+            }
+
+#if _WIN32
+            static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+            impl::EncodeUTF16(U, [&value](uint16_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
+#else
+            static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+            value.push_back(static_cast<wchar_t>(U));
+#endif
+        }
+
+        return true;
+    }
+};
+
+#endif // CL_WIDE_STRING_SUPPORT
 
 template <>
 struct ParseValue<void>
@@ -2304,182 +2645,39 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
-#if 0
-#if _WIN32
-namespace impl {
-
-template <typename It>
-inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
-{
-    constexpr uint32_t kReplacementCharacter = 0xFFFD;
-
-    assert(next != last);
-    if (next == last)
-    {
-        U = kReplacementCharacter;
-        return next;
-    }
-
-    //
-    // Decoding of a single character from UTF-16 to an ISO 10646 character
-    // value proceeds as follows. Let W1 be the next 16-bit integer in the
-    // sequence of integers representing the text. Let W2 be the (eventual)
-    // next integer following W1.
-    //
-
-    uint32_t W1 = static_cast<uint16_t>(*next);
-    ++next;
-
-    //
-    // 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
-    // of W1. Terminate.
-    //
-
-    if (W1 < 0xD800 || W1 > 0xDFFF)
-    {
-        U = W1;
-        return next;
-    }
-
-    //
-    // 2) Determine if W1 is between 0xD800 and 0xDBFF. If not, the sequence
-    // is in error and no valid character can be obtained using W1.
-    // Terminate.
-    //
-
-    if (W1 > 0xDBFF)
-    {
-        U = kReplacementCharacter;
-        return next;
-    }
-
-    //
-    // 3) If there is no W2 (that is, the sequence ends with W1), or if W2
-    // is not between 0xDC00 and 0xDFFF, the sequence is in error.
-    // Terminate.
-    //
-
-    if (next == last)
-    {
-        U = kReplacementCharacter;
-        return next;
-    }
-
-    uint32_t W2 = static_cast<uint16_t>(*next);
-    ++next;
-
-    if (W2 < 0xDC00 || W2 > 0xDFFF)
-    {
-        U = kReplacementCharacter;
-        return next;
-    }
-
-    //
-    // 4) Construct a 20-bit unsigned integer U', taking the 10 low-order
-    // bits of W1 as its 10 high-order bits and the 10 low-order bits of
-    // W2 as its 10 low-order bits.
-    //
-    //
-    // 5) Add 0x10000 to U' to obtain the character value U. Terminate.
-    //
-
-    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
-    return next;
-}
-
-template <typename Put8>
-inline void EncodeUTF8(uint32_t U, Put8 put)
-{
-    //
-    // 1. Characters with values greater than 0x10FFFF cannot be encoded in
-    //    UTF-16.
-    // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
-    //    with UTF-16, and don't have any characters assigned to them.
-    //
-    assert(U <= 0x10FFFF);
-    assert(U < 0xD800 || U > 0xDFFF);
-
-    //
-    // Char. number range  |        UTF-8 octet sequence
-    //    (hexadecimal)    |              (binary)
-    // --------------------+---------------------------------------------
-    // 0000 0000-0000 007F | 0xxxxxxx
-    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
-    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
-    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-    //
-    // Encoding a character to UTF-8 proceeds as follows:
-    //
-    // 1.  Determine the number of octets required from the character number
-    // and the first column of the table above.  It is important to note
-    // that the rows of the table are mutually exclusive, i.e., there is
-    // only one valid way to encode a given character.
-    //
-    // 2.  Prepare the high-order bits of the octets as per the second
-    // column of the table.
-    //
-    // 3.  Fill in the bits marked x from the bits of the character number,
-    // expressed in binary.  Start by putting the lowest-order bit of
-    // the character number in the lowest-order position of the last
-    // octet of the sequence, then put the next higher-order bit of the
-    // character number in the next higher-order position of that octet,
-    // etc.  When the x bits of the last octet are filled in, move on to
-    // the next to last octet, then to the preceding one, etc. until all
-    // x bits are filled in.
-    //
-
-    // clang-format off
-    if (U <= 0x7F)
-    {
-        put( static_cast<char>( U ) );
-    }
-    else if (U <= 0x7FF)
-    {
-        put( static_cast<char>( 0xC0 | ((U >>  6)       ) ) );
-        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
-    }
-    else if (U <= 0xFFFF)
-    {
-        put( static_cast<char>( 0xE0 | ((U >> 12)       ) ) );
-        put( static_cast<char>( 0x80 | ((U >>  6) & 0x3F) ) );
-        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
-    }
-    else if (U <= 0x10FFFF)
-    {
-        put( static_cast<char>( 0xF0 | ((U >> 18)       ) ) );
-        put( static_cast<char>( 0x80 | ((U >> 12) & 0x3F) ) );
-        put( static_cast<char>( 0x80 | ((U >>  6) & 0x3F) ) );
-        put( static_cast<char>( 0x80 | ((U      ) & 0x3F) ) );
-    }
-    // clang-format on
-}
-
-template <typename It>
-std::string ConvertUTF16ToUTF8(It next, It last)
-{
-    std::string str;
-
-    while (next != last)
-    {
-        uint32_t U;
-        next = impl::DecodeUTF16Sequence(next, last, U);
-        impl::EncodeUTF8(U, [&](char ch) { str.push_back(ch); });
-    }
-
-    return str;
-}
-
-} // namespace impl
+#if CL_WIDE_STRING_SUPPORT && _WIN32
 
 inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
 {
-    auto const next = command_line;
+    static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+
+    CL_ASSERT(command_line != nullptr);
+
+    auto next = command_line;
     auto const last = command_line + std::char_traits<wchar_t>::length(command_line);
 
-    return cl::TokenizeWindows(impl::ConvertUTF16ToUTF8(next, last), parse_program_name);
+    std::string command_line_utf8;
+
+    while (next != last)
+    {
+        uint32_t U = 0;
+
+        auto const next1 = impl::DecodeUTF16Sequence(next, last, U);
+        CL_ASSERT(next != next1);
+        next = next1;
+
+        if (U == impl::kInvalidCodepoint)
+        {
+            U = impl::kReplacementCharacter;
+        }
+
+        impl::EncodeUTF8(U, [&](uint8_t ch) { command_line_utf8.push_back(static_cast<char>(ch)); });
+    }
+
+    return cl::TokenizeWindows(command_line_utf8, parse_program_name);
 }
-#endif // _WIN32
-#endif
+
+#endif // CL_WIDE_STRING_SUPPORT && _WIN32
 
 } // namespace cl
 
