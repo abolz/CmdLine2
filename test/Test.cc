@@ -74,13 +74,13 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
     fancy_iterator last {args.end()};
 
 #if 0
-    if (cl.Parse(first, last))
+    if (cl.Parse(first, last).success)
         return true;
 
     cl.PrintDiag();
     return false;
 #else
-    return cl.Parse(first, last);
+    return cl.Parse(first, last).success;
 #endif
 }
 
@@ -443,6 +443,48 @@ TEST_CASE("EndsOptions")
     CHECK(sink.size() == 6);
     CHECK(sink[4] == "-a");
     CHECK(sink[5] == "false");
+}
+
+TEST_CASE("StopParsing")
+{
+    std::string command;
+    int a = 0;
+
+    cl::Cmdline cli;
+    cli.Add("a", "", cl::Assign(a), cl::HasArg::optional);
+    cli.Add("command", "", cl::Assign(command), cl::Positional::yes, cl::HasArg::yes, cl::StopParsing::yes, cl::NumOpts::required);
+
+    SECTION("1")
+    {
+        a = -1;
+
+        cli.Reset();
+        auto const args = {"-a=123", "command", "-b", "-c"};
+        auto const res = cli.Parse(args.begin(), args.end(), cl::CheckMissingOptions::yes);
+        CHECK(res.success);
+        CHECK(res.next == args.begin() + 1);
+        CHECK(a == 123);
+        CHECK(command == "command");
+    }
+    SECTION("2")
+    {
+        a = -1;
+
+        cli.Reset();
+        auto const args = {"command", "-a=hello", "-b", "-c"};
+        auto const res = cli.Parse(args.begin(), args.end(), cl::CheckMissingOptions::yes);
+        CHECK(res.success);
+        CHECK(res.next == args.begin() + 0);
+        CHECK(a == -1);
+        CHECK(command == "command");
+    }
+}
+
+TEST_CASE("Subcommands")
+{
+    // ...
+    // ...
+    // ...
 }
 
 TEST_CASE("Strings")
@@ -911,12 +953,17 @@ TEST_CASE("Ex 1")
     cl::Cmdline cl;
     cl.Add(
         "O0|O1|O2|O3|Os",
-        "Optimization level\n"
-"-O0   No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
-"-O1   Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
-"-O2   Full optimization; generates highly optimized code and has the slowest compilation time.\n"
-"-O3   Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
-"-Os   Optimize space usage (code and data) of resulting program.",
+"Optimization level\n"
+"  -O0  No optimization (the default); generates unoptimized code but has the\n"
+"       fastest compilation time.\n"
+"  -O1  Moderate optimization; optimizes reasonably well but does not degrade\n"
+"       compilation time significantly.\n"
+"  -O2  Full optimization; generates highly optimized code and has the\n"
+"       slowest compilation time.\n"
+"  -O3  Full optimization as in -O2; also uses more aggressive automatic\n"
+"       inlining of subprograms within a unit (Inlining of Subprograms) and\n"
+"       attempts to vectorize loops.\n"
+"  -Os  Optimize space usage (code and data) of resulting program.",
         cl::Map(optlevel, {{"O0", OptimizationLevel::O0},
                            {"O1", OptimizationLevel::O1},
                            {"O2", OptimizationLevel::O2},
@@ -948,7 +995,7 @@ TEST_CASE("Ex 2")
     cl::Cmdline cl;
     cl.Add(
         "O",
-        "Optimization level\n"
+"Optimization level\n"
 "-O0   No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
 "-O1   Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
 "-O2   Full optimization; generates highly optimized code and has the slowest compilation time.\n"
@@ -966,8 +1013,8 @@ TEST_CASE("Ex 2")
             else if (ctx.arg == "s")
                 optlevel = OptimizationLevel::Os;
             else {
-                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option -O<optlevel>. <optlevel> must be 0,1,2,3, or s",
-                                        static_cast<int>(ctx.arg.size()), ctx.arg.data());
+                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option -O<optlevel>", static_cast<int>(ctx.arg.size()), ctx.arg.data());
+                ctx.cmdline->FormatDiag(cl::Diagnostic::note, ctx.index, "%s", "<optlevel> must be 0,1,2,3, or s");
                 return false;
             }
 

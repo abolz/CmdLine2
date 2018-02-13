@@ -552,6 +552,16 @@ enum class EndsOptions : unsigned char {
     yes,
 };
 
+// Stop parsing early?
+enum class StopParsing : unsigned char {
+    // Nothing special.
+    // This is the default.
+    no,
+    // If an option with this flag is (successfully) parser, all the remaining
+    // command line arguments are ignored and the parser returns immediately.
+    yes,
+};
+
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
 // The members are only valid inside the callback (parser).
@@ -579,6 +589,7 @@ class OptionBase
     Positional positional_ = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
     EndsOptions ends_options_ = EndsOptions::no;
+    StopParsing stop_parsing_ = StopParsing::no;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
@@ -594,6 +605,7 @@ private:
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
     void Apply(EndsOptions    v) { ends_options_    = v; }
+    void Apply(StopParsing    v) { stop_parsing_    = v; }
     // clang-format on
 
 protected:
@@ -808,10 +820,17 @@ public:
     template <typename Container>
     bool ParseArgs(Container const& args, CheckMissingOptions check_missing = CheckMissingOptions::yes);
 
+    template <typename It>
+    struct ParseResult
+    {
+        bool success = false;
+        It next = It{};
+    };
+
     // Parse the command line arguments in [CURR, LAST).
     // Emits an error for unknown options.
     template <typename It, typename EndIt>
-    bool Parse(It curr, EndIt last, CheckMissingOptions check_missing = CheckMissingOptions::yes);
+    auto Parse(It curr, EndIt last, CheckMissingOptions check_missing = CheckMissingOptions::yes) -> ParseResult<It>;
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
@@ -845,6 +864,7 @@ public:
 private:
     enum class Result {
         success,
+        done,
         error,
         ignored
     };
@@ -967,11 +987,11 @@ bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing
     using std::begin; // using ADL!
     using std::end;   // using ADL!
 
-    return Parse(begin(args), end(args), check_missing);
+    return Parse(begin(args), end(args), check_missing).success;
 }
 
 template <typename It, typename EndIt>
-bool Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
+auto Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing) -> ParseResult<It>
 {
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_index_ >= 0);
@@ -983,16 +1003,17 @@ bool Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
         std::string arg(*curr);
 
         Result const res = Handle1(arg, curr, last);
-
-        if (res == Result::error)
+        switch (res)
         {
-            return false;
-        }
-
-        if (res == Result::ignored)
-        {
+        case Result::success:
+            break;
+        case Result::done:
+            return {true, curr};
+        case Result::error:
+            return {false, curr};
+        case Result::ignored:
             FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%s'", arg.c_str());
-            return false;
+            return {false, curr};
         }
 
         // Handle1 might have changed CURR.
@@ -1007,10 +1028,10 @@ bool Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
 
     if (check_missing == CheckMissingOptions::yes)
     {
-        return !AnyMissing();
+        return {!AnyMissing(), curr};
     }
 
-    return true;
+    return {true, curr};
 }
 
 inline bool Cmdline::AnyMissing()
@@ -1573,6 +1594,11 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view
         {
             dashdash_ = true;
         }
+
+        if (opt->stop_parsing_ == StopParsing::yes)
+        {
+            res = Result::done;
+        }
     }
 
     return res;
@@ -1791,6 +1817,7 @@ struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
     }
 };
 
+#if 0
 template <typename Key, typename Value>
 struct ConvertTo<std::pair<Key, Value>>
 {
@@ -1807,6 +1834,7 @@ struct ConvertTo<std::pair<Key, Value>>
                && ConvertTo<Value>{}(str.substr(p + 1), value.second);
     }
 };
+#endif
 
 // The default implementation uses template argument deduction to select the correct specialization.
 template <>
@@ -1846,7 +1874,7 @@ namespace check {
 template <typename T, typename U>
 auto InRange(T lower, U upper)
 {
-    return [=](ParseContext& /*ctx*/, auto const& value) {
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
         return !(value < lower) && !(upper < value);
     };
 }
@@ -1855,7 +1883,7 @@ auto InRange(T lower, U upper)
 template <typename T>
 auto GreaterThan(T lower)
 {
-    return [=](ParseContext& /*ctx*/, auto const& value) {
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
         return lower < value;
     };
 }
@@ -1864,7 +1892,7 @@ auto GreaterThan(T lower)
 template <typename T>
 auto GreaterEqual(T lower)
 {
-    return [=](ParseContext& /*ctx*/, auto const& value) {
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
         return !(value < lower); // value >= lower
     };
 }
@@ -1873,7 +1901,7 @@ auto GreaterEqual(T lower)
 template <typename T>
 auto LessThan(T upper)
 {
-    return [=](ParseContext& /*ctx*/, auto const& value) {
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
         return value < upper;
     };
 }
@@ -1882,7 +1910,7 @@ auto LessThan(T upper)
 template <typename T>
 auto LessEqual(T upper)
 {
-    return [=](ParseContext& /*ctx*/, auto const& value) {
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
         return !(upper < value); // upper >= value
     };
 }
