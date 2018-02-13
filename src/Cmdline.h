@@ -1777,13 +1777,12 @@ inline int GetUTF8SequenceLengthFromCodepoint(uint32_t U)
 {
     CL_ASSERT(IsValidCodePoint(U));
 
-    if (U <= 0x7F)
-        return 1;
-    if (U <= 0x7FF)
-        return 2;
-    if (U <= 0xFFFF)
-        return 3;
+    // clang-format off
+    if (U <= 0x7F) { return 1; }
+    if (U <= 0x7FF) { return 2; }
+    if (U <= 0xFFFF) { return 3; }
     return 4;
+    // clang-format on
 }
 
 inline bool IsUTF8OverlongSequence(uint32_t U, int slen)
@@ -2665,7 +2664,7 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
     CL_ASSERT(command_line != nullptr);
 
     auto next = command_line;
-    auto const last = command_line + std::char_traits<wchar_t>::length(command_line);
+    auto const last = command_line + std::char_traits<wchar_t>::length(command_line); // (NOLINT)
 
     std::string command_line_utf8;
 
