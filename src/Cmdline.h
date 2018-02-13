@@ -831,6 +831,13 @@ public:
     {
         bool success = false;
         It next = It{};
+
+        ParseResult() = default;
+        ParseResult(bool success_, It next_)
+            : success(success_)
+            , next(next_)
+        {
+        }
     };
 
     // Parse the command line arguments in [CURR, LAST).
