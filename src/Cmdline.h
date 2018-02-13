@@ -397,7 +397,7 @@ struct ByMaxLength
         }
 
         // Otherwise, search for the first space preceding the line length.
-        auto I = str.find_last_of(" \t", length);
+        auto const I = str.find_last_of(" \t", length);
 
         if (I != string_view::npos)
         {
@@ -623,7 +623,7 @@ protected:
 #if CL_HAS_FOLD_EXPRESSIONS
         (Apply(args), ...);
 #else
-        int unused[] = {(Apply(args), 0)..., 0};
+        int const unused[] = {(Apply(args), 0)..., 0};
         static_cast<void>(unused);
 #endif
     }
@@ -928,7 +928,7 @@ inline void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string mess
 
 inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...) // (NOLINT)
 {
-    const size_t kBufSize = 1024;
+    constexpr size_t kBufSize = 1024;
     char buf[kBufSize];
 
     va_list args;
@@ -1185,7 +1185,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     CL_ASSERT(fmt.descr_indent > fmt.indent);
     CL_ASSERT(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
 
-    const size_t descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
+    size_t const descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
 
     std::string spos;
     std::string sopt = "Options:\n";
@@ -1195,7 +1195,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->positional_ == Positional::yes)
         {
-            const auto is_optional = (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more);
+            bool const is_optional = (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more);
 
             spos += ' ';
             if (is_optional)
@@ -1212,7 +1212,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         {
             has_options = true;
 
-            const auto col0 = sopt.size();
+            auto const col0 = sopt.size();
             CL_ASSERT(col0 == 0 || sopt[col0 - 1] == '\n');
 
             sopt.append(fmt.indent, ' ');
@@ -1226,9 +1226,9 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
                             : " <ARG>";
             }
 
-            const auto col = sopt.size() - col0;
-            const auto wrap = (col >= fmt.descr_indent);
-            const auto descr_indent = wrap ? fmt.descr_indent : fmt.descr_indent - col;
+            auto const col = sopt.size() - col0;
+            auto const wrap = (col >= fmt.descr_indent);
+            auto const descr_indent = wrap ? fmt.descr_indent : fmt.descr_indent - col;
 
             if (wrap)
             {
@@ -1621,7 +1621,7 @@ template <typename Fn>
 bool Cmdline::ForEachUniqueOption(Fn fn) const
 {
     auto I = options_.begin();
-    auto E = options_.end();
+    auto const E = options_.end();
 
     if (I == E)
     {
@@ -1761,7 +1761,7 @@ inline bool IsValidCodePoint(uint32_t U)
 
 inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
 {
-    const uint32_t b = static_cast<uint8_t>(ch);
+    uint32_t const b = static_cast<uint8_t>(ch);
 
     // clang-format off
     if (b < 0x80) { U = b;        return 1; }
@@ -1793,7 +1793,7 @@ inline bool IsUTF8OverlongSequence(uint32_t U, int slen)
 
 inline bool IsUTF8ContinuationByte(char ch)
 {
-    const uint32_t b = static_cast<uint8_t>(ch);
+    uint32_t const b = static_cast<uint8_t>(ch);
 
     return 0x80 == (b & 0xC0); // b == 10xxxxxx???
 }
@@ -1827,7 +1827,7 @@ inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     // above (the bits marked x).
     //
 
-    const int slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
+    int const slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
     ++next;
 
     if (slen == 0 || last - next < slen - 1)
@@ -1843,7 +1843,7 @@ inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     // number is now equal to the character number.
     //
 
-    const auto end = next + (slen - 1);
+    auto const end = next + (slen - 1);
     for (; next != end; ++next)
     {
         if (!IsUTF8ContinuationByte(*next))
@@ -1873,6 +1873,7 @@ inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     return next;
 }
 
+#if _WIN32
 template <typename It>
 inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 {
@@ -1890,7 +1891,7 @@ inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
     // next integer following W1.
     //
 
-    uint32_t W1 = static_cast<uint16_t>(*next);
+    uint32_t const W1 = static_cast<uint16_t>(*next);
     ++next;
 
     //
@@ -1928,7 +1929,7 @@ inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
         return next;
     }
 
-    uint32_t W2 = static_cast<uint16_t>(*next);
+    uint32_t const W2 = static_cast<uint16_t>(*next);
     ++next;
 
     if (W2 < 0xDC00 || W2 > 0xDFFF)
@@ -1949,7 +1950,9 @@ inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
     U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
     return next;
 }
+#endif
 
+#if _WIN32
 template <typename Put8>
 inline void EncodeUTF8(uint32_t U, Put8 put)
 {
@@ -2009,6 +2012,7 @@ inline void EncodeUTF8(uint32_t U, Put8 put)
     }
     // clang-format on
 }
+#endif
 
 template <typename Put16>
 inline void EncodeUTF16(uint32_t U, Put16 put)
@@ -2043,7 +2047,7 @@ inline void EncodeUTF16(uint32_t U, Put16 put)
     // bits of W2. Terminate.
     //
 
-    const uint32_t Up = U - 0x10000;
+    uint32_t const Up = U - 0x10000;
 
     put(static_cast<uint16_t>(0xD800 + ((Up >> 10) & 0x3FF)));
     put(static_cast<uint16_t>(0xDC00 + ((Up      ) & 0x3FF)));
@@ -2291,7 +2295,7 @@ bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
     return (... && funcs(ctx, value));
 #else
     bool res = true;
-    bool unused[] = {(res = res && funcs(ctx, value))..., false};
+    bool const unused[] = {(res = res && funcs(ctx, value))..., false};
     static_cast<void>(unused);
     return res;
 #endif
@@ -2426,7 +2430,7 @@ struct ParseArgUnix
 
         for (; next != last; ++next)
         {
-            const auto ch = *next;
+            auto const ch = *next;
 
             // Quoting a single character using the backslash?
             if (quote_char == '\\')
@@ -2476,7 +2480,7 @@ struct ParseProgramNameWindows
 
         if (next != last && !impl::IsWhitespace(*next))
         {
-            const bool quoting = (*next == '"');
+            bool const quoting = (*next == '"');
 
             if (quoting)
             {
@@ -2485,7 +2489,7 @@ struct ParseProgramNameWindows
 
             for (; next != last; ++next)
             {
-                const auto ch = *next;
+                auto const ch = *next;
                 if ((quoting && ch == '"') || (!quoting && impl::IsWhitespace(ch)))
                 {
                     ++next;
@@ -2516,7 +2520,7 @@ struct ParseArgWindows
 
         for (; next != last; ++next)
         {
-            const auto ch = *next;
+            auto const ch = *next;
 
             if (ch == '"' && recently_closed)
             {
@@ -2543,7 +2547,7 @@ struct ParseArgWindows
                 // "escaped" by the remaining backslash, causing a literal
                 // double quotation mark (") to be placed in argv.
 
-                const bool even = (num_backslashes % 2) == 0;
+                bool const even = (num_backslashes % 2) == 0;
 
                 arg.append(num_backslashes / 2, '\\');
                 num_backslashes = 0;
