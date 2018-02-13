@@ -1,3 +1,4 @@
+#define CL_WIDE_STRING_SUPPORT 1
 #define CL_WINDOWS_CONSOLE_COLORS 1
 #define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
@@ -778,6 +779,29 @@ TEST_CASE("Unicode")
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
     CHECK(str == u8"hello😍😎world");
 }
+
+#if CL_WIDE_STRING_SUPPORT
+
+TEST_CASE("Wide strings")
+{
+    std::wstring str;
+
+    cl::Cmdline cl;
+    cl.Add(u8"😃-😜", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
+    CHECK(str == L"hello😍😎world");
+    CHECK(true == ParseArgs(cl, {u8"-😃-😜=-😃-😜"}));
+    CHECK(str == L"-😃-😜");
+}
+
+#if _WIN32
+TEST_CASE("CommandLineToArgvUTF8")
+{
+}
+#endif
+
+#endif
 
 TEST_CASE("Tokenize Windows 1")
 {
