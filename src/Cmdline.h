@@ -651,7 +651,7 @@ private:
 
     // Parse the given value from NAME and/or ARG and store the result.
     // Return true on success, false otherwise.
-    virtual bool Parse(ParseContext& ctx) = 0;
+    virtual bool Parse(ParseContext const& ctx) = 0;
 };
 
 inline OptionBase::~OptionBase() = default;
@@ -698,17 +698,17 @@ public:
     Parser& parser() { return parser_; }
 
 private:
-    bool Parse(ParseContext& ctx) override
+    bool Parse(ParseContext const& ctx) override
     {
         return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
     }
 
-    bool DoParse(ParseContext& ctx, std::true_type /*parser_ returns bool*/)
+    bool DoParse(ParseContext const& ctx, std::true_type /*parser_ returns bool*/)
     {
         return parser_(ctx);
     }
 
-    bool DoParse(ParseContext& ctx, std::false_type /*parser_ returns bool*/)
+    bool DoParse(ParseContext const& ctx, std::false_type /*parser_ returns bool*/)
     {
         parser_(ctx);
         return true;
@@ -2213,7 +2213,7 @@ template <>
 struct ParseValue<void>
 {
     template <typename T>
-    bool operator()(ParseContext /*const*/& ctx, T& value) const
+    bool operator()(ParseContext const& ctx, T& value) const
     {
         return ParseValue<T>{}(ctx, value);
     }
@@ -2285,7 +2285,7 @@ struct RemoveCVRec<T<Args...>>
 // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
 // Returns true iff all f return true.
 template <typename T, typename... Funcs>
-bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
+bool ApplyFuncs(ParseContext const& ctx, T& value, Funcs&&... funcs)
 {
     static_cast<void>(ctx);   // may be unused if funcs is empty
     static_cast<void>(value); // may be unused if funcs is empty
@@ -2307,7 +2307,7 @@ bool ApplyFuncs(ParseContext& ctx, T& value, Funcs&&... funcs)
 template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds)
 {
-    return [=, &target](ParseContext& ctx) {
+    return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
         if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
@@ -2328,7 +2328,7 @@ auto PushBack(T& container, Predicates&&... preds)
 {
     using V = typename impl::RemoveCVRec<typename T::value_type>::type;
 
-    return [=, &container](ParseContext& ctx) {
+    return [=, &container](ParseContext const& ctx) {
         V temp;
         if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
         {
@@ -2346,7 +2346,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 {
     using MapType = std::vector<std::pair<char const*, T>>;
 
-    return [=, &value, map = MapType(ilist)](ParseContext& ctx) {
+    return [=, &value, map = MapType(ilist)](ParseContext const& ctx) {
         for (auto const& p : map)
         {
             if (p.first != ctx.arg)
