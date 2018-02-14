@@ -1,5 +1,5 @@
-//#define CL_WINDOWS_CONSOLE_COLORS 1
-//#define CL_ANSI_CONSOLE_COLORS 1
+#define CL_WINDOWS_CONSOLE_COLORS 1
+#define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
 
 enum class Standard { cxx11, cxx14, cxx17 };
@@ -15,11 +15,15 @@ int main(int argc, char* argv[])
 
     auto opt_v = cl::MakeOption("v", "Increase output verbosity",
         cl::Assign(verbose),
-        cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
+        cl::NumOpts::zero_or_more,
+        cl::MayGroup::yes,
+        cl::HasArg::optional);
 
     auto opt_i = cl::MakeOption("i|ints", "Some ints in the range [0,6]",
         cl::Assign(i, cl::check::InRange(0, 6)),
-        cl::NumOpts::zero_or_more, cl::HasArg::yes, cl::CommaSeparated::yes);
+        cl::NumOpts::zero_or_more,
+        cl::HasArg::yes,
+        cl::CommaSeparated::yes);
 
     auto opt_std = cl::MakeOption("std", "C++ standard version",
         cl::Map(standard, {{"c++11", Standard::cxx11},
@@ -29,7 +33,8 @@ int main(int argc, char* argv[])
 
     auto opt_inputs = cl::MakeOption("input-files", "List of input files",
         cl::PushBack(input_files),
-        cl::NumOpts::one_or_more, cl::Positional::yes);
+        cl::NumOpts::one_or_more,
+        cl::Positional::yes);
 
     cmd.Add(&opt_v);
     cmd.Add(&opt_i);
