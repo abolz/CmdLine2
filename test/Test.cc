@@ -1,4 +1,3 @@
-#define CL_WIDE_STRING_SUPPORT 1
 #define CL_WINDOWS_CONSOLE_COLORS 1
 #define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
@@ -780,8 +779,6 @@ TEST_CASE("Unicode")
     CHECK(str == u8"hello😍😎world");
 }
 
-#if CL_WIDE_STRING_SUPPORT
-
 TEST_CASE("Wide strings")
 {
     std::wstring str;
@@ -799,8 +796,6 @@ TEST_CASE("Wide strings")
 TEST_CASE("CommandLineToArgvUTF8")
 {
 }
-#endif
-
 #endif
 
 TEST_CASE("Tokenize Windows 1")

@@ -21,10 +21,6 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#ifndef CL_UNICODE_SUPPORT
-#define CL_UNICODE_SUPPORT 1
-#endif
-
 #include <cassert>
 #include <cerrno>
 #include <cstdarg>
@@ -1741,8 +1737,6 @@ struct ParseUnsignedInt
     }
 };
 
-#if CL_UNICODE_SUPPORT
-
 constexpr uint32_t kInvalidCodepoint = 0xFFFFFFFF;
 constexpr uint32_t kReplacementCharacter = 0xFFFD;
 
@@ -2080,8 +2074,6 @@ bool IsValidUTF8(It next, It last)
     return impl::ConvertUTF8ToUTF32(next, last, [](uint32_t /*U*/) {});
 }
 
-#endif
-
 } // namespace impl
 
 // Convert the string representation in CTX.ARG into an object of type T.
@@ -2165,20 +2157,17 @@ struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
     bool operator()(ParseContext const& ctx, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
-#if CL_UNICODE_SUPPORT
         if (!impl::IsValidUTF8(ctx.arg.begin(), ctx.arg.end()))
         {
             ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
             return false;
         }
-#endif
 
         value.assign(ctx.arg.begin(), ctx.arg.end());
         return true;
     }
 };
 
-#if CL_UNICODE_SUPPORT
 template <typename Alloc>
 struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
 {
@@ -2203,7 +2192,6 @@ struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
         return true;
     }
 };
-#endif
 
 template <>
 struct ParseValue<void>
@@ -2651,7 +2639,7 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
-#if CL_UNICODE_SUPPORT && _WIN32
+#if _WIN32
 inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
 {
     static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
@@ -2681,7 +2669,7 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
 
     return cl::TokenizeWindows(command_line_utf8, parse_program_name);
 }
-#endif
+#endif // _WIN32
 
 } // namespace cl
 
