@@ -21,10 +21,8 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#ifndef CL_WIDE_STRING_SUPPORT
-#if _WIN32
-#define CL_WIDE_STRING_SUPPORT 1
-#endif
+#ifndef CL_UNICODE_SUPPORT
+#define CL_UNICODE_SUPPORT 1
 #endif
 
 #include <cassert>
@@ -1743,7 +1741,7 @@ struct ConvertToUnsignedInt
     }
 };
 
-#if CL_WIDE_STRING_SUPPORT
+#if CL_UNICODE_SUPPORT
 
 constexpr uint32_t kInvalidCodepoint = 0xFFFFFFFF;
 constexpr uint32_t kReplacementCharacter = 0xFFFD;
@@ -1798,7 +1796,7 @@ inline bool IsUTF8ContinuationByte(char ch)
 }
 
 template <typename It>
-inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
+It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
     if (next == last)
@@ -1872,9 +1870,8 @@ inline It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     return next;
 }
 
-#if _WIN32
 template <typename It>
-inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
+It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
     if (next == last)
@@ -1949,11 +1946,9 @@ inline It DecodeUTF16Sequence(It next, It last, uint32_t& U)
     U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
     return next;
 }
-#endif
 
-#if _WIN32
 template <typename Put8>
-inline void EncodeUTF8(uint32_t U, Put8 put)
+void EncodeUTF8(uint32_t U, Put8 put)
 {
     CL_ASSERT(IsValidCodePoint(U));
 
@@ -2011,10 +2006,9 @@ inline void EncodeUTF8(uint32_t U, Put8 put)
     }
     // clang-format on
 }
-#endif
 
 template <typename Put16>
-inline void EncodeUTF16(uint32_t U, Put16 put)
+void EncodeUTF16(uint32_t U, Put16 put)
 {
     CL_ASSERT(IsValidCodePoint(U));
 
@@ -2052,7 +2046,41 @@ inline void EncodeUTF16(uint32_t U, Put16 put)
     put(static_cast<uint16_t>(0xDC00 + ((Up      ) & 0x3FF)));
 }
 
-#endif // CL_WIDE_STRING_SUPPORT
+template <typename It, typename Put32>
+bool ConvertUTF8ToUTF32(It next, It last, Put32 put)
+{
+    while (next != last)
+    {
+        uint32_t U = 0;
+
+        auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
+        CL_ASSERT(next != next1);
+        next = next1;
+
+        if (U == impl::kInvalidCodepoint)
+        {
+            return false;
+        }
+
+        put(U);
+    }
+
+    return true;
+}
+
+template <typename It, typename Put16>
+bool ConvertUTF8ToUTF16(It next, It last, Put16 put)
+{
+    return impl::ConvertUTF8ToUTF32(next, last, [&](uint32_t U) { impl::EncodeUTF16(U, put); });
+}
+
+template <typename It>
+bool IsValidUTF8(It next, It last)
+{
+    return impl::ConvertUTF8ToUTF32(next, last, [](uint32_t /*U*/) {});
+}
+
+#endif
 
 } // namespace impl
 
@@ -2136,6 +2164,13 @@ struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
     bool operator()(string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
+#if CL_UNICODE_SUPPORT
+        if (!impl::IsValidUTF8(str.begin(), str.end()))
+        {
+            return false;
+        }
+#endif
+
         value.assign(str.data(), str.size());
         return true;
     }
@@ -2163,8 +2198,25 @@ struct ParseValue
     }
 };
 
-#if CL_WIDE_STRING_SUPPORT
+template <typename Alloc>
+struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
+    {
+#if CL_UNICODE_SUPPORT
+        if (!impl::IsValidUTF8(ctx.arg.begin(), ctx.arg.end()))
+        {
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            return false;
+        }
+#endif
 
+        value.assign(ctx.arg.begin(), ctx.arg.end());
+        return true;
+    }
+};
+
+#if CL_UNICODE_SUPPORT
 template <typename Alloc>
 struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
 {
@@ -2172,42 +2224,62 @@ struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
     {
         value.clear();
 
-        auto next = ctx.arg.begin();
-        auto const last = ctx.arg.end();
-
-        while (next != last)
-        {
-            uint32_t U = 0;
-
-            auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
-            CL_ASSERT(next != next1);
-            next = next1;
-
-            if (U == impl::kInvalidCodepoint)
-            {
-#if 1
-                ctx.cmdline->FormatDiag(cl::Diagnostic::warning, ctx.index, "Invalid UTF-8 encoded string detected (invalid sequence at code-unit %d)", static_cast<int>(next - ctx.arg.begin()));
-                U = impl::kReplacementCharacter;
-#else
-                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string detected (invalid sequence at code-unit %d)", static_cast<int>(next - ctx.arg.begin()));
-                return false;
-#endif
-            }
-
 #if _WIN32
-            static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-            impl::EncodeUTF16(U, [&value](uint16_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
+        static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+        bool const ok = impl::ConvertUTF8ToUTF16(ctx.arg.begin(), ctx.arg.end(), [&](uint16_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
 #else
-            static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
-            value.push_back(static_cast<wchar_t>(U));
+        static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+        bool const ok = impl::ConvertUTF8ToUTF32(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
 #endif
+
+        if (!ok)
+        {
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            return false;
+        }
+
+        return true;
+    }
+};
+#endif
+
+#if 0 && CL_UNICODE_SUPPORT
+template <typename Alloc>
+struct ParseValue<std::basic_string<char16_t, std::char_traits<char16_t>, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char16_t, std::char_traits<char16_t>, Alloc>& value) const
+    {
+        value.clear();
+
+        bool const ok = impl::ConvertUTF8ToUTF16(ctx.arg.begin(), ctx.arg.end(), [&](uint16_t ch) { value.push_back(static_cast<char16_t>(ch)); });
+        if (!ok)
+        {
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            return false;
         }
 
         return true;
     }
 };
 
-#endif // CL_WIDE_STRING_SUPPORT
+template <typename Alloc>
+struct ParseValue<std::basic_string<char32_t, std::char_traits<char32_t>, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char32_t, std::char_traits<char32_t>, Alloc>& value) const
+    {
+        value.clear();
+
+        bool const ok = impl::ConvertUTF8ToUTF32(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t ch) { value.push_back(static_cast<char32_t>(ch)); });
+        if (!ok)
+        {
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            return false;
+        }
+
+        return true;
+    }
+};
+#endif
 
 template <>
 struct ParseValue<void>
@@ -2655,8 +2727,7 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
-#if CL_WIDE_STRING_SUPPORT && _WIN32
-
+#if CL_UNICODE_SUPPORT && _WIN32
 inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
 {
     static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
@@ -2686,8 +2757,7 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
 
     return cl::TokenizeWindows(command_line_utf8, parse_program_name);
 }
-
-#endif // CL_WIDE_STRING_SUPPORT && _WIN32
+#endif
 
 } // namespace cl
 
