@@ -1711,13 +1711,13 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
-struct ConvertToInt
+struct ParseInt
 {
     template <typename T>
-    bool operator()(string_view str, T& value) const
+    bool operator()(ParseContext const& ctx, T& value) const
     {
         long long v = 0;
-        if (StrToLongLong(str, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
+        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
         {
             value = static_cast<T>(v);
             return true;
@@ -1726,13 +1726,13 @@ struct ConvertToInt
     }
 };
 
-struct ConvertToUnsignedInt
+struct ParseUnsignedInt
 {
     template <typename T>
-    bool operator()(string_view str, T& value) const
+    bool operator()(ParseContext const& ctx, T& value) const
     {
         unsigned long long v = 0;
-        if (StrToUnsignedLongLong(str, v) && v <= (std::numeric_limits<T>::max)())
+        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)())
         {
             value = static_cast<T>(v);
             return true;
@@ -2084,29 +2084,30 @@ bool IsValidUTF8(It next, It last)
 
 } // namespace impl
 
-// Convert the string representation in STR into an object of type T.
+// Convert the string representation in CTX.ARG into an object of type T.
+// Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
-struct ConvertTo
+struct ParseValue
 {
     template <typename Stream = std::stringstream>
-    bool operator()(string_view str, T& value) const
+    bool operator()(ParseContext const& ctx, T& value) const
     {
-        Stream stream{std::string(str)};
+        Stream stream{std::string(ctx.arg)};
         stream >> value;
         return !stream.fail() && stream.eof();
     }
 };
 
 template <>
-struct ConvertTo<bool>
+struct ParseValue<bool>
 {
-    bool operator()(string_view str, bool& value) const
+    bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (impl::IsAnyOf(str, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
+        if (impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
         {
             value = true;
         }
-        else if (impl::IsAnyOf(str, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
+        else if (impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
         {
             value = false;
         }
@@ -2120,81 +2121,42 @@ struct ConvertTo<bool>
 };
 
 // clang-format off
-template <> struct ConvertTo< signed char        > : impl::ConvertToInt {};
-template <> struct ConvertTo< signed short       > : impl::ConvertToInt {};
-template <> struct ConvertTo< signed int         > : impl::ConvertToInt {};
-template <> struct ConvertTo< signed long        > : impl::ConvertToInt {};
-template <> struct ConvertTo< signed long long   > : impl::ConvertToInt {};
-template <> struct ConvertTo< unsigned char      > : impl::ConvertToUnsignedInt {};
-template <> struct ConvertTo< unsigned short     > : impl::ConvertToUnsignedInt {};
-template <> struct ConvertTo< unsigned int       > : impl::ConvertToUnsignedInt {};
-template <> struct ConvertTo< unsigned long      > : impl::ConvertToUnsignedInt {};
-template <> struct ConvertTo< unsigned long long > : impl::ConvertToUnsignedInt {};
+template <> struct ParseValue< signed char        > : impl::ParseInt {};
+template <> struct ParseValue< signed short       > : impl::ParseInt {};
+template <> struct ParseValue< signed int         > : impl::ParseInt {};
+template <> struct ParseValue< signed long        > : impl::ParseInt {};
+template <> struct ParseValue< signed long long   > : impl::ParseInt {};
+template <> struct ParseValue< unsigned char      > : impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned short     > : impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned int       > : impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long      > : impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long long > : impl::ParseUnsignedInt {};
 // clang-format on
 
 template <>
-struct ConvertTo<float>
+struct ParseValue<float>
 {
-    bool operator()(string_view str, float& value) const
+    bool operator()(ParseContext const& ctx, float& value) const
     {
-        return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtof(p, end); });
+        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
     }
 };
 
 template <>
-struct ConvertTo<double>
+struct ParseValue<double>
 {
-    bool operator()(string_view str, double& value) const
+    bool operator()(ParseContext const& ctx, double& value) const
     {
-        return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtod(p, end); });
+        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
     }
 };
 
 template <>
-struct ConvertTo<long double>
+struct ParseValue<long double>
 {
-    bool operator()(string_view str, long double& value) const
+    bool operator()(ParseContext const& ctx, long double& value) const
     {
-        return impl::StrToX(str, value, [](char const* p, char** end) { return std::strtold(p, end); });
-    }
-};
-
-template <typename Alloc>
-struct ConvertTo<std::basic_string<char, std::char_traits<char>, Alloc>>
-{
-    bool operator()(string_view str, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
-    {
-#if CL_UNICODE_SUPPORT
-        if (!impl::IsValidUTF8(str.begin(), str.end()))
-        {
-            return false;
-        }
-#endif
-
-        value.assign(str.data(), str.size());
-        return true;
-    }
-};
-
-// The default implementation uses template argument deduction to select the correct specialization.
-template <>
-struct ConvertTo<void>
-{
-    template <typename T>
-    bool operator()(string_view str, T& value) const
-    {
-        return ConvertTo<T>{}(str, value);
-    }
-};
-
-// Convert the string representation in CTX.ARG into an object of type T.
-// Possibly emits diagnostics on error.
-template <typename T = void, typename /*Enable*/ = void>
-struct ParseValue
-{
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        return ConvertTo<T>{}(ctx.arg, value);
+        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
     }
 };
 
@@ -2232,44 +2194,6 @@ struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
         bool const ok = impl::ConvertUTF8ToUTF32(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
 #endif
 
-        if (!ok)
-        {
-            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
-            return false;
-        }
-
-        return true;
-    }
-};
-#endif
-
-#if 0 && CL_UNICODE_SUPPORT
-template <typename Alloc>
-struct ParseValue<std::basic_string<char16_t, std::char_traits<char16_t>, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<char16_t, std::char_traits<char16_t>, Alloc>& value) const
-    {
-        value.clear();
-
-        bool const ok = impl::ConvertUTF8ToUTF16(ctx.arg.begin(), ctx.arg.end(), [&](uint16_t ch) { value.push_back(static_cast<char16_t>(ch)); });
-        if (!ok)
-        {
-            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
-            return false;
-        }
-
-        return true;
-    }
-};
-
-template <typename Alloc>
-struct ParseValue<std::basic_string<char32_t, std::char_traits<char32_t>, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<char32_t, std::char_traits<char32_t>, Alloc>& value) const
-    {
-        value.clear();
-
-        bool const ok = impl::ConvertUTF8ToUTF32(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t ch) { value.push_back(static_cast<char32_t>(ch)); });
         if (!ok)
         {
             ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
