@@ -875,7 +875,7 @@ public:
     void PrintHelp(string_view program_name, HelpFormat const& fmt = {}) const;
 
 private:
-    enum class Result {
+    enum class Status {
         success,
         done,
         error,
@@ -885,33 +885,33 @@ private:
     OptionBase* FindOption(string_view name) const;
 
     template <typename It, typename EndIt>
-    Result Handle1(string_view optstr, It& curr, EndIt last);
+    Status Handle1(string_view optstr, It& curr, EndIt last);
 
     // <file>
-    Result HandlePositional(string_view optstr);
+    Status HandlePositional(string_view optstr);
 
     // -f
     // -f <file>
     template <typename It, typename EndIt>
-    Result HandleStandardOption(string_view optstr, It& curr, EndIt last);
+    Status HandleStandardOption(string_view optstr, It& curr, EndIt last);
 
     // -f=<file>
-    Result HandleOption(string_view optstr);
+    Status HandleOption(string_view optstr);
 
     // -I<dir>
-    Result HandlePrefix(string_view optstr);
+    Status HandlePrefix(string_view optstr);
 
     // -xvf <file>
     // -xvf=<file>
     // -xvf<file>
     template <typename It, typename EndIt>
-    Result HandleGroup(string_view optstr, It& curr, EndIt last);
+    Status HandleGroup(string_view optstr, It& curr, EndIt last);
 
     template <typename It, typename EndIt>
-    Result HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last);
-    Result HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
+    Status HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last);
+    Status HandleOccurrence(OptionBase* opt, string_view name, string_view arg);
 
-    Result ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
+    Status ParseOptionArgument(OptionBase* opt, string_view name, string_view arg);
 
     template <typename Fn>
     bool ForEachUniqueOption(Fn fn) const;
@@ -1015,16 +1015,16 @@ auto Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing) -> P
         // NB: This is actually only needed for InputIterator's...
         std::string arg(*curr);
 
-        Result const res = Handle1(arg, curr, last);
+        Status const res = Handle1(arg, curr, last);
         switch (res)
         {
-        case Result::success:
+        case Status::success:
             break;
-        case Result::done:
+        case Status::done:
             return {true, curr};
-        case Result::error:
+        case Status::error:
             return {false, curr};
-        case Result::ignored:
+        case Status::ignored:
             FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%s'", arg.c_str());
             return {false, curr};
         }
@@ -1286,7 +1286,7 @@ inline OptionBase* Cmdline::FindOption(string_view name) const
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
+Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
 {
     CL_ASSERT(curr != last);
 
@@ -1294,14 +1294,14 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     // happen if we're parsing a user-supplied array of command line arguments.
     if (optstr.empty())
     {
-        return Result::success;
+        return Status::success;
     }
 
     // Stop parsing if "--" has been found
     if (optstr == "--" && !dashdash_)
     {
         dashdash_ = true;
-        return Result::success;
+        return Status::success;
     }
 
     // This argument is considered to be positional if it doesn't start with
@@ -1324,22 +1324,22 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     }
 
     // 1. Try to handle options like "-f" and "-f file"
-    Result res = HandleStandardOption(optstr, curr, last);
+    Status res = HandleStandardOption(optstr, curr, last);
 
     // 2. Try to handle options like "-f=file"
-    if (res == Result::ignored)
+    if (res == Status::ignored)
     {
         res = HandleOption(optstr);
     }
 
     // 3. Try to handle options like "-Idir"
-    if (res == Result::ignored)
+    if (res == Status::ignored)
     {
         res = HandlePrefix(optstr);
     }
 
     // 4. Try to handle options like "-xvf=file" and "-xvf file"
-    if (res == Result::ignored && is_short)
+    if (res == Status::ignored && is_short)
     {
         res = HandleGroup(optstr, curr, last);
     }
@@ -1349,7 +1349,7 @@ Cmdline::Result Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     return res;
 }
 
-inline Cmdline::Result Cmdline::HandlePositional(string_view optstr)
+inline Cmdline::Status Cmdline::HandlePositional(string_view optstr)
 {
     auto const E = static_cast<int>(options_.size());
     CL_ASSERT(curr_positional_ >= 0);
@@ -1365,12 +1365,12 @@ inline Cmdline::Result Cmdline::HandlePositional(string_view optstr)
         }
     }
 
-    return Result::ignored;
+    return Status::ignored;
 }
 
 // If OPTSTR is the name of an option, handle the option.
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
+Cmdline::Status Cmdline::HandleStandardOption(string_view optstr, It& curr, EndIt last)
 {
     if (auto const opt = FindOption(optstr))
     {
@@ -1379,11 +1379,11 @@ Cmdline::Result Cmdline::HandleStandardOption(string_view optstr, It& curr, EndI
         return HandleOccurrence(opt, optstr, curr, last);
     }
 
-    return Result::ignored;
+    return Status::ignored;
 }
 
 // Look for an equal sign in OPTSTR and try to handle cases like "-f=file".
-inline Cmdline::Result Cmdline::HandleOption(string_view optstr)
+inline Cmdline::Status Cmdline::HandleOption(string_view optstr)
 {
     auto arg_start = optstr.find('=');
 
@@ -1406,10 +1406,10 @@ inline Cmdline::Result Cmdline::HandleOption(string_view optstr)
         }
     }
 
-    return Result::ignored;
+    return Status::ignored;
 }
 
-inline Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
+inline Cmdline::Status Cmdline::HandlePrefix(string_view optstr)
 {
     // Scan over all known prefix lengths.
     // Start with the longest to allow different prefixes like e.g. "-with" and
@@ -1432,11 +1432,11 @@ inline Cmdline::Result Cmdline::HandlePrefix(string_view optstr)
         }
     }
 
-    return Result::ignored;
+    return Status::ignored;
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
+Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 {
     //
     // XXX:
@@ -1452,7 +1452,7 @@ Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 
         if (opt == nullptr || opt->may_group_ == MayGroup::no)
         {
-            return Result::ignored;
+            return Status::ignored;
         }
 
         if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
@@ -1472,7 +1472,7 @@ Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 
         // The option accepts an argument, but may not join its argument.
         FormatDiag(Diagnostic::error, curr_index_, "Option '%c' must be the last in a group", optstr[n]);
-        return Result::error;
+        return Status::error;
     }
 
     // Then process all options.
@@ -1483,9 +1483,9 @@ Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 
         if (opt->has_arg_ == HasArg::no || n + 1 == optstr.size())
         {
-            if (Result::success != HandleOccurrence(opt, name, curr, last))
+            if (Status::success != HandleOccurrence(opt, name, curr, last))
             {
-                return Result::error;
+                return Status::error;
             }
             continue;
         }
@@ -1504,11 +1504,11 @@ Cmdline::Result Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         return HandleOccurrence(opt, name, optstr.substr(arg_start));
     }
 
-    return Result::success;
+    return Status::success;
 }
 
 template <typename It, typename EndIt>
-Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
+Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It& curr, EndIt last)
 {
     CL_ASSERT(curr != last);
 
@@ -1532,29 +1532,29 @@ Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     }
 
     FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' requires an argument", static_cast<int>(name.size()), name.data());
-    return Result::error;
+    return Status::error;
 }
 
-inline Cmdline::Result Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg)
+inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg)
 {
     // An argument was specified for OPT.
 
     if (opt->positional_ == Positional::no && opt->has_arg_ == HasArg::no)
     {
         FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' does not accept an argument", static_cast<int>(name.size()), name.data());
-        return Result::error;
+        return Status::error;
     }
 
     return ParseOptionArgument(opt, name, arg);
 }
 
-inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, string_view arg)
+inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, string_view arg)
 {
     auto Parse1 = [&](string_view arg1) {
         if (!opt->IsOccurrenceAllowed())
         {
             FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' already specified", static_cast<int>(name.size()), name.data());
-            return Result::error;
+            return Status::error;
         }
 
         ParseContext ctx;
@@ -1578,20 +1578,20 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view
                 FormatDiag(Diagnostic::error, curr_index_, "Invalid argument '%.*s' for option '%.*s'", static_cast<int>(arg1.size()), arg1.data(), static_cast<int>(name.size()), name.data());
             }
 
-            return Result::error;
+            return Status::error;
         }
 
         ++opt->count_;
-        return Result::success;
+        return Status::success;
     };
 
-    Result res = Result::success;
+    Status res = Status::success;
 
     if (opt->comma_separated_ == CommaSeparated::yes)
     {
         impl::Split(arg, impl::ByChar(','), [&](string_view s) {
             res = Parse1(s);
-            return res == Result::success;
+            return res == Status::success;
         });
     }
     else
@@ -1599,7 +1599,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view
         res = Parse1(arg);
     }
 
-    if (res == Result::success)
+    if (res == Status::success)
     {
         // If the current option has the StopsParsing flag set, parse all
         // following options as positional options.
@@ -1610,7 +1610,7 @@ inline Cmdline::Result Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
         if (opt->stop_parsing_ == StopParsing::yes)
         {
-            res = Result::done;
+            res = Status::done;
         }
     }
 
