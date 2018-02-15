@@ -1674,71 +1674,32 @@ template <typename It>
 It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
-    if (next == last)
-    {
+    if (next == last) {
         U = kInvalidCodepoint; // Insuffient data
         return next;
     }
 
-    //
-    // Char. number range  |        UTF-8 octet sequence
-    //    (hexadecimal)    |              (binary)
-    // --------------------+---------------------------------------------
-    // 0000 0000-0000 007F | 0xxxxxxx
-    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
-    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
-    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-    //
-    // Decoding a UTF-8 character proceeds as follows:
-    //
-    // 1.  Initialize a binary number with all bits set to 0.  Up to 21 bits
-    // may be needed.
-    //
-    // 2.  Determine which bits encode the character number from the number
-    // of octets in the sequence and the second column of the table
-    // above (the bits marked x).
-    //
-
     int const slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
     ++next;
 
-    if (slen == 0 || last - next < slen - 1)
-    {
+    if (slen == 0 || last - next < slen - 1) {
         U = kInvalidCodepoint; // Invalid lead byte or insufficient data
         return next;
     }
 
-    //
-    // 3.  Distribute the bits from the sequence to the binary number, first
-    // the lower-order bits from the last octet of the sequence and
-    // proceeding to the left until no x bits are left.  The binary
-    // number is now equal to the character number.
-    //
-
     auto const end = next + (slen - 1);
     for (; next != end; ++next)
     {
-        if (!IsUTF8ContinuationByte(*next))
-        {
-            U = kInvalidCodepoint; // Invalid continuation byte
+        if (!IsUTF8ContinuationByte(*next)) {
+            U = kInvalidCodepoint;
             return next;
         }
 
         U = (U << 6) | (static_cast<uint8_t>(*next) & 0x3F);
     }
 
-    //
-    // Implementations of the decoding algorithm above MUST protect against
-    // decoding invalid sequences.  For instance, a naive implementation may
-    // decode the overlong UTF-8 sequence C0 80 into the character U+0000,
-    // or the surrogate pair ED A1 8C ED BE B4 into U+233B4.  Decoding
-    // invalid sequences may have security consequences or cause other
-    // problems.
-    //
-
-    if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen))
-    {
-        U = kInvalidCodepoint; // Invalid codepoint or overlong sequence
+    if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen)) {
+        U = kInvalidCodepoint;
         return next;
     }
 
@@ -1749,53 +1710,25 @@ template <typename It>
 It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
-    if (next == last)
-    {
+    if (next == last) {
         U = kInvalidCodepoint;
         return next;
     }
-
-    //
-    // Decoding of a single character from UTF-16 to an ISO 10646 character
-    // value proceeds as follows. Let W1 be the next 16-bit integer in the
-    // sequence of integers representing the text. Let W2 be the (eventual)
-    // next integer following W1.
-    //
 
     uint32_t const W1 = static_cast<uint16_t>(*next);
     ++next;
 
-    //
-    // 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
-    // of W1. Terminate.
-    //
-
-    if (W1 < 0xD800 || W1 > 0xDFFF)
-    {
+    if (W1 < 0xD800 || W1 > 0xDFFF) {
         U = W1;
         return next;
     }
 
-    //
-    // 2) Determine if W1 is between 0xD800 and 0xDBFF. If not, the sequence
-    // is in error and no valid character can be obtained using W1.
-    // Terminate.
-    //
-
-    if (W1 > 0xDBFF)
-    {
+    if (W1 > 0xDBFF) {
         U = kInvalidCodepoint;
         return next;
     }
 
-    //
-    // 3) If there is no W2 (that is, the sequence ends with W1), or if W2
-    // is not between 0xDC00 and 0xDFFF, the sequence is in error.
-    // Terminate.
-    //
-
-    if (next == last)
-    {
+    if (next == last) {
         U = kInvalidCodepoint;
         return next;
     }
@@ -1803,20 +1736,10 @@ It DecodeUTF16Sequence(It next, It last, uint32_t& U)
     uint32_t const W2 = static_cast<uint16_t>(*next);
     ++next;
 
-    if (W2 < 0xDC00 || W2 > 0xDFFF)
-    {
+    if (W2 < 0xDC00 || W2 > 0xDFFF) {
         U = kInvalidCodepoint;
         return next;
     }
-
-    //
-    // 4) Construct a 20-bit unsigned integer U', taking the 10 low-order
-    // bits of W1 as its 10 high-order bits and the 10 low-order bits of
-    // W2 as its 10 low-order bits.
-    //
-    //
-    // 5) Add 0x10000 to U' to obtain the character value U. Terminate.
-    //
 
     U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
     return next;
@@ -1826,35 +1749,6 @@ template <typename Put8>
 void EncodeUTF8(uint32_t U, Put8 put)
 {
     CL_ASSERT(IsValidCodePoint(U));
-
-    //
-    // Char. number range  |        UTF-8 octet sequence
-    //    (hexadecimal)    |              (binary)
-    // --------------------+---------------------------------------------
-    // 0000 0000-0000 007F | 0xxxxxxx
-    // 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
-    // 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
-    // 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-    //
-    // Encoding a character to UTF-8 proceeds as follows:
-    //
-    // 1.  Determine the number of octets required from the character number
-    // and the first column of the table above.  It is important to note
-    // that the rows of the table are mutually exclusive, i.e., there is
-    // only one valid way to encode a given character.
-    //
-    // 2.  Prepare the high-order bits of the octets as per the second
-    // column of the table.
-    //
-    // 3.  Fill in the bits marked x from the bits of the character number,
-    // expressed in binary.  Start by putting the lowest-order bit of
-    // the character number in the lowest-order position of the last
-    // octet of the sequence, then put the next higher-order bit of the
-    // character number in the next higher-order position of that octet,
-    // etc.  When the x bits of the last octet are filled in, move on to
-    // the next to last octet, then to the preceding one, etc. until all
-    // x bits are filled in.
-    //
 
     if (U <= 0x7F)
     {
@@ -1885,38 +1779,17 @@ void EncodeUTF16(uint32_t U, Put16 put)
 {
     CL_ASSERT(IsValidCodePoint(U));
 
-    //
-    // Encoding of a single character from an ISO 10646 character value to
-    // UTF-16 proceeds as follows. Let U be the character number, no greater
-    // than 0x10FFFF.
-    //
-    // 1) If U < 0x10000, encode U as a 16-bit unsigned integer and terminate.
-    //
-
     if (U < 0x10000)
     {
         put( static_cast<uint16_t>(U) );
-        return;
     }
+    else
+    {
+        uint32_t const Up = U - 0x10000;
 
-    //
-    // 2) Let U' = U - 0x10000. Because U is less than or equal to 0x10FFFF,
-    // U' must be less than or equal to 0xFFFFF. That is, U' can be
-    // represented in 20 bits.
-    //
-    // 3) Initialize two 16-bit unsigned integers, W1 and W2, to 0xD800 and
-    // 0xDC00, respectively. These integers each have 10 bits free to
-    // encode the character value, for a total of 20 bits.
-    //
-    // 4) Assign the 10 high-order bits of the 20-bit U' to the 10 low-order
-    // bits of W1 and the 10 low-order bits of U' to the 10 low-order
-    // bits of W2. Terminate.
-    //
-
-    uint32_t const Up = U - 0x10000;
-
-    put( static_cast<uint16_t>(0xD800 + ((Up >> 10) & 0x3FF)) );
-    put( static_cast<uint16_t>(0xDC00 + ((Up      ) & 0x3FF)) );
+        put( static_cast<uint16_t>(0xD800 + ((Up >> 10) & 0x3FF)) );
+        put( static_cast<uint16_t>(0xDC00 + ((Up      ) & 0x3FF)) );
+    }
 }
 
 template <typename It, typename Put32>
