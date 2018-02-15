@@ -76,6 +76,11 @@
 #define CL_ASSERT(X) assert(X)
 #endif
 
+#if _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4459) // declaration of 'identifier' hides global declaration
+#endif
+
 namespace cl {
 
 class Cmdline;
@@ -1674,28 +1679,31 @@ template <typename It>
 It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
-    if (next == last) {
-        U = kInvalidCodepoint; // Insuffient data
-        return next;
-    }
 
     int const slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
     ++next;
 
-    if (slen == 0 || last - next < slen - 1) {
-        U = kInvalidCodepoint; // Invalid lead byte or insufficient data
+    if (slen == 0) {
+        U = kInvalidCodepoint; // Invalid lead byte
         return next;
     }
 
-    auto const end = next + (slen - 1);
-    for (; next != end; ++next)
+    for (int i = 1; i < slen; ++i)
     {
-        if (!IsUTF8ContinuationByte(*next)) {
+        if (next == last) {
             U = kInvalidCodepoint;
             return next;
         }
 
-        U = (U << 6) | (static_cast<uint8_t>(*next) & 0x3F);
+        auto const cb = *next;
+        ++next;
+
+        if (!IsUTF8ContinuationByte(cb)) {
+            U = kInvalidCodepoint;
+            return next;
+        }
+
+        U = (U << 6) | (static_cast<uint8_t>(cb) & 0x3F);
     }
 
     if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen)) {
@@ -1710,10 +1718,6 @@ template <typename It>
 It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
-    if (next == last) {
-        U = kInvalidCodepoint;
-        return next;
-    }
 
     uint32_t const W1 = static_cast<uint16_t>(*next);
     ++next;
@@ -2399,5 +2403,9 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
 #endif // _WIN32
 
 } // namespace cl
+
+#if _MSC_VER
+#pragma warning(pop)
+#endif
 
 #endif // CL_CMDLINE_H
