@@ -47,12 +47,16 @@ solution "Cmdline"
     configuration { "gmake" }
         buildoptions {
             "-march=native",
+            "-pedantic",
+            "-Wdouble-promotion",
             "-Wformat",
-            -- "-Wsign-compare",
-            -- "-Wsign-conversion",
-            -- "-pedantic",
+            "-Wshadow",
+            "-Wsign-compare",
+            "-Wsign-conversion",
             -- "-fno-omit-frame-pointer",
             -- "-ftime-report",
+            "-fstrict-overflow",
+            "-Wstrict-overflow",
         }
 
     configuration { "gmake", "debug", "linux" }
