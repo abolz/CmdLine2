@@ -973,15 +973,10 @@ TEST_CASE("Ex 1")
     cl.Add(
         "O0|O1|O2|O3|Os",
 "Optimization level\n"
-"  -O0  No optimization (the default); generates unoptimized code but has the\n"
-"       fastest compilation time.\n"
-"  -O1  Moderate optimization; optimizes reasonably well but does not degrade\n"
-"       compilation time significantly.\n"
-"  -O2  Full optimization; generates highly optimized code and has the\n"
-"       slowest compilation time.\n"
-"  -O3  Full optimization as in -O2; also uses more aggressive automatic\n"
-"       inlining of subprograms within a unit (Inlining of Subprograms) and\n"
-"       attempts to vectorize loops.\n"
+"  -O0  No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+"  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
+"  -O2  Full optimization; generates highly optimized code and has the slowest compilation time.\n"
+"  -O3  Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
 "  -Os  Optimize space usage (code and data) of resulting program.",
         cl::Map(optlevel, {{"O0", OptimizationLevel::O0},
                            {"O1", OptimizationLevel::O1},
@@ -992,13 +987,14 @@ TEST_CASE("Ex 1")
         cl::NumOpts::required
         );
 
-    cl::Cmdline::HelpFormat fmt;
-    fmt.indent = 2;
-    fmt.descr_indent = 20;
-    fmt.max_width = 0;
-
     CHECK(false == ParseArgs(cl, {}));
     cl.PrintDiag();
+
+    cl::Cmdline::HelpFormat fmt;
+    fmt.indent = 2;
+    fmt.descr_indent = 8;
+    fmt.line_length = 56;
+
     cl.PrintHelp("compiler", fmt);
 }
 
@@ -1015,11 +1011,11 @@ TEST_CASE("Ex 2")
     cl.Add(
         "O",
 "Optimization level\n"
-"-O0   No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
-"-O1   Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
-"-O2   Full optimization; generates highly optimized code and has the slowest compilation time.\n"
-"-O3   Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
-"-Os   Optimize space usage (code and data) of resulting program.",
+" -OptimzationLevel00000\tNo optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+"\t  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
+"  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\n"
+"  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
+"  -Os  \tOptimize space usage (code and data) of resulting program.",
         [&](cl::ParseContext const& ctx) {
             if (ctx.arg == "0")
                 optlevel = OptimizationLevel::O0;
@@ -1044,11 +1040,6 @@ TEST_CASE("Ex 2")
         cl::NumOpts::required
         );
 
-    cl::Cmdline::HelpFormat fmt;
-    fmt.indent = 2;
-    fmt.descr_indent = 4;
-    fmt.max_width = 24;
-
     CHECK(false == ParseArgs(cl, {"-Oinf"}));
     cl.PrintDiag();
     cl.Reset();
@@ -1056,5 +1047,11 @@ TEST_CASE("Ex 2")
     cl.PrintDiag();
     cl.Reset();
     CHECK(true == ParseArgs(cl, {"-Os"}));
+
+    cl::Cmdline::HelpFormat fmt;
+    fmt.indent = 2;
+    fmt.descr_indent = 8;
+    //fmt.line_length = 20;
+
     cl.PrintHelp("compiler", fmt);
 }

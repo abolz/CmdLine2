@@ -21,8 +21,13 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#ifndef CL_EXPERIMENTAL_TAB_SUPPORT
+#define CL_EXPERIMENTAL_TAB_SUPPORT 1
+#endif
+
 #include <cassert>
 #include <cerrno>
+#include <climits>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
@@ -310,7 +315,7 @@ struct ByChar
 };
 
 // Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
-struct ByLine
+struct ByLines
 {
     DelimiterResult operator()(string_view str) const
     {
@@ -339,11 +344,11 @@ struct ByLine
 // Breaks a string into words, i.e. searches for the first whitespace preceding
 // the given length. If there is no whitespace, breaks a single word at length
 // characters.
-struct ByMaxLength
+struct ByWords
 {
     size_t const length;
 
-    explicit ByMaxLength(size_t length_)
+    explicit ByWords(size_t length_)
         : length(length_)
     {
         CL_ASSERT(length != 0 && "invalid parameter");
@@ -356,10 +361,21 @@ struct ByMaxLength
             return {string_view::npos, 0};
 
         // Otherwise, search for the first space preceding the line length.
-        auto const I = str.find_last_of(" \t", length);
+        size_t const last_ws = str.find_last_of(" \t", length);
 
-        if (I != string_view::npos)
-            return {I, 1};
+        if (last_ws != string_view::npos)
+        {
+#if 0
+            size_t last_non_ws = last_ws;
+            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t'))
+            {
+                --last_non_ws;
+            }
+            return {last_non_ws, last_ws - last_non_ws + 1};
+#else
+            return {last_ws, 1};
+#endif
+        }
 
         return {length, 0}; // No space in current line, break at length.
     }
@@ -800,12 +816,12 @@ public:
     {
         size_t indent;       // (NOLINT)
         size_t descr_indent; // (NOLINT)
-        size_t max_width;    // (NOLINT)
+        size_t line_length;  // (NOLINT)
 
         HelpFormat()
             : indent(2)
             , descr_indent(27)
-            , max_width(100)
+            , line_length(100)
         {
         }
     };
@@ -1086,28 +1102,61 @@ inline void Cmdline::PrintDiag() const
 
 namespace impl {
 
-inline void AppendWrapped(std::string& out, string_view text, size_t indent, size_t width)
+inline size_t AppendSingleLine(std::string& out, string_view line, size_t indent, size_t column_width, size_t col, bool indent_first_piece)
 {
-    CL_ASSERT(indent < width);
+    bool do_indent = indent_first_piece;
 
-    bool first = true;
+    impl::Split(line, impl::ByWords(column_width), [&](string_view piece) {
+        if (do_indent)
+        {
+            out += '\n';
+            out.append(indent, ' ');
+            col = indent;
+        }
+        else
+        {
+            do_indent = true;
+        }
+        out.append(piece.data(), piece.size());
+        col += piece.size();
+        return true;
+    });
 
-    // Break the string into paragraphs
-    impl::Split(text, impl::ByLine(), [&](string_view par) {
-        // Break the paragraphs at the maximum width into lines
-        impl::Split(par, impl::ByMaxLength(width), [&](string_view line) {
-            if (first)
-            {
-                first = false;
-            }
-            else
-            {
-                out += '\n';
-                out.append(indent, ' ');
-            }
-            out.append(line.data(), line.size());
-            return true;
-        });
+    return col;
+}
+
+// Assumes: currently at column = 'indent'
+inline void AppendLines(std::string& out, string_view text, size_t indent, size_t column_width)
+{
+    CL_ASSERT(indent < column_width);
+
+    bool do_indent = false; // Do not indent the first line.
+
+    impl::Split(text, impl::ByLines(), [&](string_view line) {
+#if CL_EXPERIMENTAL_TAB_SUPPORT
+        // Find the position of the first tab-character in this line (if any).
+        auto const tab_pos = line.find('\t');
+        CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos) && "Only a single tab-character per line is allowed");
+
+        // Append the first (or only) part of this line.
+        auto const col = impl::AppendSingleLine(out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
+
+        // If there is a tab-character, print the second half of this line.
+        if (tab_pos != string_view::npos)
+        {
+            CL_ASSERT(col >= indent);
+
+            auto const block_col  = (col - indent) % column_width;
+            auto const new_indent = indent + block_col;
+            auto const new_width  = column_width - block_col;
+
+            impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
+        }
+#else
+        impl::AppendSingleLine(out, line, indent, column_width, /*col (ignored)*/ 0, do_indent);
+#endif
+
+        do_indent = true;
         return true;
     });
 }
@@ -1117,9 +1166,11 @@ inline void AppendWrapped(std::string& out, string_view text, size_t indent, siz
 inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
 {
     CL_ASSERT(fmt.descr_indent > fmt.indent);
-    CL_ASSERT(fmt.max_width == 0 || fmt.max_width > fmt.descr_indent);
+    CL_ASSERT(fmt.descr_indent < SIZE_MAX);
 
-    size_t const descr_width = (fmt.max_width == 0) ? SIZE_MAX : (fmt.max_width - fmt.descr_indent);
+    auto const line_length = (fmt.line_length == 0) ? SIZE_MAX : fmt.line_length;
+    CL_ASSERT(line_length > fmt.descr_indent);
+    auto const descr_width = line_length - fmt.descr_indent;
 
     std::string spos;
     std::string sopt = "Options:\n";
@@ -1129,7 +1180,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->positional_ == Positional::yes)
         {
-            bool const is_optional = (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more);
+            auto const is_optional = (opt->num_opts_ == NumOpts::optional || opt->num_opts_ == NumOpts::zero_or_more);
 
             spos += ' ';
             if (is_optional) {
@@ -1147,27 +1198,28 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
             auto const col0 = sopt.size();
             CL_ASSERT(col0 == 0 || sopt[col0 - 1] == '\n');
 
+            // Append the name of the option along with a short description of its argument (if any)
+            // NOTE:
+            // Not wrapped.
             sopt.append(fmt.indent, ' ');
             sopt += '-';
             sopt.append(opt->name_.data(), opt->name_.size());
-
             if (opt->has_arg_ != HasArg::no)
             {
-                sopt += (opt->has_arg_ == HasArg::optional) // (NOLINT)
-                            ? "=<ARG>"
-                            : " <ARG>";
+                sopt += (opt->has_arg_ == HasArg::optional) ? "=<arg>" : " <arg>"; // (NOLINT)
             }
 
+            // Append the options description.
             auto const col = sopt.size() - col0;
             auto const wrap = (col >= fmt.descr_indent);
-            auto const descr_indent = wrap ? fmt.descr_indent : fmt.descr_indent - col;
-
+            auto const nspaces = wrap ? fmt.descr_indent : fmt.descr_indent - col;
             if (wrap) {
                 sopt += '\n';
             }
-            sopt.append(descr_indent, ' ');
-
-            impl::AppendWrapped(sopt, opt->descr_, fmt.descr_indent, descr_width);
+            sopt.append(nspaces, ' ');
+            // Now at column fmt.descr_width.
+            // Finally append the options' description.
+            impl::AppendLines(sopt, opt->descr_, fmt.descr_indent, descr_width);
 
             sopt += '\n'; // One option per line
         }
