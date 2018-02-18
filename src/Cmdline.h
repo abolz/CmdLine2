@@ -77,6 +77,8 @@
 #define CL_ATTRIBUTE_PRINTF(X, Y)
 #endif
 
+// XXX:
+// Must evaluate (X) exactly once!
 #ifndef CL_ASSERT
 #define CL_ASSERT(X) assert(X)
 #endif
@@ -713,8 +715,11 @@ struct Diagnostic
     }
 };
 
+// Check for missing options in Cmdline::Parse?
 enum class CheckMissingOptions {
+    // Do not emit errors if required options have not been specified on the command line.
     no,
+    // Emit errors if required options have not been specified on the command line.
     yes,
 };
 
@@ -1693,6 +1698,29 @@ inline bool IsValidCodePoint(uint32_t U)
     return U <= 0x10FFFF && (U < 0xD800 || U > 0xDFFF);
 }
 
+inline bool IsUTF8LeadByte(char ch)
+{
+    uint32_t const b = static_cast<uint8_t>(ch);
+
+    return b < 0x80 || (0xC0 <= b && b < 0xF8);
+}
+
+inline bool IsUTF8ContinuationByte(char ch)
+{
+    uint32_t const b = static_cast<uint8_t>(ch);
+
+    return 0x80 == (b & 0xC0); // b == 10xxxxxx???
+}
+
+template <typename It>
+It FindNextUTF8Sequence(It next, It last)
+{
+    while (next != last && !IsUTF8LeadByte(*next)) {
+        ++next;
+    }
+    return next;
+}
+
 inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
 {
     uint32_t const b = static_cast<uint8_t>(ch);
@@ -1720,13 +1748,6 @@ inline bool IsUTF8OverlongSequence(uint32_t U, int slen)
     return slen != GetUTF8SequenceLengthFromCodepoint(U);
 }
 
-inline bool IsUTF8ContinuationByte(char ch)
-{
-    uint32_t const b = static_cast<uint8_t>(ch);
-
-    return 0x80 == (b & 0xC0); // b == 10xxxxxx???
-}
-
 template <typename It>
 It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 {
@@ -1743,7 +1764,7 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     for (int i = 1; i < slen; ++i)
     {
         if (next == last) {
-            U = kInvalidCodepoint;
+            U = kInvalidCodepoint; // Incomplete UTF-8 sequence
             return next;
         }
 
@@ -1759,45 +1780,16 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     }
 
     if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen)) {
+        //
+        // XXX:
+        //
+        // FindNextUTF8Sequence does not work correctly when we return from here...
+        // kInvalidCodepoint is not sufficient to indicate an error...
+        //
         U = kInvalidCodepoint;
         return next;
     }
 
-    return next;
-}
-
-template <typename It>
-It DecodeUTF16Sequence(It next, It last, uint32_t& U)
-{
-    CL_ASSERT(next != last);
-
-    uint32_t const W1 = static_cast<uint16_t>(*next);
-    ++next;
-
-    if (W1 < 0xD800 || W1 > 0xDFFF) {
-        U = W1;
-        return next;
-    }
-
-    if (W1 > 0xDBFF) {
-        U = kInvalidCodepoint;
-        return next;
-    }
-
-    if (next == last) {
-        U = kInvalidCodepoint;
-        return next;
-    }
-
-    uint32_t const W2 = static_cast<uint16_t>(*next);
-    ++next;
-
-    if (W2 < 0xDC00 || W2 > 0xDFFF) {
-        U = kInvalidCodepoint;
-        return next;
-    }
-
-    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
     return next;
 }
 
@@ -1821,13 +1813,80 @@ void EncodeUTF8(uint32_t U, Put8 put)
         put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
         put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
     }
-    else if (U <= 0x10FFFF)
+    else
     {
-        put( static_cast<uint8_t>( 0xF0 | ((U >> 18)       ) ) );
+        put( static_cast<uint8_t>( 0xF0 | ((U >> 18) & 0x3F) ) );
         put( static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) ) );
         put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
         put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
     }
+}
+
+template <typename It, typename Put32>
+bool ForEachUTF8EncodedCodepoint(It next, It last, Put32 put)
+{
+    while (next != last)
+    {
+        uint32_t U = 0;
+
+        auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
+        CL_ASSERT(next != next1);
+        next = next1;
+
+        if (!put(U)) {
+            return false;
+        }
+
+        if (U == impl::kInvalidCodepoint) {
+            next = FindNextUTF8Sequence(next, last);
+        }
+    }
+
+    return true;
+}
+
+inline bool IsUTF16LeadByte(uint16_t w)
+{
+    return w <= 0xDBFF || w > 0xDFFF;
+}
+
+template <typename It>
+It FindNextUTF16Sequence(It next, It last)
+{
+    while (next != last && !IsUTF16LeadByte(*next)) {
+        ++next;
+    }
+    return next;
+}
+
+template <typename It>
+It DecodeUTF16Sequence(It next, It last, uint32_t& U)
+{
+    CL_ASSERT(next != last);
+
+    uint32_t const W1 = static_cast<uint16_t>(*next);
+    ++next;
+
+    if (W1 < 0xD800 || W1 > 0xDFFF) {
+        U = W1;
+        return next;
+    }
+
+    if (W1 > 0xDBFF || next == last) {
+        U = kInvalidCodepoint; // Invalid high surrogate or incomplete UTF-16 sequence
+        return next;
+    }
+
+    uint32_t const W2 = static_cast<uint16_t>(*next);
+    ++next;
+
+    if (W2 < 0xDC00 || W2 > 0xDFFF) {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
+    return next;
 }
 
 template <typename Put16>
@@ -1849,35 +1908,26 @@ void EncodeUTF16(uint32_t U, Put16 put)
 }
 
 template <typename It, typename Put32>
-bool ConvertUTF8ToUTF32(It next, It last, Put32 put)
+bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
 {
     while (next != last)
     {
         uint32_t U = 0;
 
-        auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
+        auto const next1 = impl::DecodeUTF16Sequence(next, last, U);
         CL_ASSERT(next != next1);
         next = next1;
 
-        if (U == impl::kInvalidCodepoint)
+        if (!put(U)) {
             return false;
+        }
 
-        put(U);
+        if (U == impl::kInvalidCodepoint) {
+            next = FindNextUTF16Sequence(next, last);
+        }
     }
 
     return true;
-}
-
-template <typename It, typename Put16>
-bool ConvertUTF8ToUTF16(It next, It last, Put16 put)
-{
-    return impl::ConvertUTF8ToUTF32(next, last, [&](uint32_t U) { impl::EncodeUTF16(U, put); });
-}
-
-template <typename It>
-bool IsValidUTF8(It next, It last)
-{
-    return impl::ConvertUTF8ToUTF32(next, last, [](uint32_t /*U*/) {});
 }
 
 } // namespace impl
@@ -1956,8 +2006,12 @@ struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 {
     bool operator()(ParseContext const& ctx, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
     {
-        bool const ok = impl::IsValidUTF8(ctx.arg.begin(), ctx.arg.end());
-        if (!ok) {
+        bool const ok = impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [](uint32_t U) {
+            return U != impl::kInvalidCodepoint;
+        });
+
+        if (!ok)
+        {
             ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
             return false;
         }
@@ -1974,14 +2028,22 @@ struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
     {
         value.clear();
 
+        bool const ok = impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t U) {
+            if (U == impl::kInvalidCodepoint)
+                return false;
+
 #if _WIN32
-        static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-        bool const ok = impl::ConvertUTF8ToUTF16(ctx.arg.begin(), ctx.arg.end(), [&](uint16_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
+            static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+            impl::EncodeUTF16(U, [&](uint16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
 #else
-        static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
-        bool const ok = impl::ConvertUTF8ToUTF32(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t ch) { value.push_back(static_cast<wchar_t>(ch)); });
+            static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+            value.push_back(static_cast<wchar_t>(U));
 #endif
-        if (!ok) {
+            return true;
+        });
+
+        if (!ok)
+        {
             ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
             return false;
         }
@@ -2429,26 +2491,24 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
 {
     static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
 
-    CL_ASSERT(command_line != nullptr);
+    std::string command_line_utf8;
 
+    CL_ASSERT(command_line != nullptr);
     auto next = command_line;
     auto const last = command_line + std::char_traits<wchar_t>::length(command_line); // (NOLINT)
 
-    std::string command_line_utf8;
-
-    while (next != last)
+    impl::ForEachUTF16EncodedCodepoint(next, last, [&](uint32_t U)
     {
-        uint32_t U = 0;
-
-        auto const next1 = impl::DecodeUTF16Sequence(next, last, U);
-        CL_ASSERT(next != next1);
-        next = next1;
-
         if (U == impl::kInvalidCodepoint)
+        {
+            // XXX:
+            // throw?! abort?!
             U = impl::kReplacementCharacter;
+        }
 
-        impl::EncodeUTF8(U, [&](uint8_t ch) { command_line_utf8.push_back(static_cast<char>(ch)); });
-    }
+        impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
+        return true;
+    });
 
     return cl::TokenizeWindows(command_line_utf8, parse_program_name);
 }
