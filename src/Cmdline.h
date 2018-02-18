@@ -986,7 +986,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::error:
             return {false, curr};
         case Status::ignored:
-            FormatDiag(Diagnostic::error, curr_index_, "Unknown option '%s'", arg.c_str());
+            FormatDiag(Diagnostic::error, curr_index_, "unknown option '%s'", arg.c_str());
             return {false, curr};
         }
 
@@ -1011,7 +1011,7 @@ inline bool Cmdline::AnyMissing()
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->IsOccurrenceRequired())
         {
-            FormatDiag(Diagnostic::error, -1, "Option '%.*s' is missing",
+            FormatDiag(Diagnostic::error, -1, "option '%.*s' is missing",
                        static_cast<int>(opt->name_.size()), opt->name_.data());
             res = true;
         }
@@ -1086,13 +1086,13 @@ inline void Cmdline::PrintDiag() const
         switch (d.type)
         {
         case Diagnostic::error:
-            fprintf(stderr, CL_VT100_RED "Error" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_RED "error" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         case Diagnostic::warning:
-            fprintf(stderr, CL_VT100_MAGENTA "Warning" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_MAGENTA "warning" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         case Diagnostic::note:
-            fprintf(stderr, CL_VT100_CYAN "Note" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_CYAN "note" CL_VT100_RESET ": %s\n", d.message.c_str());
             break;
         }
     }
@@ -1433,7 +1433,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         }
 
         // The option accepts an argument, but may not join its argument.
-        FormatDiag(Diagnostic::error, curr_index_, "Option '%c' must be the last in a group", optstr[n]);
+        FormatDiag(Diagnostic::error, curr_index_, "option '%c' must be the last in a group", optstr[n]);
         return Status::error;
     }
 
@@ -1486,7 +1486,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
             return ParseOptionArgument(opt, name, *curr);
     }
 
-    FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' requires an argument",
+    FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' requires an argument",
                static_cast<int>(name.size()), name.data());
     return Status::error;
 }
@@ -1497,7 +1497,7 @@ inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view na
 
     if (opt->positional_ == Positional::no && opt->has_arg_ == HasArg::no)
     {
-        FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' does not accept an argument",
+        FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' does not accept an argument",
                    static_cast<int>(name.size()), name.data());
         return Status::error;
     }
@@ -1510,7 +1510,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
     auto Parse1 = [&](string_view arg1) {
         if (!opt->IsOccurrenceAllowed())
         {
-            FormatDiag(Diagnostic::error, curr_index_, "Option '%.*s' already specified",
+            FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' already specified",
                        static_cast<int>(name.size()), name.data());
             return Status::error;
         }
@@ -1533,7 +1533,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
             if (!diagnostic_emitted)
             {
-                FormatDiag(Diagnostic::error, curr_index_, "Invalid argument '%.*s' for option '%.*s'",
+                FormatDiag(Diagnostic::error, curr_index_, "invalid argument '%.*s' for option '%.*s'",
                            static_cast<int>(arg1.size()), arg1.data(),
                            static_cast<int>(name.size()), name.data());
             }
@@ -2012,7 +2012,7 @@ struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
 
         if (!ok)
         {
-            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid UTF-8 encoded string");
             return false;
         }
 
@@ -2044,7 +2044,7 @@ struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
 
         if (!ok)
         {
-            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid UTF-8 encoded string");
+            ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid UTF-8 encoded string");
             return false;
         }
 
@@ -2203,11 +2203,11 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
             break;
         }
 
-        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option '%.*s'",
+        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
                                 static_cast<int>(ctx.arg.size()), ctx.arg.data(),
                                 static_cast<int>(ctx.name.size()), ctx.name.data());
         for (auto const& p : map) {
-            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "Could be '%s'", p.first);
+            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
         }
 
         return false;
