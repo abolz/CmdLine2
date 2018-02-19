@@ -79,7 +79,7 @@ matrix:
       env:
         - COMPILER=clang++
         - CONFIGURATION=release
-        - CXXFLAGS="-std=c++14 -stdlib=libc++ -fno-sanitize-recover=undefined"
+        - CXXFLAGS="-std=c++14 -stdlib=libc++ -fsanitize=undefined -fno-sanitize-recover=undefined"
     - os: osx
       compiler: clang
       env:
