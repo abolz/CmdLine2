@@ -2128,28 +2128,18 @@ struct RemoveCVRec<T<Args...>>
 // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
 // Returns true iff all f return true.
 template <typename T, typename... Funcs>
-bool ApplyFuncs(ParseContext const& ctx, T& value, Funcs&&... funcs)
+bool ApplyFuncs(ParseContext const& ctx, T& value_, Funcs&&... funcs)
 {
-#if __GNUC__
-// For g++-6 (and lower?)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#endif
-
-    static_cast<void>(ctx);   // may be unused if funcs is empty
-    static_cast<void>(value); // may be unused if funcs is empty
+    static_cast<void>(ctx);    // may be unused if funcs is empty
+    static_cast<void>(value_); // may be unused if funcs is empty
 
 #if CL_HAS_FOLD_EXPRESSIONS
-    return (... && funcs(ctx, value));
+    return (... && funcs(ctx, value_));
 #else
     bool res = true;
-    bool const unused[] = {(res = res && funcs(ctx, value))..., false};
+    bool const unused[] = {(res = res && funcs(ctx, value_))..., false};
     static_cast<void>(unused);
     return res;
-#endif
-
-#if __GNUC__
-#pragma GCC diagnostic pop
 #endif
 }
 
