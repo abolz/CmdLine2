@@ -123,5 +123,6 @@ install:
 
 script:
   - export CXX=$COMPILER
+  - $CXX --version
   - make -C build/gmake/ config=$CONFIGURATION Test
   - ./build/gmake/bin/$CONFIGURATION/Test
