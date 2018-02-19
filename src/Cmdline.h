@@ -2001,10 +2001,10 @@ struct ParseValue<long double>
     }
 };
 
-template <typename Alloc>
-struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<char, Traits, Alloc>>
 {
-    bool operator()(ParseContext const& ctx, std::basic_string<char, std::char_traits<char>, Alloc>& value) const
+    bool operator()(ParseContext const& ctx, std::basic_string<char, Traits, Alloc>& value) const
     {
         bool const ok = impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [](uint32_t U) {
             return U != impl::kInvalidCodepoint;
@@ -2021,10 +2021,10 @@ struct ParseValue<std::basic_string<char, std::char_traits<char>, Alloc>>
     }
 };
 
-template <typename Alloc>
-struct ParseValue<std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>>
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
 {
-    bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>& value) const
+    bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, Traits, Alloc>& value) const
     {
         value.clear();
 
