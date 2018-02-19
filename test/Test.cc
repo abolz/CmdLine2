@@ -1055,3 +1055,10 @@ TEST_CASE("Ex 2")
 
     cl.PrintHelp("compiler", fmt);
 }
+
+TEST_CASE("Test ubsan")
+{
+    int32_t i = INT32_MIN;
+    i /= -1;
+    CHECK(i == 0);
+}
