@@ -32,6 +32,30 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
+            - g++-5
+      compiler: gcc
+      env:
+        - COMPILER=g++-5
+        - CONFIGURATION=release
+        - CXXFLAGS="-std=c++14"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-5
+      compiler: gcc
+      env:
+        - COMPILER=g++-5
+        - CONFIGURATION=debug
+        - CXXFLAGS="-std=c++14"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
             - g++-6
       compiler: gcc
       env:
