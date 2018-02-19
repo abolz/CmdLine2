@@ -1055,3 +1055,10 @@ TEST_CASE("Ex 2")
 
     cl.PrintHelp("compiler", fmt);
 }
+
+TEST_CASE("UB temp")
+{
+    int32_t k = 0x7fffffff;
+    k += 1;
+    CHECK(k == 0);
+}
