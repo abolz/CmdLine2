@@ -80,14 +80,14 @@ matrix:
         - COMPILER=clang++
         - CONFIGURATION=release
         - CXXFLAGS="-std=c++14 -stdlib=libc++ -fsanitize=undefined -fno-sanitize-recover=undefined"
-        - LINKFLAGS="-lubsan"
+        - LINKFLAGS="-fsanitize=undefined"
     - os: osx
       compiler: clang
       env:
         - COMPILER=clang++
         - CONFIGURATION=debug
         - CXXFLAGS="-std=c++14 -stdlib=libc++ -fsanitize=undefined -fno-sanitize-recover=undefined"
-        - LINKFLAGS="-lubsan"
+        - LINKFLAGS="-fsanitize=undefined"
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget "https://github.com/premake/premake-core/releases/download/v5.0.0-alpha11/premake-5.0.0-alpha11-linux.tar.gz" -O premake5.tar.gz; fi
