@@ -2130,6 +2130,12 @@ struct RemoveCVRec<T<Args...>>
 template <typename T, typename... Funcs>
 bool ApplyFuncs(ParseContext const& ctx, T& value, Funcs&&... funcs)
 {
+#if __GNUC__
+// For g++-6 (and lower?)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
     static_cast<void>(ctx);   // may be unused if funcs is empty
     static_cast<void>(value); // may be unused if funcs is empty
 
@@ -2140,6 +2146,10 @@ bool ApplyFuncs(ParseContext const& ctx, T& value, Funcs&&... funcs)
     bool const unused[] = {(res = res && funcs(ctx, value))..., false};
     static_cast<void>(unused);
     return res;
+#endif
+
+#if __GNUC__
+#pragma GCC diagnostic pop
 #endif
 }
 
