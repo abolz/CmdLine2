@@ -1108,3 +1108,208 @@ TEST_CASE("custom check")
     CHECK(i == 3);
     CHECK(cli.diag().empty());
 }
+
+TEST_CASE("Invalid UTF-8")
+{
+    // Test cases from:
+    // https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
+
+    struct Test {
+        std::string input;
+        int num_replacements; // 0: ignore
+    };
+
+    static const Test tests[] = {
+// 3.1  Unexpected continuation bytes
+// Each unexpected continuation byte should be separately signalled as a
+// malformed sequence of its own.
+//
+// XXX: The UTF decoder in namespace cl handles all contiguous sequences of trail bytes as a
+//      single invalid UTF-8 sequence
+//
+        {"\x80", 1},                          // 3.1.1  First continuation byte 0x80
+        {"\xBF", 1},                          // 3.1.2  Last continuation byte 0xbf
+        {"\x80\xBF", 1},                      // 3.1.3  2 continuation bytes
+        {"\x80\xBF\x80", 1},                  // 3.1.4  3 continuation bytes
+        {"\x80\xBF\x80\xBF", 1},              // 3.1.5  4 continuation bytes
+        {"\x80\xBF\x80\xBF\x80", 1},          // 3.1.6  5 continuation bytes
+        {"\x80\xBF\x80\xBF\x80\xBF", 1},      // 3.1.7  6 continuation bytes
+        {"\x80\xBF\x80\xBF\x80\xBF\x80", 1},  // 3.1.8  7 continuation bytes
+        // 3.1.9  Sequence of all 64 possible continuation bytes (0x80-0xbf)
+        {"\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D\x8E\x8F"
+         "\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9A\x9B\x9C\x9D\x9E\x9F"
+         "\xA0\xA1\xA2\xA3\xA4\xA5\xA6\xA7\xA8\xA9\xAA\xAB\xAC\xAD\xAE\xAF"
+         "\xB0\xB1\xB2\xB3\xB4\xB5\xB6\xB7\xB8\xB9\xBA\xBB\xBC\xBD\xBE\xBF", 1},
+
+// 3.2  Lonely start characters
+        // 3.2.1  All 32 first bytes of 2-byte sequences (0xc0-0xdf)
+        {"\xC0", 1},
+        {"\xC1", 1},
+        {"\xC2", 1},
+        {"\xC3", 1},
+        {"\xC4", 1},
+        {"\xC5", 1},
+        {"\xC6", 1},
+        {"\xC7", 1},
+        {"\xC8", 1},
+        {"\xC9", 1},
+        {"\xCA", 1},
+        {"\xCB", 1},
+        {"\xCC", 1},
+        {"\xCD", 1},
+        {"\xCE", 1},
+        {"\xCF", 1},
+        {"\xD0", 1},
+        {"\xD1", 1},
+        {"\xD2", 1},
+        {"\xD3", 1},
+        {"\xD4", 1},
+        {"\xD5", 1},
+        {"\xD6", 1},
+        {"\xD7", 1},
+        {"\xD8", 1},
+        {"\xD9", 1},
+        {"\xDA", 1},
+        {"\xDB", 1},
+        {"\xDC", 1},
+        {"\xDD", 1},
+        {"\xDE", 1},
+        {"\xDF", 1},
+        // 3.2.2  All 16 first bytes of 3-byte sequences (0xe0-0xef)
+        {"\xE0", 1},
+        {"\xE1", 1},
+        {"\xE2", 1},
+        {"\xE3", 1},
+        {"\xE4", 1},
+        {"\xE5", 1},
+        {"\xE6", 1},
+        {"\xE7", 1},
+        {"\xE8", 1},
+        {"\xE9", 1},
+        {"\xEA", 1},
+        {"\xEB", 1},
+        {"\xEC", 1},
+        {"\xED", 1},
+        {"\xEE", 1},
+        {"\xEF", 1},
+        // 3.2.3  All 8 first bytes of 4-byte sequences (0xf0-0xf7)
+        {"\xF0", 1},
+        {"\xF1", 1},
+        {"\xF2", 1},
+        {"\xF3", 1},
+        {"\xF4", 1},
+        {"\xF5", 1},
+        {"\xF6", 1},
+        {"\xF7", 1},
+        // 3.2.4  All 4 first bytes of 5-byte sequences (0xf8-0xfb)
+        {"\xF8", 1},
+        {"\xF9", 1},
+        {"\xFA", 1},
+        {"\xFB", 1},
+        // 3.2.5  All 2 first bytes of 6-byte sequences (0xfc-0xfd)
+        {"\xFC", 1},
+        {"\xFD", 1},
+
+// 3.3  Sequences with last continuation byte missing
+// All bytes of an incomplete sequence should be signalled as a single
+// malformed sequence, i.e., you should see only a single replacement
+// character in each of the next 10 tests.
+        {"\xC0", 1},                 // 2-byte sequence with last byte missing (U+0000)
+        {"\xE0\x80", 1},             // 3-byte sequence with last byte missing (U+0000)
+        {"\xF0\x80\x80", 1},         // 4-byte sequence with last byte missing (U+0000)
+        {"\xF8\x80\x80\x80", 1},     // 5-byte sequence with last byte missing (U+0000)
+        {"\xFC\x80\x80\x80\x80", 1}, // 6-byte sequence with last byte missing (U+0000)
+        {"\xDF", 1},                 // 2-byte sequence with last byte missing (U-000007FF)
+        {"\xEF\xBF", 1},             // 3-byte sequence with last byte missing (U-0000FFFF)
+        {"\xF7\xBF\xBF", 1},         // 4-byte sequence with last byte missing (U-001FFFFF)
+        {"\xFB\xBF\xBF\xBF", 1},     // 5-byte sequence with last byte missing (U-03FFFFFF)
+        {"\xFD\xBF\xBF\xBF\xBF", 1}, // 6-byte sequence with last byte missing (U-7FFFFFFF)
+
+// 3.4  Concatenation of incomplete sequences
+// All the 10 sequences of 3.3 concatenated, you should see 10 malformed
+// sequences being signalled
+#if 0
+        {"\xC0"
+         "\xE0\x80"
+         "\xF0\x80\x80"
+         "\xDF"
+         "\xEF\xBF"
+         "\xF7\xBF\xBF", 6},
+        {"\xC0"
+         "\xE0\x80"
+         "\xF0\x80\x80"
+         "\xF8\x80\x80\x80"
+         "\xFC\x80\x80\x80\x80"
+         "\xDF"
+         "\xEF\xBF"
+         "\xF7\xBF\xBF"
+         "\xFB\xBF\xBF\xBF"
+         "\xFD\xBF\xBF\xBF\xBF", 10},
+#endif
+
+// 3.5  Impossible bytes
+        {"\xFE", 1},
+        {"\xFF", 1},
+        {"\xFE\xFE\xFF\xFF", 4},
+
+// 4.1  Examples of an overlong ASCII character
+        {"\xC0\xAF", 1},                 // U+002F
+        {"\xE0\x80\xAF", 1},             // U+002F
+        {"\xF0\x80\x80\xAF", 1},         // U+002F
+        {"\xF8\x80\x80\x80\xAF", 1},     // U+002F
+        {"\xFC\x80\x80\x80\x80\xAF", 1}, // U+002F
+
+// 4.2  Maximum overlong sequences
+        {"\xC1\xBF", 1},                 // U-0000007F
+        {"\xE0\x9F\xBF", 1},             // U-000007FF
+        {"\xF0\x8F\xBF\xBF", 1},         // U-0000FFFF
+        {"\xF8\x87\xBF\xBF\xBF", 1},     // U-001FFFFF
+        {"\xFC\x83\xBF\xBF\xBF\xBF", 1}, // U-03FFFFFF
+
+// 4.3  Overlong representation of the NUL character
+        {"\xC0\x80", 1},                 // U+0000
+        {"\xE0\x80\x80", 1},             // U+0000
+        {"\xF0\x80\x80\x80", 1},         // U+0000
+        {"\xF8\x80\x80\x80\x80", 1},     // U+0000
+        {"\xFC\x80\x80\x80\x80\x80", 1}, // U+0000
+
+// 5.1 Single UTF-16 surrogates
+        {"\xED\xA0\x80", 1}, // U+D800
+        {"\xED\xAD\xBF", 1}, // U+DB7F
+        {"\xED\xAE\x80", 1}, // U+DB80
+        {"\xED\xAF\xBF", 1}, // U+DBFF
+        {"\xED\xB0\x80", 1}, // U+DC00
+        {"\xED\xBE\x80", 1}, // U+DF80
+        {"\xED\xBF\xBF", 1}, // U+DFFF
+
+// 5.2 Paired UTF-16 surrogates
+        {"\xED\xA0\x80\xED\xB0\x80", 2}, // U+D800 U+DC00
+        {"\xED\xA0\x80\xED\xBF\xBF", 2}, // U+D800 U+DFFF
+        {"\xED\xAD\xBF\xED\xB0\x80", 2}, // U+DB7F U+DC00
+        {"\xED\xAD\xBF\xED\xBF\xBF", 2}, // U+DB7F U+DFFF
+        {"\xED\xAE\x80\xED\xB0\x80", 2}, // U+DB80 U+DC00
+        {"\xED\xAE\x80\xED\xBF\xBF", 2}, // U+DB80 U+DFFF
+        {"\xED\xAF\xBF\xED\xB0\x80", 2}, // U+DBFF U+DC00
+        {"\xED\xAF\xBF\xED\xBF\xBF", 2}, // U+DBFF U+DFFF
+    };
+
+    auto CountInvalidUTF8Sequences = [](std::string const& in) {
+        int count = 0;
+        cl::impl::ForEachUTF8EncodedCodepoint(in.begin(), in.end(), [&](uint32_t U) {
+            if (U == cl::impl::kInvalidCodepoint)
+                ++count;
+            return true;
+        });
+        return count;
+    };
+
+    int i = 0;
+    for (auto const& test : tests)
+    {
+        int const num_invalid = CountInvalidUTF8Sequences(test.input);
+        CAPTURE(i);
+        CAPTURE(test.input);
+        CHECK(test.num_replacements == num_invalid);
+        ++i;
+    }
+}
