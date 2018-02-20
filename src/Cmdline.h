@@ -1215,7 +1215,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
                     = opt->has_flag(HasArg::optional)
                         ? "=<arg>"
                     : opt->has_flag(JoinArg::no)
-                        ? " <arg>" 
+                        ? " <arg>"
                         :  "<arg>";
 
                 sopt += arg_name;
@@ -1696,22 +1696,11 @@ constexpr uint32_t kReplacementCharacter = 0xFFFD;
 
 inline bool IsValidCodepoint(uint32_t U)
 {
-    //
     // 1. Characters with values greater than 0x10FFFF cannot be encoded in
     //    UTF-16.
     // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
     //    with UTF-16, and don't have any characters assigned to them.
-    //
-//  return U <= 0x10FFFF && (U < 0xD800 || U > 0xDFFF);
     return U < 0xD800 || (U > 0xDFFF && U <= 0x10FFFF);
-}
-
-inline bool IsUTF8Lead(char ch)
-{
-    uint32_t const b = static_cast<uint8_t>(ch);
-
-//  return b < 0x80 || (0xC2 <= b && b <= 0xF4);
-    return b < 0x80 || (0xC0 <= b && b < 0xF8);
 }
 
 inline bool IsUTF8Trail(char ch)
@@ -1724,7 +1713,9 @@ inline bool IsUTF8Trail(char ch)
 template <typename It>
 It FindNextUTF8Sequence(It next, It last)
 {
-    while (next != last && !IsUTF8Lead(*next)) {
+    // Skip UTF-8 trail bytes.
+    // The first non-trail byte is the start of a (possibly invalid) UTF-8 sequence.
+    while (next != last && IsUTF8Trail(*next)) {
         ++next;
     }
     return next;
@@ -1734,12 +1725,11 @@ inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
 {
     uint32_t const b = static_cast<uint8_t>(ch);
 
-    if (b < 0x80) { U = b;        return 1; }
-    if (b < 0xC0) {               return 0; }
-    if (b < 0xE0) { U = b & 0x1F; return 2; }
-    if (b < 0xF0) { U = b & 0x0F; return 3; }
-//  if (b < 0xF5) { U = b & 0x07; return 4; }
-    if (b < 0xF8) { U = b & 0x07; return 4; }
+    if (b <= 0x7F) { U = b;        return 1; } // 01111111 (0xxxxxxx)
+    if (b <= 0xC1) {               return 0; }
+    if (b <= 0xDF) { U = b & 0x1F; return 2; } // 11011111 (110xxxxx)
+    if (b <= 0xEF) { U = b & 0x0F; return 3; } // 11101111 (1110xxxx)
+    if (b <= 0xF4) { U = b & 0x07; return 4; } // 11110100 (11110xxx)
     return 0;
 }
 
@@ -1768,7 +1758,7 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 
     if (slen == 0) {
         U = kInvalidCodepoint; // Invalid lead byte
-        return next;
+        return FindNextUTF8Sequence(next, last);
     }
 
     for (int i = 1; i < slen; ++i)
@@ -1790,12 +1780,6 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
     }
 
     if (!IsValidCodepoint(U) || IsUTF8OverlongSequence(U, slen)) {
-        //
-        // XXX:
-        //
-        // FindNextUTF8Sequence does not work correctly when we return from here...
-        // kInvalidCodepoint is not sufficient to indicate an error...
-        //
         U = kInvalidCodepoint;
         return next;
     }
@@ -1846,27 +1830,9 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, Put32 put)
         if (!put(U)) {
             return false;
         }
-
-        if (U == cl::impl::kInvalidCodepoint) {
-            next = FindNextUTF8Sequence(next, last);
-        }
     }
 
     return true;
-}
-
-inline bool IsUTF16LeadByte(uint16_t w)
-{
-    return w <= 0xDBFF || w > 0xDFFF;
-}
-
-template <typename It>
-It FindNextUTF16Sequence(It next, It last)
-{
-    while (next != last && !IsUTF16LeadByte(*next)) {
-        ++next;
-    }
-    return next;
 }
 
 template <typename It>
@@ -1930,10 +1896,6 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
 
         if (!put(U)) {
             return false;
-        }
-
-        if (U == cl::impl::kInvalidCodepoint) {
-            next = FindNextUTF16Sequence(next, last);
         }
     }
 
