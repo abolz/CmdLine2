@@ -1,5 +1,5 @@
-#define CL_WINDOWS_CONSOLE_COLORS 1
-#define CL_ANSI_CONSOLE_COLORS 1
+//#define CL_WINDOWS_CONSOLE_COLORS 1
+//#define CL_ANSI_CONSOLE_COLORS 1
 #include "Cmdline.h"
 
 enum class Standard { cxx11, cxx14, cxx17 };

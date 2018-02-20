@@ -21,10 +21,6 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#ifndef CL_EXPERIMENTAL_TAB_SUPPORT
-#define CL_EXPERIMENTAL_TAB_SUPPORT 1
-#endif
-
 #include <cassert>
 #include <cerrno>
 #include <climits>
@@ -77,8 +73,6 @@
 #define CL_ATTRIBUTE_PRINTF(X, Y)
 #endif
 
-// XXX:
-// Must evaluate (X) exactly once!
 #ifndef CL_ASSERT
 #define CL_ASSERT(X) assert(X)
 #endif
@@ -369,8 +363,7 @@ struct ByWords
         {
 #if 0
             size_t last_non_ws = last_ws;
-            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t'))
-            {
+            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t')) {
                 --last_non_ws;
             }
             return {last_non_ws, last_ws - last_non_ws + 1};
@@ -1148,7 +1141,6 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
     bool do_indent = false; // Do not indent the first line.
 
     impl::Split(text, impl::ByLines(), [&](string_view line) {
-#if CL_EXPERIMENTAL_TAB_SUPPORT
         // Find the position of the first tab-character in this line (if any).
         auto const tab_pos = line.find('\t');
         CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos) && "Only a single tab-character per line is allowed");
@@ -1167,9 +1159,6 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
 
             impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
         }
-#else
-        impl::AppendSingleLine(out, line, indent, column_width, /*col (ignored)*/ 0, do_indent);
-#endif
 
         do_indent = true;
         return true;
@@ -1697,7 +1686,7 @@ struct ParseUnsignedInt
 constexpr uint32_t kInvalidCodepoint = 0xFFFFFFFF;
 constexpr uint32_t kReplacementCharacter = 0xFFFD;
 
-inline bool IsValidCodePoint(uint32_t U)
+inline bool IsValidCodepoint(uint32_t U)
 {
     //
     // 1. Characters with values greater than 0x10FFFF cannot be encoded in
@@ -1705,17 +1694,19 @@ inline bool IsValidCodePoint(uint32_t U)
     // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
     //    with UTF-16, and don't have any characters assigned to them.
     //
-    return U <= 0x10FFFF && (U < 0xD800 || U > 0xDFFF);
+//  return U <= 0x10FFFF && (U < 0xD800 || U > 0xDFFF);
+    return U < 0xD800 || (U > 0xDFFF && U <= 0x10FFFF);
 }
 
-inline bool IsUTF8LeadByte(char ch)
+inline bool IsUTF8Lead(char ch)
 {
     uint32_t const b = static_cast<uint8_t>(ch);
 
+//  return b < 0x80 || (0xC2 <= b && b <= 0xF4);
     return b < 0x80 || (0xC0 <= b && b < 0xF8);
 }
 
-inline bool IsUTF8ContinuationByte(char ch)
+inline bool IsUTF8Trail(char ch)
 {
     uint32_t const b = static_cast<uint8_t>(ch);
 
@@ -1725,7 +1716,7 @@ inline bool IsUTF8ContinuationByte(char ch)
 template <typename It>
 It FindNextUTF8Sequence(It next, It last)
 {
-    while (next != last && !IsUTF8LeadByte(*next)) {
+    while (next != last && !IsUTF8Lead(*next)) {
         ++next;
     }
     return next;
@@ -1739,13 +1730,14 @@ inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
     if (b < 0xC0) {               return 0; }
     if (b < 0xE0) { U = b & 0x1F; return 2; }
     if (b < 0xF0) { U = b & 0x0F; return 3; }
+//  if (b < 0xF5) { U = b & 0x07; return 4; }
     if (b < 0xF8) { U = b & 0x07; return 4; }
     return 0;
 }
 
 inline int GetUTF8SequenceLengthFromCodepoint(uint32_t U)
 {
-    CL_ASSERT(IsValidCodePoint(U));
+    CL_ASSERT(IsValidCodepoint(U));
 
     if (U <=   0x7F) { return 1; }
     if (U <=  0x7FF) { return 2; }
@@ -1781,7 +1773,7 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
         auto const cb = *next;
         ++next;
 
-        if (!IsUTF8ContinuationByte(cb)) {
+        if (!IsUTF8Trail(cb)) {
             U = kInvalidCodepoint;
             return next;
         }
@@ -1789,7 +1781,7 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
         U = (U << 6) | (static_cast<uint8_t>(cb) & 0x3F);
     }
 
-    if (!IsValidCodePoint(U) || IsUTF8OverlongSequence(U, slen)) {
+    if (!IsValidCodepoint(U) || IsUTF8OverlongSequence(U, slen)) {
         //
         // XXX:
         //
@@ -1806,7 +1798,7 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 template <typename Put8>
 void EncodeUTF8(uint32_t U, Put8 put)
 {
-    CL_ASSERT(IsValidCodePoint(U));
+    CL_ASSERT(IsValidCodepoint(U));
 
     if (U <= 0x7F)
     {
@@ -1902,7 +1894,7 @@ It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 template <typename Put16>
 void EncodeUTF16(uint32_t U, Put16 put)
 {
-    CL_ASSERT(IsValidCodePoint(U));
+    CL_ASSERT(IsValidCodepoint(U));
 
     if (U < 0x10000)
     {
