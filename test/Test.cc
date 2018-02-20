@@ -972,12 +972,12 @@ TEST_CASE("Ex 1")
     cl::Cmdline cl;
     cl.Add(
         "O0|O1|O2|O3|Os",
-"Optimization level\n"
-"  -O0  No optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
-"  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
-"  -O2  Full optimization; generates highly optimized code and has the slowest compilation time.\n"
-"  -O3  Full optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
-"  -Os  Optimize space usage (code and data) of resulting program.",
+"Optimization level\r\n"
+"  -O0  No optimization (the default); generates unoptimized code but has the fastest compilation time.\r\n"
+"  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\r\n"
+"  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\r\n"
+"  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\r\n"
+"  -Os  \tOptimize space usage (code and data) of resulting program.",
         cl::Map(optlevel, {{"O0", OptimizationLevel::O0},
                            {"O1", OptimizationLevel::O1},
                            {"O2", OptimizationLevel::O2},
@@ -1006,12 +1006,13 @@ TEST_CASE("Ex 2")
     enum class OptimizationLevel { O0, O1, O2, O3, Os };
 
     OptimizationLevel optlevel = OptimizationLevel::O0;
+    std::string input = "-";
 
     cl::Cmdline cl;
     cl.Add(
         "O",
 "Optimization level\n"
-" -OptimzationLevel00000\tNo optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+" -OptimzationLevel0000000\tNo optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
 "\t  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
 "  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\n"
 "  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
@@ -1028,7 +1029,7 @@ TEST_CASE("Ex 2")
             else if (ctx.arg == "s")
                 optlevel = OptimizationLevel::Os;
             else {
-                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "Invalid argument '%.*s' for option -O<optlevel>", static_cast<int>(ctx.arg.size()), ctx.arg.data());
+                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "invalid argument '%.*s' for option -O<optlevel>", static_cast<int>(ctx.arg.size()), ctx.arg.data());
                 ctx.cmdline->FormatDiag(cl::Diagnostic::note, ctx.index, "%s", "<optlevel> must be 0,1,2,3, or s");
                 return false;
             }
@@ -1039,6 +1040,7 @@ TEST_CASE("Ex 2")
         cl::HasArg::yes,
         cl::NumOpts::required
         );
+    cl.Add("input", "input file", cl::Assign(input), cl::NumOpts::optional, cl::Positional::yes);
 
     CHECK(false == ParseArgs(cl, {"-Oinf"}));
     cl.PrintDiag();
@@ -1051,7 +1053,7 @@ TEST_CASE("Ex 2")
     cl::Cmdline::HelpFormat fmt;
     fmt.indent = 2;
     fmt.descr_indent = 8;
-    //fmt.line_length = 20;
+    fmt.line_length = 20;
 
     cl.PrintHelp("compiler", fmt);
 }
