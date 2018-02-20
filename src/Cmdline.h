@@ -1211,7 +1211,14 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
             sopt.append(opt->name().data(), opt->name().size());
             if (!opt->has_flag(HasArg::no))
             {
-                sopt += opt->has_flag(HasArg::optional) ? "=<arg>" : " <arg>"; // (NOLINT)
+                char const* const arg_name
+                    = opt->has_flag(HasArg::optional)
+                        ? "=<arg>"
+                    : opt->has_flag(JoinArg::no)
+                        ? " <arg>" 
+                        :  "<arg>";
+
+                sopt += arg_name;
             }
 
             // Append the options description.
