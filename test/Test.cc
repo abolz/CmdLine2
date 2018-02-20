@@ -1057,3 +1057,54 @@ TEST_CASE("Ex 2")
 
     cl.PrintHelp("compiler", fmt);
 }
+
+TEST_CASE("custom check")
+{
+    // Returns a function object which checks whether a given value is in the range [lower, upper].
+    auto Clamp = [](auto const& lower, auto const& upper)
+    {
+        using namespace cl;
+
+        return [=](ParseContext const& ctx, auto& value) {
+            if (value < lower)
+            {
+                ctx.cmdline->EmitDiag(Diagnostic::warning, ctx.index,
+                    "argument '" + std::to_string(value) + "' is out of range. using lower bound '" + std::to_string(lower) + "'");
+                value = lower;
+            }
+            else if (upper < value)
+            {
+                ctx.cmdline->EmitDiag(Diagnostic::warning, ctx.index,
+                    "argument '" + std::to_string(value) + "' is out of range. using upper bound '" + std::to_string(upper) + "'");
+                value = upper;
+            }
+            return true;
+        };
+    };
+
+    int i = 0;
+
+    cl::Cmdline cli;
+    cli.Add("i", "int", cl::Assign(i, Clamp(-3,3)), cl::NumOpts::required, cl::HasArg::yes);
+
+    cli.Reset();
+    CHECK(true == ParseArgs(cli, {"-i", "1"}));
+    CHECK(i == 1);
+
+    cli.Reset();
+    CHECK(true == ParseArgs(cli, {"-i", "1000"}));
+    CHECK(i == 3);
+    CHECK(!cli.diag().empty());
+    cli.PrintDiag();
+
+    cli.Reset();
+    CHECK(true == ParseArgs(cli, {"-i", "-1000"}));
+    CHECK(i == -3);
+    CHECK(!cli.diag().empty());
+    cli.PrintDiag();
+
+    cli.Reset();
+    CHECK(true == ParseArgs(cli, {"-i", "3"}));
+    CHECK(i == 3);
+    CHECK(cli.diag().empty());
+}
