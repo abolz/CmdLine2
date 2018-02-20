@@ -1052,20 +1052,20 @@ inline void Cmdline::PrintDiag() const
         {
         case Diagnostic::error:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_RED | FOREGROUND_INTENSITY);
-            fprintf(stderr, "error");
+            fprintf(stderr, "error:");
             break;
         case Diagnostic::warning:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-            fprintf(stderr, "warning");
+            fprintf(stderr, "warning:");
             break;
         case Diagnostic::note:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-            fprintf(stderr, "note");
+            fprintf(stderr, "note:");
             break;
         }
         fflush(stderr);
         SetConsoleTextAttribute(stderr_handle, old_attributes);
-        fprintf(stderr, ": %s\n", d.message.c_str());
+        fprintf(stderr, " %s\n", d.message.c_str());
     }
 }
 
@@ -1090,13 +1090,13 @@ inline void Cmdline::PrintDiag() const
         switch (d.type)
         {
         case Diagnostic::error:
-            fprintf(stderr, CL_VT100_RED "error" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_RED "error:" CL_VT100_RESET " %s\n", d.message.c_str());
             break;
         case Diagnostic::warning:
-            fprintf(stderr, CL_VT100_MAGENTA "warning" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_MAGENTA "warning:" CL_VT100_RESET " %s\n", d.message.c_str());
             break;
         case Diagnostic::note:
-            fprintf(stderr, CL_VT100_CYAN "note" CL_VT100_RESET ": %s\n", d.message.c_str());
+            fprintf(stderr, CL_VT100_CYAN "note:" CL_VT100_RESET " %s\n", d.message.c_str());
             break;
         }
     }
