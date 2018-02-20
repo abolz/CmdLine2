@@ -1051,15 +1051,15 @@ inline void Cmdline::PrintDiag() const
         {
         case Diagnostic::error:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_RED | FOREGROUND_INTENSITY);
-            fprintf(stderr, "Error");
+            fprintf(stderr, "error");
             break;
         case Diagnostic::warning:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-            fprintf(stderr, "Warning");
+            fprintf(stderr, "warning");
             break;
         case Diagnostic::note:
             SetConsoleTextAttribute(stderr_handle, FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-            fprintf(stderr, "Note");
+            fprintf(stderr, "note");
             break;
         }
         fflush(stderr);
