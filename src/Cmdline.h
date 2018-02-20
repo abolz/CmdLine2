@@ -145,6 +145,7 @@ public:
         : data_(c_str)
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
+        CL_ASSERT(c_str != nullptr && "Constructing a string_view from a nullptr is incompatible with the std version");
     }
 
     template <
@@ -419,7 +420,7 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 
     for (;;)
     {
-        if (!impl::DoSplit(curr, curr.str, split(curr.str)))
+        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
             return true;
         if (!fn(curr.tok))
             return false;
@@ -908,7 +909,7 @@ inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* fo
 template <typename ParserInit, typename... Args>
 Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
 {
-    auto opt = MakeUniqueOption(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+    auto opt = cl::MakeUniqueOption(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 
     auto const p = opt.get();
     Add(std::move(opt));
@@ -926,7 +927,7 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
 {
     CL_ASSERT(opt != nullptr);
 
-    impl::Split(opt->name(), impl::ByChar('|'), [&](string_view name) {
+    cl::impl::Split(opt->name(), cl::impl::ByChar('|'), [&](string_view name) {
         CL_ASSERT(!name.empty());
         CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
 
@@ -1114,7 +1115,7 @@ inline size_t AppendSingleLine(std::string& out, string_view line, size_t indent
 {
     bool do_indent = indent_first_piece;
 
-    impl::Split(line, impl::ByWords(column_width), [&](string_view piece) {
+    cl::impl::Split(line, cl::impl::ByWords(column_width), [&](string_view piece) {
         if (do_indent)
         {
             out += '\n';
@@ -1140,13 +1141,13 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
 
     bool do_indent = false; // Do not indent the first line.
 
-    impl::Split(text, impl::ByLines(), [&](string_view line) {
+    cl::impl::Split(text, cl::impl::ByLines(), [&](string_view line) {
         // Find the position of the first tab-character in this line (if any).
         auto const tab_pos = line.find('\t');
         CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos) && "Only a single tab-character per line is allowed");
 
         // Append the first (or only) part of this line.
-        auto const col = impl::AppendSingleLine(out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
+        auto const col = cl::impl::AppendSingleLine(out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
 
         // If there is a tab-character, print the second half of this line.
         if (tab_pos != string_view::npos)
@@ -1157,7 +1158,7 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
             auto const new_indent = indent + block_col;
             auto const new_width  = column_width - block_col;
 
-            impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
+            cl::impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
         }
 
         do_indent = true;
@@ -1223,7 +1224,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
             sopt.append(nspaces, ' ');
             // Now at column fmt.descr_width.
             // Finally append the options' description.
-            impl::AppendLines(sopt, opt->descr(), fmt.descr_indent, descr_width);
+            cl::impl::AppendLines(sopt, opt->descr(), fmt.descr_indent, descr_width);
 
             sopt += '\n'; // One option per line
         }
@@ -1548,7 +1549,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     if (opt->has_flag(CommaSeparated::yes))
     {
-        impl::Split(arg, impl::ByChar(','), [&](string_view s) {
+        cl::impl::Split(arg, cl::impl::ByChar(','), [&](string_view s) {
             res = Parse1(s);
             return res == Status::success;
         });
@@ -1831,7 +1832,7 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, Put32 put)
     {
         uint32_t U = 0;
 
-        auto const next1 = impl::DecodeUTF8Sequence(next, last, U);
+        auto const next1 = cl::impl::DecodeUTF8Sequence(next, last, U);
         CL_ASSERT(next != next1);
         next = next1;
 
@@ -1839,7 +1840,7 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, Put32 put)
             return false;
         }
 
-        if (U == impl::kInvalidCodepoint) {
+        if (U == cl::impl::kInvalidCodepoint) {
             next = FindNextUTF8Sequence(next, last);
         }
     }
@@ -1916,7 +1917,7 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
     {
         uint32_t U = 0;
 
-        auto const next1 = impl::DecodeUTF16Sequence(next, last, U);
+        auto const next1 = cl::impl::DecodeUTF16Sequence(next, last, U);
         CL_ASSERT(next != next1);
         next = next1;
 
@@ -1924,7 +1925,7 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
             return false;
         }
 
-        if (U == impl::kInvalidCodepoint) {
+        if (U == cl::impl::kInvalidCodepoint) {
             next = FindNextUTF16Sequence(next, last);
         }
     }
@@ -1953,9 +1954,9 @@ struct ParseValue<bool>
 {
     bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"})) {
+        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"})) {
             value = true;
-        } else if (impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"})) {
+        } else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"})) {
             value = false;
         } else {
             return false;
@@ -1965,23 +1966,23 @@ struct ParseValue<bool>
     }
 };
 
-template <> struct ParseValue< signed char        > : impl::ParseInt {};
-template <> struct ParseValue< signed short       > : impl::ParseInt {};
-template <> struct ParseValue< signed int         > : impl::ParseInt {};
-template <> struct ParseValue< signed long        > : impl::ParseInt {};
-template <> struct ParseValue< signed long long   > : impl::ParseInt {};
-template <> struct ParseValue< unsigned char      > : impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned short     > : impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned int       > : impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long      > : impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long long > : impl::ParseUnsignedInt {};
+template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed long        > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed long long   > : cl::impl::ParseInt {};
+template <> struct ParseValue< unsigned char      > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
 
 template <>
 struct ParseValue<float>
 {
     bool operator()(ParseContext const& ctx, float& value) const
     {
-        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
     }
 };
 
@@ -1990,7 +1991,7 @@ struct ParseValue<double>
 {
     bool operator()(ParseContext const& ctx, double& value) const
     {
-        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
     }
 };
 
@@ -1999,7 +2000,7 @@ struct ParseValue<long double>
 {
     bool operator()(ParseContext const& ctx, long double& value) const
     {
-        return impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
     }
 };
 
@@ -2008,8 +2009,8 @@ struct ParseValue<std::basic_string<char, Traits, Alloc>>
 {
     bool operator()(ParseContext const& ctx, std::basic_string<char, Traits, Alloc>& value) const
     {
-        bool const ok = impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [](uint32_t U) {
-            return U != impl::kInvalidCodepoint;
+        bool const ok = cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [](uint32_t U) {
+            return U != cl::impl::kInvalidCodepoint;
         });
 
         if (!ok)
@@ -2030,13 +2031,13 @@ struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
     {
         value.clear();
 
-        bool const ok = impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t U) {
-            if (U == impl::kInvalidCodepoint)
+        bool const ok = cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](uint32_t U) {
+            if (U == cl::impl::kInvalidCodepoint)
                 return false;
 
 #if _WIN32
             static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-            impl::EncodeUTF16(U, [&](uint16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
+            cl::impl::EncodeUTF16(U, [&](uint16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
 #else
             static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
             value.push_back(static_cast<wchar_t>(U));
@@ -2155,7 +2156,7 @@ auto Assign(T& target, Predicates&&... preds)
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
-        if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
             target = std::move(temp);
             return true;
         }
@@ -2170,11 +2171,11 @@ auto Assign(T& target, Predicates&&... preds)
 template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds)
 {
-    using V = typename impl::RemoveCVRec<typename T::value_type>::type;
+    using V = typename cl::impl::RemoveCVRec<typename T::value_type>::type;
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
-        if (impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
             container.insert(container.end(), std::move(temp));
             return true;
         }
@@ -2197,7 +2198,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
             // Parse into a local variable to allow the predicates to modify the value.
             T temp = p.second;
-            if (impl::ApplyFuncs(ctx, temp, preds...)) {
+            if (cl::impl::ApplyFuncs(ctx, temp, preds...)) {
                 value = std::move(temp);
                 return true;
             }
@@ -2263,7 +2264,7 @@ struct ParseArgUnix
 
         char quote_char = '\0';
 
-        next = impl::SkipWhitespace(next, last);
+        next = cl::impl::SkipWhitespace(next, last);
 
         for (; next != last; ++next)
         {
@@ -2286,7 +2287,7 @@ struct ParseArgUnix
                 quote_char = (quote_char != '\0') ? '\0' : ch;
             }
             // Arguments are separated by whitespace
-            else if (impl::IsWhitespace(ch))
+            else if (cl::impl::IsWhitespace(ch))
             {
                 ++next;
                 break;
@@ -2315,7 +2316,7 @@ struct ParseProgramNameWindows
     {
         std::string arg;
 
-        if (next != last && !impl::IsWhitespace(*next))
+        if (next != last && !cl::impl::IsWhitespace(*next))
         {
             bool const quoting = (*next == '"');
 
@@ -2325,7 +2326,7 @@ struct ParseProgramNameWindows
             for (; next != last; ++next)
             {
                 auto const ch = *next;
-                if ((quoting && ch == '"') || (!quoting && impl::IsWhitespace(ch)))
+                if ((quoting && ch == '"') || (!quoting && cl::impl::IsWhitespace(ch)))
                 {
                     ++next;
                     break;
@@ -2351,7 +2352,7 @@ struct ParseArgWindows
         bool recently_closed = false;
         size_t num_backslashes = 0;
 
-        next = impl::SkipWhitespace(next, last);
+        next = cl::impl::SkipWhitespace(next, last);
 
         for (; next != last; ++next)
         {
@@ -2413,7 +2414,7 @@ struct ParseArgWindows
                 arg.append(num_backslashes, '\\');
                 num_backslashes = 0;
 
-                if (!quoting && impl::IsWhitespace(ch))
+                if (!quoting && cl::impl::IsWhitespace(ch))
                 {
                     // Arguments are delimited by white space, which is either a
                     // space or a tab.
@@ -2499,16 +2500,16 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
     auto next = command_line;
     auto const last = command_line + std::char_traits<wchar_t>::length(command_line); // (NOLINT)
 
-    impl::ForEachUTF16EncodedCodepoint(next, last, [&](uint32_t U)
+    cl::impl::ForEachUTF16EncodedCodepoint(next, last, [&](uint32_t U)
     {
-        if (U == impl::kInvalidCodepoint)
+        if (U == cl::impl::kInvalidCodepoint)
         {
             // XXX:
             // throw?! abort?!
-            U = impl::kReplacementCharacter;
+            U = cl::impl::kReplacementCharacter;
         }
 
-        impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
+        cl::impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
         return true;
     });
 
