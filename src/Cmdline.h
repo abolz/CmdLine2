@@ -47,24 +47,26 @@
 #define CL_HAS_INCLUDE(X) 0
 #endif
 
-#if __cplusplus >= 201703 || (_MSC_VER >= 1910 && _HAS_CXX17)
+#if (__cplusplus >= 201703 && CL_HAS_INCLUDE(<string_view>)) || (_MSC_VER >= 1910 && _HAS_CXX17)
 #define CL_HAS_STD_STRING_VIEW 1
 #include <string_view>
 #endif
 
-#if CL_HAS_INCLUDE(<experimental/string_view>) && __cplusplus > 201103
+#if (__cplusplus > 201103 && CL_HAS_INCLUDE(<experimental/string_view>))
 #define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
 #include <experimental/string_view>
+#endif
+
+#if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
+#define CL_HAS_STD_INVOCABLE 1
 #endif
 
 #if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
 #define CL_HAS_DEDUCTION_GUIDES 1
 #endif
+
 #if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411 || (_MSC_VER >= 1912 && _HAS_CXX17)
 #define CL_HAS_FOLD_EXPRESSIONS 1
-#endif
-#if __cplusplus >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
-#define CL_HAS_STD_INVOCABLE 1
 #endif
 
 #if __GNUC__
@@ -407,7 +409,7 @@ inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
 
 // Split the string STR into substrings using the Delimiter (or Tokenizer) SPLIT
 // and call FN for each substring.
-// FN must return void or bool. If FN returns false, this method stops splitting
+// FN must return bool. If FN returns false, this method stops splitting
 // the input string and returns false, too. Otherwise, returns true.
 template <typename Splitter, typename Function>
 bool Split(string_view str, Splitter&& split, Function&& fn)
