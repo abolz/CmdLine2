@@ -21,6 +21,12 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#if _WIN32
+static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+#else
+static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+#endif
+
 #include <cassert>
 #include <cerrno>
 #include <climits>
@@ -2007,10 +2013,8 @@ struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
                 return false;
 
 #if _WIN32
-            static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
             cl::impl::EncodeUTF16(U, [&](uint16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
 #else
-            static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
             value.push_back(static_cast<wchar_t>(U));
 #endif
             return true;
@@ -2463,8 +2467,6 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
 #if _WIN32
 inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
 {
-    static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-
     std::string command_line_utf8;
 
     CL_ASSERT(command_line != nullptr);
