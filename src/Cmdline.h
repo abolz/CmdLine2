@@ -1345,8 +1345,10 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr)
         auto&& opt = options_[static_cast<size_t>(curr_positional_)].option;
         if (opt->has_flag(Positional::yes) && opt->IsOccurrenceAllowed())
         {
-            // The "argument" of a positional option, is the option name itself.
-            return HandleOccurrence(opt, opt->name(), optstr);
+            // The name of a positional option is empty.
+            // The argument of a positional option is the value specified on the
+            // command line.
+            return HandleOccurrence(opt, {}, optstr);
         }
     }
 
