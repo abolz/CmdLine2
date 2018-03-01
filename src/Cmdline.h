@@ -612,14 +612,14 @@ public:
     string_view descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
-    bool has_flag(NumOpts f)        const { return num_opts_ == f; }
-    bool has_flag(HasArg f)         const { return has_arg_ == f; }
-    bool has_flag(JoinArg f)        const { return join_arg_ == f; }
-    bool has_flag(MayGroup f)       const { return may_group_ == f; }
-    bool has_flag(Positional f)     const { return positional_ == f; }
+    bool has_flag(NumOpts        f) const { return num_opts_        == f; }
+    bool has_flag(HasArg         f) const { return has_arg_         == f; }
+    bool has_flag(JoinArg        f) const { return join_arg_        == f; }
+    bool has_flag(MayGroup       f) const { return may_group_       == f; }
+    bool has_flag(Positional     f) const { return positional_      == f; }
     bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
-    bool has_flag(EndsOptions f)    const { return ends_options_ == f; }
-    bool has_flag(StopParsing f)    const { return stop_parsing_ == f; }
+    bool has_flag(EndsOptions    f) const { return ends_options_    == f; }
+    bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
