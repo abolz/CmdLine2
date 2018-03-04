@@ -293,6 +293,10 @@ inline bool operator>=(string_view s1, string_view s2) noexcept {
 }
 #endif
 
+//==================================================================================================
+// Split strings
+//==================================================================================================
+
 namespace impl {
 
 // Return type for delimiters. Returned by the ByX delimiters.
@@ -1617,89 +1621,10 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
 }
 
 //==================================================================================================
-//
+// Unicode support
 //==================================================================================================
 
 namespace impl {
-
-inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
-{
-    for (auto const& m : matches) {
-        if (value == m)
-            return true;
-    }
-
-    return false;
-}
-
-template <typename T, typename Fn>
-bool StrToX(string_view sv, T& value, Fn fn)
-{
-    if (sv.empty())
-        return false;
-
-    std::string str(sv);
-
-    char const* const ptr = str.c_str();
-    char* end = nullptr;
-
-    int& ec = errno;
-
-    auto const ec0 = std::exchange(ec, 0);
-    auto const val = fn(ptr, &end);
-    auto const ec1 = std::exchange(ec, ec0);
-
-    if (ec1 == ERANGE)
-        return false;
-
-    if (end != ptr + str.size()) // (NOLINT)
-        return false; // not all characters extracted
-
-    value = val;
-    return true;
-}
-
-// Note: Wrap into local function, to avoid instantiating StrToX with different
-// lambdas which actually all do the same thing: call strtol.
-inline bool StrToLongLong(string_view str, long long& value)
-{
-    return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
-}
-
-inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
-{
-    return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
-}
-
-struct ParseInt
-{
-    template <typename T>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        long long v = 0;
-        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
-        {
-            value = static_cast<T>(v);
-            return true;
-        }
-        return false;
-    }
-};
-
-struct ParseUnsignedInt
-{
-    template <typename T>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        unsigned long long v = 0;
-        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)())
-        {
-            value = static_cast<T>(v);
-            return true;
-        }
-        return false;
-    }
-};
 
 constexpr uint32_t kInvalidCodepoint = 0xFFFFFFFF;
 constexpr uint32_t kReplacementCharacter = 0xFFFD;
@@ -1914,6 +1839,10 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
 
 } // namespace impl
 
+//==================================================================================================
+//
+//==================================================================================================
+
 // Convert the string representation in CTX.ARG into an object of type T.
 // Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
@@ -1927,6 +1856,20 @@ struct ParseValue
         return !stream.fail() && stream.eof();
     }
 };
+
+namespace impl {
+
+inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
+{
+    for (auto const& m : matches) {
+        if (value == m)
+            return true;
+    }
+
+    return false;
+}
+
+} // namespace impl
 
 template <>
 struct ParseValue<bool>
@@ -1944,6 +1887,79 @@ struct ParseValue<bool>
         return true;
     }
 };
+
+namespace impl {
+
+template <typename T, typename Fn>
+bool StrToX(string_view sv, T& value, Fn fn)
+{
+    if (sv.empty())
+        return false;
+
+    std::string str(sv);
+
+    char const* const ptr = str.c_str();
+    char* end = nullptr;
+
+    int& ec = errno;
+
+    auto const ec0 = std::exchange(ec, 0);
+    auto const val = fn(ptr, &end);
+    auto const ec1 = std::exchange(ec, ec0);
+
+    if (ec1 == ERANGE)
+        return false;
+
+    if (end != ptr + str.size()) // (NOLINT)
+        return false; // not all characters extracted
+
+    value = val;
+    return true;
+}
+
+// Note: Wrap into local function, to avoid instantiating StrToX with different
+// lambdas which actually all do the same thing: call strtol.
+inline bool StrToLongLong(string_view str, long long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
+}
+
+inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
+}
+
+struct ParseInt
+{
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        long long v = 0;
+        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
+        {
+            value = static_cast<T>(v);
+            return true;
+        }
+        return false;
+    }
+};
+
+struct ParseUnsignedInt
+{
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        unsigned long long v = 0;
+        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)())
+        {
+            value = static_cast<T>(v);
+            return true;
+        }
+        return false;
+    }
+};
+
+} // namespace impl
 
 template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
@@ -2042,6 +2058,10 @@ struct ParseValue<void>
     }
 };
 
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+
 namespace check {
 
 // Returns a function object which checks whether a given value is in the range [lower, upper].
@@ -2090,6 +2110,10 @@ auto LessEqual(T upper)
 }
 
 } // namespace check
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 
 namespace impl {
 
