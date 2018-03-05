@@ -36,6 +36,7 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iosfwd>
 #include <limits>
 #include <memory>
 #include <string>
@@ -662,7 +663,7 @@ class Option final : public OptionBase
     static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value ||
                   std::is_invocable_r<void, Parser, ParseContext&>::value,
         "The parser must be invocable with an argument of type 'ParseContext&' "
-        "and the return type should be convertible to 'bool'");
+        "and the return type must be 'bool' or 'void'");
 #endif
 
     Parser /*const*/ parser_;
@@ -983,6 +984,11 @@ bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing
 template <typename It, typename EndIt>
 Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
 {
+    static_assert(std::is_convertible<decltype(*std::declval<It&>()), string_view>::value,
+        "The value-type of 'It' must be convertible to 'string_view'");
+    static_assert(std::is_constructible<std::string, decltype(*std::declval<It&>())>::value,
+        "The value-type of 'It' must be explicitly convertible to 'std::string'");
+
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_index_ >= 0);
 
@@ -1843,11 +1849,33 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, Put32 put)
 //
 //==================================================================================================
 
+namespace impl {
+
+template <typename...> struct AlwaysVoid { using type = void; };
+template <typename... Ts> using Void_t = typename AlwaysVoid<Ts...>::type;
+
+template <typename T, typename /*Enable*/ = void>
+struct IsStreamExtractable
+    : std::false_type
+{
+};
+
+template <typename T>
+struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> std::declval<T&>()) >>
+    : std::true_type
+{
+};
+
+} // namespace impl
+
 // Convert the string representation in CTX.ARG into an object of type T.
 // Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
 struct ParseValue
 {
+    static_assert(cl::impl::IsStreamExtractable<T>::value,
+        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
+
     template <typename Stream = std::stringstream>
     bool operator()(ParseContext const& ctx, T& value) const
     {
@@ -2117,9 +2145,6 @@ auto LessEqual(T upper)
 
 namespace impl {
 
-template <typename...> struct AlwaysVoid { using type = void; };
-template <typename... Ts> using Void_t = typename AlwaysVoid<Ts...>::type;
-
 template <typename T>
 struct RemoveCVRec
 {
@@ -2131,6 +2156,9 @@ struct RemoveCVRec<T<Args...>>
 {
     using type = T<typename RemoveCVRec<Args>::type...>;
 };
+
+template <typename T>
+using RemoveCVRec_t = typename RemoveCVRec<T>::type;
 
 // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
 // Returns true iff all f return true.
@@ -2185,6 +2213,13 @@ using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds)
 {
+    static_assert(!std::is_const<T>::value,
+        "'Assign(T)' requires mutable lvalue-references");
+    static_assert(std::is_default_constructible<T>::value,
+        "'Assign(T)' requires default-constructible types");
+    static_assert(std::is_move_assignable<T>::value,
+        "'Assign(T)' requires move-assignable types");
+
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
@@ -2203,7 +2238,14 @@ auto Assign(T& target, Predicates&&... preds)
 template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds)
 {
-    using V = typename cl::impl::RemoveCVRec<typename T::value_type>::type;
+    static_assert(!std::is_const<T>::value,
+        "'PushBack(T)' requires mutable lvalue-references");
+    static_assert(cl::impl::IsContainer_t<T>::value,
+        "'PushBack(T)' requires STL-style container types");
+    static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
+        "'PushBack(T)' requires default-constructible value_type's");
+
+    using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
@@ -2244,6 +2286,13 @@ auto Var(T& var, Predicates&&... preds)
 template <typename T, typename... Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
+    static_assert(!std::is_const<T>::value,
+        "'Map(T)' requires mutable lvalue-references");
+    static_assert(std::is_copy_constructible<T>::value,
+        "'Map(T)' requires copy-constructible types");
+    static_assert(std::is_move_assignable<T>::value,
+        "'Map(T)' requires move-assignable types");
+
     using MapType = std::vector<std::pair<char const*, T>>;
 
     return [=, &value, map = MapType(ilist)](ParseContext const& ctx) {
