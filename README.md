@@ -47,12 +47,12 @@ int main(int argc, char* argv[])
         // the string representation of the command line argument and is used to
         // convert the option (or the options' argument - if present) into the
         // target object.
-        // For now it should be sufficient to note that Assign(T& target) is a
+        // For now it should be sufficient to note that Var(T& target) is a
         // convenience function which converts the string as given on the
         // command line into an object of type `T` and assigns the result to the
         // given target variable.
         // More advanced usages of the parser will be described later.
-        cl::Assign(debug),
+        cl::Var(debug),
 
         // The following parameters are optional and specifiy how and how often
         // the option might be specified on the command line and whether the
@@ -81,11 +81,12 @@ int main(int argc, char* argv[])
 
     std::vector<std::string> include_directories;
 
-    cmd.Add("I", "Include directories",
-        // Like Assign(), PushBack() is a convenience function which returns a
-        // parser which in turn used a containers' `push_back` method to append
-        // arguments to an STL container.
-        cl::PushBack(include_directories),
+    cmd.Add(
+        "I",
+        "Include directories",
+
+        // `Var` works with STL containers, too.
+        cl::Var(include_directories),
 
         // A value of `zero_or_more` allows to specify the option multiple times
         // on the command line. Each occurrence will add a string to the

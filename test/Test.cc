@@ -91,7 +91,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a)); // 'NumOpts::optional' is the default
+        cl.Add("a", "", cl::Var(a)); // 'NumOpts::optional' is the default
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -107,7 +107,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
-        auto opt_a = cl::MakeOption("a", "", cl::Assign(a), cl::NumOpts::required);
+        auto opt_a = cl::MakeOption("a", "", cl::Var(a), cl::NumOpts::required);
         cl.Add(&opt_a);
 
         CHECK(false == ParseArgs(cl, {}));
@@ -123,7 +123,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl;
-        auto opt_a = cl::MakeUniqueOption("a", "", cl::Assign(a), cl::NumOpts::zero_or_more);
+        auto opt_a = cl::MakeUniqueOption("a", "", cl::Var(a), cl::NumOpts::zero_or_more);
         cl.Add(std::move(opt_a));
 
         CHECK(true == ParseArgs(cl, {}));
@@ -142,10 +142,10 @@ TEST_CASE("Opt")
 
         cl::Cmdline cl;
 #if CL_HAS_DEDUCTION_GUIDES
-        cl::Option opt_a("a", "", cl::Assign(a), cl::NumOpts::one_or_more);
+        cl::Option opt_a("a", "", cl::Var(a), cl::NumOpts::one_or_more);
         cl.Add(&opt_a);
 #else
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::one_or_more);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::one_or_more);
 #endif
 
         CHECK(false == ParseArgs(cl, {}));
@@ -165,7 +165,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more); // 'arg_disallowed' is the default
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more); // 'arg_disallowed' is the default
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -180,7 +180,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::optional);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::optional);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -213,7 +213,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::yes);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::yes);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -272,9 +272,9 @@ TEST_CASE("MayGroup")
 
     cl::Cmdline cl;
 
-    cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
-    cl.Add("b", "", cl::Assign(b), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
-    cl.Add("c", "", cl::Assign(c), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::required);
+    cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
+    cl.Add("b", "", cl::Var(b), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::no);
+    cl.Add("c", "", cl::Var(c), cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(true == ParseArgs(cl, {"-a", "-b", "-c=true"}));
@@ -318,7 +318,7 @@ TEST_CASE("MayGroup")
     CHECK(b == false);
     CHECK(c == false);
 
-    cl.Add("ab", "", cl::Assign(ab), cl::NumOpts::zero_or_more, cl::HasArg::no);
+    cl.Add("ab", "", cl::Var(ab), cl::NumOpts::zero_or_more, cl::HasArg::no);
 
     CHECK(true == ParseArgs(cl, {"-ab", "--ab"}));
     CHECK(a == false);
@@ -326,7 +326,7 @@ TEST_CASE("MayGroup")
     CHECK(ab == true);
     ab = false;
 
-    cl.Add("ac", "", cl::Assign(ac), cl::NumOpts::zero_or_more, cl::HasArg::required);
+    cl.Add("ac", "", cl::Var(ac), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {"-ac=true"}));
     CHECK(a == false);
@@ -334,7 +334,7 @@ TEST_CASE("MayGroup")
     CHECK(ac == true);
     ac = false;
 
-    cl.Add("abc", "", cl::Assign(abc), cl::NumOpts::zero_or_more, cl::HasArg::required);
+    cl.Add("abc", "", cl::Var(abc), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {"-abc=true"}));
     CHECK(a == false);
@@ -357,7 +357,7 @@ TEST_CASE("Positional")
         std::vector<std::string> strings;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::PushBack(strings), cl::Positional::yes, cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(strings), cl::Positional::yes, cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(strings.empty());
@@ -376,7 +376,7 @@ TEST_CASE("Positional")
         std::vector<int> ints;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::PushBack(ints), cl::Positional::yes, cl::NumOpts::one_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(ints), cl::Positional::yes, cl::NumOpts::one_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"1"}));
         CHECK(true == ParseArgs(cl, {})); // succeeds because the count member is not automatically reset!
@@ -395,7 +395,7 @@ TEST_CASE("CommaSeparatedArg")
     std::vector<int> ints;
 
     cl::Cmdline cl;
-    cl.Add("a", "", cl::PushBack(ints), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::CommaSeparated::yes);
+    cl.Add("a", "", cl::Var(ints), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::CommaSeparated::yes);
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(ints.empty());
@@ -424,8 +424,8 @@ TEST_CASE("EndsOptions")
     bool a = false;
 
     cl::Cmdline cl;
-    cl.Add("a", "", cl::Assign(a), cl::EndsOptions::yes, cl::HasArg::required);
-    cl.Add("!", "", cl::PushBack(sink), cl::Positional::yes, cl::NumOpts::zero_or_more);
+    cl.Add("a", "", cl::Var(a), cl::EndsOptions::yes, cl::HasArg::required);
+    cl.Add("!", "", cl::Var(sink), cl::Positional::yes, cl::NumOpts::zero_or_more);
 
     CHECK(true == ParseArgs(cl, {"eins", "zwei"}));
     CHECK(sink.size() == 2);
@@ -451,8 +451,8 @@ TEST_CASE("StopParsing")
     int a = 0;
 
     cl::Cmdline cli;
-    cli.Add("a", "", cl::Assign(a), cl::HasArg::optional);
-    cli.Add("command", "", cl::Assign(command), cl::Positional::yes, cl::HasArg::yes, cl::StopParsing::yes, cl::NumOpts::required);
+    cli.Add("a", "", cl::Var(a), cl::HasArg::optional);
+    cli.Add("command", "", cl::Var(command), cl::Positional::yes, cl::HasArg::yes, cl::StopParsing::yes, cl::NumOpts::required);
 
     SECTION("1")
     {
@@ -492,7 +492,7 @@ TEST_CASE("Strings")
     std::string str;
 
     cl::Cmdline cl;
-    cl.Add("s", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+    cl.Add("s", "", cl::Var(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {"-s=hello hello hello hello hello hello hello hello hello hello hello hello",
                                  "-s=world world world world world world world world world world world world"}));
@@ -508,7 +508,7 @@ TEST_CASE("Ints")
         int8_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a", "0"}));
         CHECK(a == 0);
@@ -525,7 +525,7 @@ TEST_CASE("Ints")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == 0);
@@ -553,7 +553,7 @@ TEST_CASE("Ints")
         int64_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a", "9223372036854775807"}));
         CHECK(a == INT64_MAX);
@@ -575,7 +575,7 @@ TEST_CASE("Ints")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == 0);
@@ -598,7 +598,7 @@ TEST_CASE("Ints")
         int8_t a = -1;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a", "0"}));
         CHECK(a == 0);
@@ -688,8 +688,8 @@ TEST_CASE("Checks")
         int32_t b = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a, cl::check::InRange(-3, 3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
-        cl.Add("b", "", cl::Assign(b, cl::check::InRange(INT32_MIN, INT32_MAX)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a, cl::check::InRange(-3, 3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("b", "", cl::Var(b, cl::check::InRange(INT32_MIN, INT32_MAX)), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a=0"}));
         CHECK(a == 0);
@@ -713,7 +713,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a, cl::check::GreaterThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a, cl::check::GreaterThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a=0"}));
         CHECK(a == 0);
@@ -730,7 +730,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a, cl::check::GreaterEqual(7)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a, cl::check::GreaterEqual(7)), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a=7"}));
         CHECK(a == 7);
@@ -744,7 +744,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a, cl::check::LessThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a, cl::check::LessThan(-3)), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a=-4"}));
         CHECK(a == -4);
@@ -759,7 +759,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl;
-        cl.Add("a", "", cl::Assign(a, cl::check::LessEqual(INT32_MIN)), cl::NumOpts::zero_or_more, cl::HasArg::required);
+        cl.Add("a", "", cl::Var(a, cl::check::LessEqual(INT32_MIN)), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
         CHECK(true == ParseArgs(cl, {"-a=-2147483648"}));
         CHECK(a == INT32_MIN);
@@ -773,7 +773,7 @@ TEST_CASE("Unicode")
     std::string str;
 
     cl::Cmdline cl;
-    cl.Add(u8"😃-😜", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+    cl.Add(u8"😃-😜", "", cl::Var(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
     CHECK(str == u8"hello😍😎world");
@@ -784,7 +784,7 @@ TEST_CASE("Wide strings")
     std::wstring str;
 
     cl::Cmdline cl;
-    cl.Add(u8"😃-😜", "", cl::Assign(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
+    cl.Add(u8"😃-😜", "", cl::Var(str), cl::NumOpts::zero_or_more, cl::HasArg::required);
 
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
     CHECK(str == L"hello😍😎world");
@@ -916,10 +916,10 @@ TEST_CASE("Tokenize Windows 2")
     bool d = false;
 
     cl::Cmdline cl;
-    cl.Add("a", "<descr>", cl::Assign(a), cl::NumOpts::zero_or_more, cl::HasArg::no,       cl::MayGroup::yes);
-    cl.Add("b", "<descr>", cl::Assign(b), cl::NumOpts::zero_or_more, cl::HasArg::optional, cl::MayGroup::yes);
-    cl.Add("c", "<descr>", cl::Assign(c), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayGroup::yes);
-    cl.Add("d", "<descr>", cl::Assign(d), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::JoinArg::yes);
+    cl.Add("a", "<descr>", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::no,       cl::MayGroup::yes);
+    cl.Add("b", "<descr>", cl::Var(b), cl::NumOpts::zero_or_more, cl::HasArg::optional, cl::MayGroup::yes);
+    cl.Add("c", "<descr>", cl::Var(c), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayGroup::yes);
+    cl.Add("d", "<descr>", cl::Var(d), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::JoinArg::yes);
 
     char const* command_line
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true -dtrue -dno -d1";
@@ -1040,7 +1040,7 @@ TEST_CASE("Ex 2")
         cl::HasArg::yes,
         cl::NumOpts::required
         );
-    cl.Add("input", "input file", cl::Assign(input), cl::NumOpts::optional, cl::Positional::yes);
+    cl.Add("input", "input file", cl::Var(input), cl::NumOpts::optional, cl::Positional::yes);
 
     CHECK(false == ParseArgs(cl, {"-Oinf"}));
     cl.PrintDiag();
@@ -1085,7 +1085,7 @@ TEST_CASE("custom check")
     int i = 0;
 
     cl::Cmdline cli;
-    cli.Add("i", "int", cl::Assign(i, Clamp(-3,3)), cl::NumOpts::required, cl::HasArg::yes);
+    cli.Add("i", "int", cl::Var(i, Clamp(-3,3)), cl::NumOpts::required, cl::HasArg::yes);
 
     cli.Reset();
     CHECK(true == ParseArgs(cli, {"-i", "1"}));

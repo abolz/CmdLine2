@@ -2117,6 +2117,9 @@ auto LessEqual(T upper)
 
 namespace impl {
 
+template <typename...> struct AlwaysVoid { using type = void; };
+template <typename... Ts> using Void_t = typename AlwaysVoid<Ts...>::type;
+
 template <typename T>
 struct RemoveCVRec
 {
@@ -2146,6 +2149,34 @@ bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs)
     return res;
 #endif
 }
+
+template <typename T, typename /*Enable*/ = void>
+struct IsContainerImpl
+    : std::false_type
+{
+};
+
+template <typename T>
+struct IsContainerImpl<T, Void_t< decltype( std::declval<T&>().insert(std::declval<T&>().end(), std::declval<typename T::value_type>()) ) >>
+    : std::true_type
+{
+};
+
+template <typename T>
+struct IsContainer
+    : IsContainerImpl<T>
+{
+};
+
+// Do not handle strings as containers.
+template <typename Elem, typename Traits, typename Alloc>
+struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
+    : std::false_type
+{
+};
+
+template <typename T>
+using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 
 } // namespace impl
 
@@ -2182,6 +2213,30 @@ auto PushBack(T& container, Predicates&&... preds)
         }
         return false;
     };
+}
+
+namespace impl {
+
+template <typename T, typename... Predicates>
+auto Var(std::false_type /*IsContainer*/, T& var, Predicates&&... preds)
+{
+    return cl::Assign(var, std::forward<Predicates>(preds)...);
+}
+
+template <typename T, typename... Predicates>
+auto Var(std::true_type /*IsContainer*/, T& var, Predicates&&... preds)
+{
+    return cl::PushBack(var, std::forward<Predicates>(preds)...);
+}
+
+} // namespace impl
+
+// Default parser.
+// Can be used as a replacement for Assign or PushBack (in almost all cases).
+template <typename T, typename... Predicates>
+auto Var(T& var, Predicates&&... preds)
+{
+    return cl::impl::Var(cl::impl::IsContainer_t<T>{}, var, std::forward<Predicates>(preds)...);
 }
 
 // Default parser for enum types.

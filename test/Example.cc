@@ -14,13 +14,13 @@ int main(int argc, char* argv[])
     cl::Cmdline cmd;
 
     auto opt_v = cl::MakeOption("v", "Increase output verbosity",
-        cl::Assign(verbose),
+        cl::Var(verbose),
         cl::NumOpts::zero_or_more,
         cl::MayGroup::yes,
         cl::HasArg::optional);
 
     auto opt_i = cl::MakeOption("i|ints", "Some ints in the range [0,6]",
-        cl::Assign(i, cl::check::InRange(0, 6)),
+        cl::Var(i, cl::check::InRange(0, 6)),
         cl::NumOpts::zero_or_more,
         cl::HasArg::yes,
         cl::CommaSeparated::yes);
@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
         cl::HasArg::yes);
 
     auto opt_inputs = cl::MakeOption("input-files", "List of input files",
-        cl::PushBack(input_files),
+        cl::Var(input_files),
         cl::NumOpts::one_or_more,
         cl::Positional::yes);
 
