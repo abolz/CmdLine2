@@ -1876,7 +1876,7 @@ struct ParseValue
     static_assert(cl::impl::IsStreamExtractable<T>::value,
         "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
 
-    template <typename Stream = std::stringstream>
+    template <typename Stream = std::istringstream>
     bool operator()(ParseContext const& ctx, T& value) const
     {
         Stream stream{std::string(ctx.arg)};
