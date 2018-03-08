@@ -54,15 +54,14 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_HAS_INCLUDE(X) 0
 #endif
 
-#if (__cplusplus >= 201703 && CL_HAS_INCLUDE(<string_view>)) || (_MSC_VER >= 1910 && _HAS_CXX17)
-#define CL_HAS_STD_STRING_VIEW 1
-#include <string_view>
-#endif
-
-#if (__cplusplus > 201103 && CL_HAS_INCLUDE(<experimental/string_view>))
-#define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
-#include <experimental/string_view>
-#endif
+// #if (__cplusplus >= 201703 && CL_HAS_INCLUDE(<string_view>)) || (_MSC_VER >= 1910 && _HAS_CXX17)
+// #define CL_HAS_STD_STRING_VIEW 1
+// #include <string_view>
+// #endif
+// #if (__cplusplus > 201103 && CL_HAS_INCLUDE(<experimental/string_view>))
+// #define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
+// #include <experimental/string_view>
+// #endif
 
 #if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
 #define CL_HAS_STD_INVOCABLE 1
