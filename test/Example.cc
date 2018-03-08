@@ -15,15 +15,11 @@ int main(int argc, char* argv[])
 
     auto opt_v = cl::MakeOption("v", "Increase output verbosity",
         cl::Var(verbose),
-        cl::NumOpts::zero_or_more,
-        cl::MayGroup::yes,
-        cl::HasArg::optional);
+        cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
 
     auto opt_i = cl::MakeOption("i|ints", "Some ints in the range [0,6]",
         cl::Var(i, cl::check::InRange(0, 6)),
-        cl::NumOpts::zero_or_more,
-        cl::HasArg::yes,
-        cl::CommaSeparated::yes);
+        cl::NumOpts::zero_or_more, cl::HasArg::yes, cl::CommaSeparated::yes);
 
     auto opt_std = cl::MakeOption("std", "C++ standard version",
         cl::Map(standard, {{"c++11", Standard::cxx11},
@@ -33,8 +29,7 @@ int main(int argc, char* argv[])
 
     auto opt_inputs = cl::MakeOption("input-files", "List of input files",
         cl::Var(input_files),
-        cl::NumOpts::one_or_more,
-        cl::Positional::yes);
+        cl::NumOpts::one_or_more, cl::Positional::yes);
 
     cmd.Add(&opt_v);
     cmd.Add(&opt_i);
@@ -44,7 +39,6 @@ int main(int argc, char* argv[])
     auto const res = cmd.Parse(argv + 1, argv + argc);
     if (!res.success)
     {
-        cmd.PrintDiag();          // Print error message(s) to stderr.
         cmd.PrintHelp("Example"); // Print help message to stderr.
         return -1;
     }
