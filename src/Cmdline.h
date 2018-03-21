@@ -328,8 +328,8 @@ struct ByLines
 {
     DelimiterResult operator()(string_view str) const
     {
-        auto const first = str.data();
-        auto const last = str.data() + str.size();
+        auto const first = str.begin();
+        auto const last = str.end();
 
         // Find the position of the first CR or LF
         auto p = first;
@@ -343,7 +343,7 @@ struct ByLines
         auto const index = static_cast<size_t>(p - first);
 
         // If this is CRLF, skip the other half.
-        if (p[0] == '\r' && p + 1 != last && p[1] == '\n')
+        if (*p == '\r' && ++p != last && *p == '\n')
             return {index, 2};
 
         return {index, 1};
