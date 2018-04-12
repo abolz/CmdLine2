@@ -11,9 +11,9 @@ static std::vector<std::string> input_files;
 
 int main(int argc, char* argv[])
 {
-    cl::Cmdline cmd;
+    cl::Cmdline cli;
 
-    auto opt_v = cl::MakeOption("v", "Increase output verbosity",
+    cli.Add("v", "Increase output verbosity",
         cl::Var(verbose),
         cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
 
@@ -31,15 +31,15 @@ int main(int argc, char* argv[])
         cl::Var(input_files),
         cl::NumOpts::one_or_more, cl::Positional::yes);
 
-    cmd.Add(&opt_v);
-    cmd.Add(&opt_i);
-    cmd.Add(&opt_std);
-    cmd.Add(&opt_inputs);
+    cli.Add(&opt_i);
+    cli.Add(&opt_std);
+    cli.Add(&opt_inputs);
 
-    auto const res = cmd.Parse(argv + 1, argv + argc);
+    auto const res = cli.Parse(argv + 1, argv + argc);
     if (!res.success)
     {
-        cmd.PrintHelp("Example"); // Print help message to stderr.
+        cli.PrintDiag();
+        cli.PrintHelp("Example"); // Print help message to stderr.
         return -1;
     }
 
