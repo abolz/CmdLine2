@@ -523,22 +523,12 @@ enum class CommaSeparated : unsigned char {
     yes,
 };
 
-// Parse all following options as positional options?
-enum class EndsOptions : unsigned char {
-    // Nothing special.
-    // This is the default.
-    no,
-    // If an option with this flag is (successfully) parsed, all the remaining
-    // options are parsed as positional options.
-    yes,
-};
-
 // Stop parsing early?
 enum class StopParsing : unsigned char {
     // Nothing special.
     // This is the default.
     no,
-    // If an option with this flag is (successfully) parser, all the remaining
+    // If an option with this flag is (successfully) parsed, all the remaining
     // command line arguments are ignored and the parser returns immediately.
     yes,
 };
@@ -569,7 +559,6 @@ class OptionBase
     MayGroup       may_group_       = MayGroup::no;
     Positional     positional_      = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
-    EndsOptions    ends_options_    = EndsOptions::no;
     StopParsing    stop_parsing_    = StopParsing::no;
     // The number of times this option was specified on the command line
     int count_ = 0;
@@ -584,7 +573,6 @@ private:
     void Apply(MayGroup       v) { may_group_       = v; }
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
-    void Apply(EndsOptions    v) { ends_options_    = v; }
     void Apply(StopParsing    v) { stop_parsing_    = v; }
 
 protected:
@@ -622,7 +610,6 @@ public:
     bool has_flag(MayGroup       f) const { return may_group_       == f; }
     bool has_flag(Positional     f) const { return positional_      == f; }
     bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
-    bool has_flag(EndsOptions    f) const { return ends_options_    == f; }
     bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
 
     // Returns the number of times this option was specified on the command line
@@ -1587,11 +1574,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     if (res == Status::success)
     {
-        // If the current option has the StopsParsing flag set, parse all
-        // following options as positional options.
-        if (opt->has_flag(EndsOptions::yes))
-            dashdash_ = true;
-
+        // If the current option has the StopParsing flag set, we're done.
         if (opt->has_flag(StopParsing::yes))
             res = Status::done;
     }

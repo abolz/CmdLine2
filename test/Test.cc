@@ -418,33 +418,6 @@ TEST_CASE("CommaSeparatedArg")
     CHECK(ints[3] == 4);
 }
 
-TEST_CASE("EndsOptions")
-{
-    std::vector<std::string> sink;
-    bool a = false;
-
-    cl::Cmdline cl;
-    cl.Add("a", "", cl::Var(a), cl::EndsOptions::yes, cl::HasArg::required);
-    cl.Add("!", "", cl::Var(sink), cl::Positional::yes, cl::NumOpts::zero_or_more);
-
-    CHECK(true == ParseArgs(cl, {"eins", "zwei"}));
-    CHECK(sink.size() == 2);
-    CHECK(sink[0] == "eins");
-    CHECK(sink[1] == "zwei");
-    CHECK(false == ParseArgs(cl, {"-123"})); // unknown option
-    CHECK(true == ParseArgs(cl, {"drei", "-a", "true", "-123"}));
-    CHECK(a == true);
-    CHECK(sink.size() == 4);
-    CHECK(sink[0] == "eins");
-    CHECK(sink[1] == "zwei");
-    CHECK(sink[2] == "drei");
-    CHECK(sink[3] == "-123");
-    CHECK(true == ParseArgs(cl, {"-a", "false"})); // option parsing disabled now...
-    CHECK(sink.size() == 6);
-    CHECK(sink[4] == "-a");
-    CHECK(sink[5] == "false");
-}
-
 TEST_CASE("StopParsing")
 {
     std::string command;
