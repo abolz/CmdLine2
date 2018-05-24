@@ -990,6 +990,8 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::success:
             break;
         case Status::done:
+            if (curr != last)
+                ++curr;
             return {true, curr};
         case Status::error:
             return {false, curr};

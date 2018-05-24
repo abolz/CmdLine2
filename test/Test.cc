@@ -435,7 +435,7 @@ TEST_CASE("StopParsing")
         auto const args = {"-a=123", "command", "-b", "-c"};
         auto const res = cli.Parse(args.begin(), args.end(), cl::CheckMissingOptions::yes);
         CHECK(res.success);
-        CHECK(res.next == args.begin() + 1);
+        CHECK(res.next == args.begin() + 2);
         CHECK(a == 123);
         CHECK(command == "command");
     }
@@ -447,7 +447,7 @@ TEST_CASE("StopParsing")
         auto const args = {"command", "-a=hello", "-b", "-c"};
         auto const res = cli.Parse(args.begin(), args.end(), cl::CheckMissingOptions::yes);
         CHECK(res.success);
-        CHECK(res.next == args.begin() + 0);
+        CHECK(res.next == args.begin() + 1);
         CHECK(a == -1);
         CHECK(command == "command");
     }
