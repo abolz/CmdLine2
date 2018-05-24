@@ -795,13 +795,13 @@ public:
     template <typename It>
     struct ParseResult
     {
-        bool success = false;
         It next = It{};
+        bool success = false;
 
         ParseResult() = default;
-        ParseResult(bool success_, It next_)
-            : success(success_)
-            , next(next_)
+        ParseResult(It next_, bool success_)
+            : next(next_)
+            , success(success_)
         {
         }
     };
@@ -992,12 +992,12 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::done:
             if (curr != last)
                 ++curr;
-            return {true, curr};
+            return {curr, true};
         case Status::error:
-            return {false, curr};
+            return {curr, false};
         case Status::ignored:
             FormatDiag(Diagnostic::error, curr_index_, "unknown option '%s'", arg.c_str());
-            return {false, curr};
+            return {curr, false};
         }
 
         // Handle1 might have changed CURR.
@@ -1009,10 +1009,11 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         ++curr_index_;
     }
 
-    if (check_missing == CheckMissingOptions::yes)
-        return {!AnyMissing(), curr};
+    bool const success = (check_missing == CheckMissingOptions::yes)
+        ? !AnyMissing()
+        : true;
 
-    return {true, curr};
+    return {curr, success};
 }
 
 inline bool Cmdline::AnyMissing()
