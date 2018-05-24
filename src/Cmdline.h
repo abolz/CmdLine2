@@ -1176,6 +1176,44 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
     });
 }
 
+inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t descr_indent, size_t descr_width)
+{
+    auto const col0 = out.size();
+    CL_ASSERT(col0 == 0 || out[col0 - 1] == '\n');
+
+    // Append the name of the option along with a short description of its argument (if any)
+    // NOTE:
+    // Not wrapped.
+    out.append(indent, ' ');
+    out += '-';
+    out.append(opt->name().data(), opt->name().size());
+    if (!opt->has_flag(HasArg::no))
+    {
+        char const* const arg_name
+            = opt->has_flag(HasArg::optional)
+                ? "=<arg>"
+            : opt->has_flag(JoinArg::no)
+                ? " <arg>"
+                :  "<arg>";
+
+        out += arg_name;
+    }
+
+    // Append the options description.
+    auto const col = out.size() - col0;
+    auto const wrap = (col >= descr_indent);
+    auto const nspaces = wrap ? descr_indent : descr_indent - col;
+    if (wrap) {
+        out += '\n';
+    }
+    out.append(nspaces, ' ');
+    // Now at column descr_width.
+    // Finally append the options' description.
+    cl::impl::AppendLines(out, opt->descr(), descr_indent, descr_width);
+
+    out += '\n'; // One option per line
+}
+
 } // namespace impl
 
 inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
@@ -1209,41 +1247,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         else
         {
             has_options = true;
-
-            auto const col0 = sopt.size();
-            CL_ASSERT(col0 == 0 || sopt[col0 - 1] == '\n');
-
-            // Append the name of the option along with a short description of its argument (if any)
-            // NOTE:
-            // Not wrapped.
-            sopt.append(fmt.indent, ' ');
-            sopt += '-';
-            sopt.append(opt->name().data(), opt->name().size());
-            if (!opt->has_flag(HasArg::no))
-            {
-                char const* const arg_name
-                    = opt->has_flag(HasArg::optional)
-                        ? "=<arg>"
-                    : opt->has_flag(JoinArg::no)
-                        ? " <arg>"
-                        :  "<arg>";
-
-                sopt += arg_name;
-            }
-
-            // Append the options description.
-            auto const col = sopt.size() - col0;
-            auto const wrap = (col >= fmt.descr_indent);
-            auto const nspaces = wrap ? fmt.descr_indent : fmt.descr_indent - col;
-            if (wrap) {
-                sopt += '\n';
-            }
-            sopt.append(nspaces, ' ');
-            // Now at column fmt.descr_width.
-            // Finally append the options' description.
-            cl::impl::AppendLines(sopt, opt->descr(), fmt.descr_indent, descr_width);
-
-            sopt += '\n'; // One option per line
+            cl::impl::AppendDescr(sopt, opt, fmt.indent, fmt.descr_indent, descr_width);
         }
 
         return true;
