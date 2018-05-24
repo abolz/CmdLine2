@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
     cli.Add(&opt_inputs);
 
     auto const res = cli.Parse(argv + 1, argv + argc);
-    if (!res.success)
+    if (!res)
     {
         cli.PrintDiag();
         cli.PrintHelp("Example"); // Print help message to stderr.

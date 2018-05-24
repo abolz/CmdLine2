@@ -804,6 +804,9 @@ public:
             , success(success_)
         {
         }
+
+        // Test for success.
+        explicit operator bool() const { return success; }
     };
 
     // Parse the command line arguments in [CURR, LAST).
@@ -982,7 +985,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
     {
         // Make a copy of the current value.
         // NB: This is actually only needed for InputIterator's...
-        std::string arg(*curr);
+        std::string const arg(*curr);
 
         Status const res = Handle1(arg, curr, last);
         switch (res)
