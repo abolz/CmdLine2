@@ -995,7 +995,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::done:
             if (curr != last)
                 ++curr;
-            return {curr, true};
+            break;
         case Status::error:
             return {curr, false};
         case Status::ignored:
@@ -1005,7 +1005,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
 
         // Handle1 might have changed CURR.
         // Need to recheck if we're done.
-        if (curr == last)
+        if (res == Status::done || curr == last)
             break;
 
         ++curr;
