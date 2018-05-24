@@ -1,6 +1,7 @@
 #define CL_WINDOWS_CONSOLE_COLORS 1
 #define CL_ANSI_CONSOLE_COLORS 1
 #include "../src/Cmdline.h"
+#include <cstdio>
 
 // Example from
 // https://github.com/muellan/clipp
