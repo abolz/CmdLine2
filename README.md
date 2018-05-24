@@ -107,8 +107,8 @@ int main(int argc, char* argv[])
     // some objects of another type. Note that the Parse method does not know
     // anything about the program name which is stored in argv[0], so we skip
     // that.
-    bool const ok = cmd.Parse(argv + 1, argv + argc);
-    if (!ok)
+    auto const result = cmd.Parse(argv + 1, argv + argc);
+    if (!result.success)
     {
         // If the method returns false, the command line was invalid, i.e. the
         // options were specified with an invalid syntax or there were
