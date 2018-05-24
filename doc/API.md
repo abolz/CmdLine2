@@ -247,21 +247,26 @@ Split the argument between commas?
     // "-i=1,2,,3"  ==>  Error; i.e. ints = {1,2}, but the empty string '' is not a valid integer
     ```
 
-### enum class `EndsOptions`
+### enum class `StopParsing`
 
-Parse all following options as positional options?
+Stop parsing early?
 
 * `no`
     <br/> Nothing special. This is the **default**.
 
 * `yes`
     <br/> If an option with this flag is (successfully) parsed, all the
-    remaining options are parsed as positional options.
+    remaining command line arguments are ignored and the parser returns
+    immediately.
     ```c++
-    cmd.Add("f", "bool", cl::Assign(f), cl::HasArg::required, cl::NumOpts::zero_or_more, cl::EndsOptions::yes);
-    cmd.Add("args", "", cl::PushBack(args), cl::HasArg::required, cl::NumOpts::zero_or_more, cl::Positional::yes);
-    // "-f"        ==>  f = true, args = {}
-    // "-f -f -f"  ==>  f = true, args = {"-f", "-f"}
+    cmd.Add("a", "", cl::Var(a), cl::HasArg::optional);
+    cmd.Add("command", "", cl::Var(command), cl::Positional::yes, cl::HasArg::yes, cl::StopParsing::yes, cl::NumOpts::required);
+    // argv[] = {"-a=123", "add", "-b", "-c"};
+    // result = cmd.Parse(begin(argv), end(argv));
+    //  ==> a           = 123
+    //  ==> command     = "add"
+    //  ==> res.success = true
+    //  ==> res.next    = arg.begin() + 1
     ```
 
 ## Parsers
@@ -457,12 +462,12 @@ The library provides some predicates in the `cl::check` namespace:
     than or equal to `upper`, i.e. returns `!(upper < value)`.
 
 ```c++
-cl::Assign(small_int, cl::InRange(0, 15))
+cl::Assign(small_int, cl::check::InRange(0, 15))
 // In addition to converting the input string into an integer, the function
 // object returned from the function call above additionally checks whether the
 // resuling integer is in the range [0,15].
 
-cl::Assign(small_int, cl::GreaterEqual(0), cl::LessThan(16))
+cl::Assign(small_int, cl::check::GreaterEqual(0), cl::check::LessThan(16))
 // The same as the example above using InRange
 ```
 
@@ -500,7 +505,12 @@ object.
 ## Parse command line arguments
 
 ```c++
-bool Parse(InputIterator first, InputIterator last, CheckMissingOptions check_missing = yes)
+struct ParseResult {
+    InputIterator next;
+    bool success;
+};
+
+ParseResult Parse(InputIterator first, InputIterator last, CheckMissingOptions check_missing = yes)
 ```
 
 ...
@@ -510,9 +520,6 @@ bool ParseArgs(Range const& args, CheckMissingOptions check_missing = yes)
 ```
 
 ...
-
-**Note**: Ignoring unknown arguments might screw up argument parsing. So use
-with caution.
 
 ## Diagnostics and help messages
 
@@ -529,3 +536,13 @@ Tokenize a string into command line arguments using `bash`-style escaping.
 Tokenize a string into command line arguments using Windows-style escaping. See
 [CommandLineToArgvW](https://msdn.microsoft.com/en-us/library/windows/desktop/17w5ykft(v=vs.85).aspx)
 for details.
+
+#### `CommandLineToArgvUTF8(wchar_t const* command_line) -> vector<string>`
+
+(This function is only available when compiling for the Windows platform.)
+
+Like `TokenizeWindows`, but the null-terminated UTF-16 encoded input string is
+first converted to UTF-8. This is intended to be used with the
+[GetCommandLine](https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156(v=vs.85).aspx) function
+
+# Subcommands
