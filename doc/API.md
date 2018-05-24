@@ -543,6 +543,8 @@ for details.
 
 Like `TokenizeWindows`, but the null-terminated UTF-16 encoded input string is
 first converted to UTF-8. This is intended to be used with the
-[GetCommandLine](https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156(v=vs.85).aspx) function
+[GetCommandLine](https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156(v=vs.85).aspx) function.
 
 # Subcommands
+
+...
