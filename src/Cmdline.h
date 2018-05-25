@@ -1558,8 +1558,11 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
     auto Parse1 = [&](string_view arg1) {
         if (!opt->IsOccurrenceAllowed())
         {
+            // Use opt->name() instead of name here.
+            // This gives slightly nicer error messages in case an option has
+            // multiple names.
             FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' already specified",
-                       static_cast<int>(name.size()), name.data());
+                       static_cast<int>(opt->name().size()), opt->name().data());
             return Status::error;
         }
 
