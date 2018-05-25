@@ -27,23 +27,11 @@ static ParseResult Parse(cl::Cmdline& cli, ArgIterator next, ArgIterator last, c
     return res;
 }
 
-static auto InvertableFlag(bool& target, cl::string_view prefix = "no")
-{
-    return [=, &target](cl::ParseContext const& ctx) {
-        bool const invert = (ctx.name.size() >= prefix.size() && ctx.name.substr(0, prefix.size()) == prefix);
-        if (!cl::ParseValue<>{}(ctx, target))
-            return false;
-        if (invert)
-            target = !target;
-        return true;
-    };
-}
-
 static ParseResult ParseMakeCommand(ArgIterator next, ArgIterator last)
 {
     cl::Cmdline cli;
 
-    cli.Add("<wordfile>", "", cl::Var(input), cl::Positional::yes, cl::HasArg::required, cl::NumOpts::one_or_more);
+    cli.Add("wordfile", "", cl::Var(input), cl::Positional::yes, cl::HasArg::required, cl::NumOpts::one_or_more);
     cli.Add("dict", "", cl::Var(dict), cl::HasArg::required, cl::NumOpts::required);
     cli.Add("progress", "show progress", cl::Var(progr));
 
@@ -57,7 +45,7 @@ static ParseResult ParseFindCommand(ArgIterator next, ArgIterator last)
     cli.Add("infile", "", cl::Var(input), cl::NumOpts::one_or_more, cl::HasArg::required, cl::Positional::yes);
     cli.Add("dict", "", cl::Var(dict), cl::HasArg::required, cl::NumOpts::required);
     cli.Add("o", "write to file instead of stdout", cl::Var(out), cl::HasArg::required);
-    cli.Add("split|nosplit", "(do not) split output", InvertableFlag(split), cl::HasArg::no, cl::NumOpts::optional);
+    cli.Add("split|nosplit", "(do not) split output", cl::Flag(split, /*inverse_prefix*/ "no"));
 
     return Parse(cli, next, last, "finder find");
 }
@@ -71,28 +59,23 @@ static bool ParseCommandLine(ArgIterator next, ArgIterator last)
         cl::Map(selected, { {"make", mode::make},
                             {"find", mode::find},
                             {"help", mode::help} }),
-        cl::HasArg::required, cl::NumOpts::required, cl::Positional::yes,
+        cl::NumOpts::required, cl::Positional::yes,
         cl::StopParsing::yes);
 
-    auto const res = Parse(cli, next, last, "finder");
-    if (!res)
-        return -1;
-
-    switch (selected) {
-    case mode::make:
-        if (!ParseMakeCommand(res.next, last))
-            return -1;
-        break;
-    case mode::find:
-        if (!ParseFindCommand(res.next, last))
-            return -1;
-        break;
-    case mode::help:
-        cli.PrintHelp("finder");
-        break;
+    if (auto const res = Parse(cli, next, last, "finder"))
+    {
+        switch (selected) {
+        case mode::make:
+            return ParseMakeCommand(res.next, last) ? 0 : -1;
+        case mode::find:
+            return ParseFindCommand(res.next, last) ? 0 : -1;
+        case mode::help:
+            cli.PrintHelp("finder");
+            return 0;
+        }
     }
 
-    return 0;
+    return -1;
 }
 
 int main(int argc, char* argv[])
