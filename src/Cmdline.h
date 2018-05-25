@@ -1279,8 +1279,17 @@ inline OptionBase* Cmdline::FindOption(string_view name) const
 {
     for (auto&& p : options_)
     {
+        // Don't skip positional options.
+        // This should allow one to resolve possible ambiguities.
+        //
+        // XXX:
+        // These ambiguities should be diagnosed!!!
+        // And the command line should be considered invalid!!!
+        //
+#if 0
         if (p.option->has_flag(Positional::yes))
             continue;
+#endif
         if (p.name == name)
             return p.option;
     }
