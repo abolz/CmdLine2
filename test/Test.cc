@@ -933,6 +933,7 @@ TEST_CASE("Invertible flag")
     CHECK(b == false);
 }
 
+#if 0
 TEST_CASE("Ex 1")
 {
     // TODO:
@@ -1030,7 +1031,9 @@ TEST_CASE("Ex 2")
 
     cl.PrintHelp("compiler", fmt);
 }
+#endif
 
+#if 0
 TEST_CASE("custom check")
 {
     // Returns a function object which checks whether a given value is in the range [lower, upper].
@@ -1081,6 +1084,7 @@ TEST_CASE("custom check")
     CHECK(i == 3);
     CHECK(cli.diag().empty());
 }
+#endif
 
 TEST_CASE("Invalid UTF-8")
 {
