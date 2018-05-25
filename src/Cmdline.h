@@ -1306,36 +1306,50 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     }
 
     // This argument is considered to be positional if it doesn't start with
-    // '-', if it is "-" itself, or if we have seen "--" already.
-    if (optstr[0] != '-' || optstr == "-" || dashdash_)
+    // '-', if it is "-" itself, or if we have seen "--" already, or if the
+    // argument doesn't look like a known option (see below).
+    bool const is_positional = (optstr[0] != '-' || optstr == "-" || dashdash_);
+    if (is_positional) {
         return HandlePositional(optstr);
+    }
 
-    // Starts with a dash, must be an option.
+    auto const optstr_orig = optstr;
 
+    CL_ASSERT(optstr[0] == '-');
     optstr.remove_prefix(1); // Remove the first dash.
 
     // If the name starts with a single dash, this is a short option and might
     // actually be an option group.
     bool const is_short = (optstr[0] != '-');
-    if (!is_short)
+    if (!is_short) {
         optstr.remove_prefix(1); // Remove the second dash.
+    }
 
     // 1. Try to handle options like "-f" and "-f file"
     Status res = HandleStandardOption(optstr, curr, last);
 
     // 2. Try to handle options like "-f=file"
-    if (res == Status::ignored)
+    if (res == Status::ignored) {
         res = HandleOption(optstr);
+    }
 
     // 3. Try to handle options like "-Idir"
-    if (res == Status::ignored)
+    if (res == Status::ignored) {
         res = HandlePrefix(optstr);
+    }
 
     // 4. Try to handle options like "-xvf=file" and "-xvf file"
-    if (res == Status::ignored && is_short)
+    if (res == Status::ignored && is_short) {
         res = HandleGroup(optstr, curr, last);
+    }
 
     // Otherwise this is an unknown option.
+    //
+    // 5. Try to handle this option as a positional option.
+    //    If there are no more (hungry) positional options, this is an error.
+    if (res == Status::ignored) {
+        res = HandlePositional(optstr_orig);
+    }
 
     return res;
 }
@@ -1346,15 +1360,18 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr)
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_positional_ <= E);
 
-    for (; curr_positional_ != E; ++curr_positional_)
+    for ( ; curr_positional_ != E; ++curr_positional_) // find_if
     {
-        auto&& opt = options_[static_cast<size_t>(curr_positional_)].option;
-        if (opt->has_flag(Positional::yes) && opt->IsOccurrenceAllowed())
-        {
-            // The argument of a positional option is the value specified on the
-            // command line.
-            return HandleOccurrence(opt, opt->name(), optstr);
-        }
+        auto opt = options_[static_cast<size_t>(curr_positional_)].option;
+
+        if (!opt->has_flag(Positional::yes))
+            continue;
+        if (!opt->IsOccurrenceAllowed())
+            continue;
+
+        // The argument of a positional option is the value specified on the
+        // command line.
+        return HandleOccurrence(opt, opt->name(), optstr);
     }
 
     return Status::ignored;
