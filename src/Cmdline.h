@@ -2313,6 +2313,27 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
     };
 }
 
+// For (boolean) flags.
+// Parses the options' argument and stores the result in 'var'.
+// If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
+template <typename T>
+auto Flag(T& var, std::string const& inverse_prefix = "no-")
+{
+    static_assert(!std::is_const<T>::value,
+        "'Flag(T)' requires mutable lvalue-references");
+
+    return [=, &var](ParseContext const& ctx) {
+        if (!ParseValue<>{}(ctx, var))
+            return false;
+
+        bool const invert = (ctx.name.size() >= inverse_prefix.size()
+                          && ctx.name.substr(0, inverse_prefix.size()) == inverse_prefix);
+        if (invert)
+            var = !var;
+        return true;
+    };
+}
+
 //==================================================================================================
 //
 //==================================================================================================
