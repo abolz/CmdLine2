@@ -2675,7 +2675,6 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
             // XXX:
             // throw?! abort?!
             U = cl::impl::kReplacementCharacter;
-            return true;
         }
 
         cl::impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
