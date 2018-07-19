@@ -311,30 +311,30 @@ provides some utility classes and methods to easily convert strings into objects
 of other types and assigning the result to user-provided storage.
 
 ---
+The default function object for converting strings to objects of type `T` is
+
 ```c++
 template <typename T, typename = void>
-struct ConvertTo {
-    bool operator()(string_view in, T& out) const;
+struct ParseValue {
+    bool operator()(ParseContext& ctx, T& out) const;
 };
 ```
-
-is responsible for converting strings into objects of type `T`. The function
-returns `true` on success, `false` otherwise.
 
 The library provides some specializations:
 
 * `bool`
 
-    Maps strings to boolean `true` or `false` as defined in the following table:
+    Maps strings to boolean `true` or `false` as defined in the following
+    table:
     * `true` values: `""` (empty string), `"true"`, `"1"`, `"on"`, `"yes"`
     * `false` values: `"false"`, `"0"`, `"off"`, `"no"`
     Other inputs result in parsing errors.
 
 * `intN_t, uintN_t` (integral types)
 
-    Uses `strto[u]ll` to convert the string to an integer and performs a range
-    check using the limits of the actual integral type. Returns `true` if
-    parsing and the range check succeed, returns `false` otherwise.
+    Uses `strto[u]ll` to convert the string to an integer and performs a
+    range check using the limits of the actual integral type. Returns `true`
+    if parsing and the range check succeed, returns `false` otherwise.
 
 * `float`, `double`, `long double`
 
@@ -352,35 +352,11 @@ of your custom data type without any additional effort.
 
 ---
 ```c++
-template <typename T, typename = void>
-struct ParseValue {
-    bool operator()(ParseContext& ctx, T& out) const
-    {
-        ConvertTo<T> conv;
-        return conv(ctx.arg, out);
-    }
-};
-```
-
-This is the default parser used by all other option parsers defined in the
-CmdLine library.
-
-Instead of specializing `ConvertTo<T>` for your data type `T`, you might as well
-specialize `ParseValue<T>`.
-
-This might be useful if the value of the option depends on the name of the
-option as specified on the command line. E.g., a flag parser might convert a
-command line argument to a boolean value depending on whether the option was
-specified as `"--debug"` or `"--no-debug"`.
-
----
-```c++
 ParseFn Assign(T& target)
 ```
 
-Calls `ParseValue` to convert the string into a temporary object `v` of type
-`T`, then calls each `fns` for the result and if all `fns` return `true`,
-move-assigns `v` to `target`.
+returns a function object which calls `ParseValue<T>` to convert the string into
+an object of type `T`.
 ```c++
 cmd.Add("i", "int", cl::Assign(i), cl::NumOpts::zero_or_more, cl::HasArg::required);
 // "-i=1"       ==>  i == 1
@@ -399,6 +375,11 @@ Calls `ParseValue` to convert the string into a temporary object `v` of type
 cmd.Add("i", "int list", cl::PushBack(i), cl::NumOpts::zero_or_more, cl::HasArg::required);
 // "-i=1"       ==>  i == {1}
 // "-i=1 -i 2"  ==>  i == {1,2}
+```
+
+---
+```c++
+ParseFn Var(T& target)
 ```
 
 ---
@@ -423,6 +404,11 @@ cmd.Add("simpson", "The name of a Simpson",
 // "-simpson=Bart"      ==>  simpson == Simpson::Bart
 // "-simpson=El Barto"  ==>  simpson == Simpson::Bart
 // "-simpson Granpa"    ==>  Error
+```
+
+---
+```c++
+ParseFn Flag(T& target, std::string const& inverse_prefix = "no-");
 ```
 
 ### Predicates
