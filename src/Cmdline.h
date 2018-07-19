@@ -1178,6 +1178,8 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
 
 inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t descr_indent, size_t descr_width)
 {
+    bool const is_positional = opt->has_flag(Positional::yes);
+
     auto const col0 = out.size();
     CL_ASSERT(col0 == 0 || out[col0 - 1] == '\n');
 
@@ -1185,7 +1187,9 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     // NOTE:
     // Not wrapped.
     out.append(indent, ' ');
-    out += '-';
+    if (!is_positional) {
+        out += '-';
+    }
     out.append(opt->name().data(), opt->name().size());
     if (!opt->has_flag(HasArg::no))
     {
@@ -1225,45 +1229,65 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     CL_ASSERT(line_length > fmt.descr_indent);
     auto const descr_width = line_length - fmt.descr_indent;
 
+    std::string res = "Usage:\n";
+    res.append(fmt.indent, ' ');
+    res.append(program_name.data(), program_name.size());
+
+    std::string sopt;
     std::string spos;
-    std::string sopt = "Options:\n";
 
-    bool has_options = false;
-
-    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
+    // Options
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
+    {
         if (opt->has_flag(Positional::yes))
-        {
-            auto const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
+            return true;
 
-            spos += ' ';
-            if (is_optional) {
-                spos += '[';
-            }
-            spos.append(opt->name().data(), opt->name().size());
-            if (is_optional) {
-                spos += ']';
-            }
-        }
-        else
+        bool const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
+        if (!is_optional)
         {
-            has_options = true;
-            cl::impl::AppendDescr(sopt, opt, fmt.indent, fmt.descr_indent, descr_width);
+            res += ' ';
+            res.append(opt->name().data(), opt->name().size());
         }
 
+        cl::impl::AppendDescr(sopt, opt, fmt.indent, fmt.descr_indent, descr_width);
         return true;
     });
 
-    std::string res = "Usage: ";
-
-    res.append(program_name.data(), program_name.size());
-
-    if (has_options) {
-        res += " [options]";
+    if (!sopt.empty()) {
+        res += " <options>";
     }
-    res += spos; // Might be empty. If not: starts with a ' '
+
+    // Positional options
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
+    {
+        if (!opt->has_flag(Positional::yes))
+            return true;
+
+        bool const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
+
+        res += ' ';
+        if (is_optional) {
+            res += '[';
+        }
+        res.append(opt->name().data(), opt->name().size());
+        if (is_optional) {
+            res += ']';
+        }
+
+        cl::impl::AppendDescr(spos, opt, fmt.indent, fmt.descr_indent, descr_width);
+        return true;
+    });
+
     res += '\n';
-    if (has_options) {
-        res += sopt; // Ends with an '\n'
+
+    if (!sopt.empty()) {
+        res += "\nOptions:\n";
+        res += sopt;
+    }
+
+    if (!spos.empty()) {
+        res += "\nPositional options:\n";
+        res += spos;
     }
 
     return res;
