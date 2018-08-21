@@ -71,10 +71,6 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_HAS_DEDUCTION_GUIDES 1
 #endif
 
-#if __cplusplus >= 201703 || __cpp_fold_expressions >= 201411 || (_MSC_VER >= 1912 && _HAS_CXX17)
-#define CL_HAS_FOLD_EXPRESSIONS 1
-#endif
-
 #if __GNUC__
 #define CL_ATTRIBUTE_PRINTF(X, Y) __attribute__((format(printf, X, Y)))
 #else
@@ -581,12 +577,8 @@ protected:
         : name_(name)
         , descr_(descr)
     {
-#if CL_HAS_FOLD_EXPRESSIONS
-        (Apply(args), ...);
-#else
         int const unused[] = {(Apply(args), 0)..., 0};
         static_cast<void>(unused);
-#endif
     }
 
 public:
@@ -2212,14 +2204,10 @@ bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs)
     static_cast<void>(ctx_);   // may be unused if funcs is empty
     static_cast<void>(value_); // may be unused if funcs is empty
 
-#if CL_HAS_FOLD_EXPRESSIONS
-    return (... && funcs(ctx_, value_));
-#else
     bool res = true;
     bool const unused[] = {(res = res && funcs(ctx_, value_))..., false};
     static_cast<void>(unused);
     return res;
-#endif
 }
 
 template <typename T, typename /*Enable*/ = void>
