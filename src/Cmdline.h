@@ -1680,49 +1680,44 @@ inline bool IsValidCodepoint(uint32_t U)
     return U < 0xD800 || (U > 0xDFFF && U <= 0x10FFFF);
 }
 
-inline bool IsUTF8Trail(char ch)
+constexpr uint32_t kUTF8Accept = 0;
+constexpr uint32_t kUTF8Reject = 1;
+
+inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, uint32_t& U)
 {
-    uint32_t const b = static_cast<uint8_t>(ch);
+    // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+    // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-    return 0x80 == (b & 0xC0); // b == 10xxxxxx???
-}
+    static constexpr uint8_t kUTF8Decoder[] = {
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+        8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+        0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+        0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
 
-template <typename It>
-It FindNextUTF8Sequence(It next, It last)
-{
-    // Skip UTF-8 trail bytes.
-    // The first non-trail byte is the start of a (possibly invalid) UTF-8 sequence.
-    while (next != last && IsUTF8Trail(*next)) {
-        ++next;
-    }
-    return next;
-}
+        0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+        1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+        1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+        1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+    };
 
-inline int GetUTF8SequenceLengthFromLeadByte(char ch, uint32_t& U)
-{
-    uint32_t const b = static_cast<uint8_t>(ch);
+    uint8_t const type = kUTF8Decoder[byte];
 
-    if (b <= 0x7F) { U = b;        return 1; } // 01111111 (0xxxxxxx)
-    if (b <= 0xC1) {               return 0; }
-    if (b <= 0xDF) { U = b & 0x1F; return 2; } // 11011111 (110xxxxx)
-    if (b <= 0xEF) { U = b & 0x0F; return 3; } // 11101111 (1110xxxx)
-    if (b <= 0xF4) { U = b & 0x07; return 4; } // 11110100 (11110xxx)
-    return 0;
-}
+    // NB:
+    // The conditional here will likely be optimized out in the loop below.
 
-inline int GetUTF8SequenceLengthFromCodepoint(uint32_t U)
-{
-    CL_ASSERT(IsValidCodepoint(U));
+    if (state != kUTF8Accept)
+        U = (U << 6) | (byte & 0x3Fu);
+    else
+        U = byte & (0xFFu >> type);
 
-    if (U <=   0x7F) { return 1; }
-    if (U <=  0x7FF) { return 2; }
-    if (U <= 0xFFFF) { return 3; }
-    return 4;
-}
-
-inline bool IsUTF8OverlongSequence(uint32_t U, int slen)
-{
-    return slen != GetUTF8SequenceLengthFromCodepoint(U);
+    state = kUTF8Decoder[256 + state * 16 + type];
+    return state;
 }
 
 template <typename It>
@@ -1730,37 +1725,36 @@ It DecodeUTF8Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
 
-    int const slen = GetUTF8SequenceLengthFromLeadByte(*next, U);
+    // Always consume the first byte.
+    // The following bytes will only be consumed while the UTF-8 sequence is still valid.
+    uint8_t const b1 = static_cast<uint8_t>(*next);
     ++next;
 
-    if (slen == 0) {
-        U = kInvalidCodepoint; // Invalid lead byte
-        return FindNextUTF8Sequence(next, last);
-    }
-
-    for (int i = 1; i < slen; ++i)
+    uint32_t W = 0;
+    uint32_t state = DecodeUTF8Step(kUTF8Accept, b1, W);
+    if (state == kUTF8Reject)
     {
-        if (next == last) {
-            U = kInvalidCodepoint; // Incomplete UTF-8 sequence
-            return next;
-        }
-
-        auto const cb = *next;
-        ++next;
-
-        if (!IsUTF8Trail(cb)) {
-            U = kInvalidCodepoint;
-            return next;
-        }
-
-        U = (U << 6) | (static_cast<uint8_t>(cb) & 0x3F);
-    }
-
-    if (!IsValidCodepoint(U) || IsUTF8OverlongSequence(U, slen)) {
         U = kInvalidCodepoint;
         return next;
     }
 
+    while (state != kUTF8Accept)
+    {
+        if (next == last)
+        {
+            U = kInvalidCodepoint;
+            return next;
+        }
+        state = DecodeUTF8Step(state, static_cast<uint8_t>(*next), W);
+        if (state == kUTF8Reject)
+        {
+            U = kInvalidCodepoint;
+            return next;
+        }
+        ++next;
+    }
+
+    U = W;
     return next;
 }
 
@@ -1817,6 +1811,8 @@ It DecodeUTF16Sequence(It next, It last, uint32_t& U)
 {
     CL_ASSERT(next != last);
 
+    // Always consume the first UCN.
+    // The second UCN - if any - will only be consumed if the UTF16-sequence is valid.
     uint32_t const W1 = static_cast<uint16_t>(*next);
     ++next;
 
@@ -1825,18 +1821,24 @@ It DecodeUTF16Sequence(It next, It last, uint32_t& U)
         return next;
     }
 
-    if (W1 > 0xDBFF || next == last) {
-        U = kInvalidCodepoint; // Invalid high surrogate or incomplete UTF-16 sequence
+    if (W1 > 0xDBFF) {
+        U = kInvalidCodepoint; // Invalid high surrogate
+        return next;
+    }
+
+    if (next == last) {
+        U = kInvalidCodepoint; // Incomplete UTF-16 sequence
         return next;
     }
 
     uint32_t const W2 = static_cast<uint16_t>(*next);
-    ++next;
 
     if (W2 < 0xDC00 || W2 > 0xDFFF) {
-        U = kInvalidCodepoint;
+        U = kInvalidCodepoint; // Invalid low surrogate
         return next;
     }
+
+    ++next;
 
     U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
     return next;
@@ -2660,12 +2662,13 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
     {
         if (U == cl::impl::kInvalidCodepoint)
         {
-            // XXX:
-            // throw?! abort?!
-            U = cl::impl::kReplacementCharacter;
+            // Replace invalid UTF-16 sequences with a single Unicode replacement character.
+            command_line_utf8.append("\xEF\xBF\xBD", 3);
         }
-
-        cl::impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
+        else
+        {
+            cl::impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
+        }
         return true;
     });
 
