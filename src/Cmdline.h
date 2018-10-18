@@ -48,21 +48,6 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #include <windows.h>
 #endif
 
-#if defined(__has_include)
-#define CL_HAS_INCLUDE(X) __has_include(X)
-#else
-#define CL_HAS_INCLUDE(X) 0
-#endif
-
-// #if (__cplusplus >= 201703 && CL_HAS_INCLUDE(<string_view>)) || (_MSC_VER >= 1910 && _HAS_CXX17)
-// #define CL_HAS_STD_STRING_VIEW 1
-// #include <string_view>
-// #endif
-// #if (__cplusplus > 201103 && CL_HAS_INCLUDE(<experimental/string_view>))
-// #define CL_HAS_STD_EXPERIMENTAL_STRING_VIEW 1
-// #include <experimental/string_view>
-// #endif
-
 #if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
 #define CL_HAS_STD_INVOCABLE 1
 #endif
@@ -94,11 +79,6 @@ class Cmdline;
 //
 //==================================================================================================
 
-#if CL_HAS_STD_STRING_VIEW
-using std::string_view;
-#elif CL_HAS_STD_EXPERIMENTAL_STRING_VIEW
-using std::experimental::string_view;
-#else
 class string_view // A minimal std::string_view replacement
 {
 public:
@@ -287,7 +267,6 @@ inline bool operator>(string_view s1, string_view s2) noexcept {
 inline bool operator>=(string_view s1, string_view s2) noexcept {
     return !(s1 < s2);
 }
-#endif
 
 //==================================================================================================
 // Split strings
