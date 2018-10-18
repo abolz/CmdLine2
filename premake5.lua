@@ -44,7 +44,7 @@ solution "Cmdline"
             -- On ==> -O2
             -- Full ==> -O3
 
-    configuration { "gmake" }
+    configuration { "gmake*" }
         buildoptions {
             "-march=native",
             "-pedantic",
@@ -59,7 +59,7 @@ solution "Cmdline"
             "-Wstrict-overflow",
         }
 
-    configuration { "gmake", "debug", "linux" }
+    configuration { "gmake*", "debug", "linux" }
         buildoptions {
             -- "-fno-omit-frame-pointer",
             -- "-fsanitize=undefined",
@@ -95,7 +95,7 @@ solution "Cmdline"
                 _OPTIONS["cxxflags"],
             }
     else
-        configuration { "gmake" }
+        configuration { "gmake*" }
             buildoptions {
                 "-std=c++14",
             }
