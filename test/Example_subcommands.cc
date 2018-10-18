@@ -55,7 +55,11 @@ static bool ParseCommandLine(ArgIterator next, ArgIterator last)
     cl::Cmdline cli;
 
     cli.Add("v|version", "show version", [](cl::ParseContext const& /*ctx*/) { printf("version 1.0\n"); }, cl::HasArg::no);
-    cli.Add("mode", "",
+    cli.Add("mode",
+        "Can be make|find|help\n"
+        "  <make>  \tMake a new finder?!\n"
+        "  <find>  \tFind an existing finder.\n"
+        "  <help>  \tShow help menu",
         cl::Map(selected, { {"make", mode::make},
                             {"find", mode::find},
                             {"help", mode::help} }),
@@ -66,16 +70,15 @@ static bool ParseCommandLine(ArgIterator next, ArgIterator last)
     {
         switch (selected) {
         case mode::make:
-            return ParseMakeCommand(res.next, last) ? 0 : -1;
+            return (bool)ParseMakeCommand(res.next, last);
         case mode::find:
-            return ParseFindCommand(res.next, last) ? 0 : -1;
+            return (bool)ParseFindCommand(res.next, last);
         case mode::help:
-            cli.PrintHelp("finder");
             return 0;
         }
     }
 
-    return -1;
+    return false;
 }
 
 int main(int argc, char* argv[])
