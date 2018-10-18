@@ -1267,7 +1267,7 @@ TEST_CASE("Invalid UTF-8")
 
     auto CountInvalidUTF8Sequences = [](std::string const& in) {
         int count = 0;
-        cl::impl::ForEachUTF8EncodedCodepoint(in.begin(), in.end(), [&](uint32_t U) {
+        cl::impl::ForEachUTF8EncodedCodepoint(in.begin(), in.end(), [&](char32_t U) {
             if (U == cl::impl::kInvalidCodepoint)
                 ++count;
             return true;
@@ -1279,6 +1279,68 @@ TEST_CASE("Invalid UTF-8")
     for (auto const& test : tests)
     {
         int const num_invalid = CountInvalidUTF8Sequences(test.input);
+        CAPTURE(i);
+        CAPTURE(test.input);
+        CHECK(test.num_replacements == num_invalid);
+        ++i;
+    }
+}
+
+TEST_CASE("UTF-16")
+{
+    struct Test {
+        std::u16string input;
+        int num_replacements; // 0: ignore
+    };
+
+    static const Test tests[] = {
+        {{u'X', (char16_t)0xD800}, 1},
+        {{u'X', (char16_t)0xD900}, 1},
+        {{u'X', (char16_t)0xDA00}, 1},
+        {{u'X', (char16_t)0xDBFF}, 1},
+        {{u'X', (char16_t)0xDC00}, 1},
+        {{u'X', (char16_t)0xDD00}, 1},
+        {{u'X', (char16_t)0xDE00}, 1},
+        {{u'X', (char16_t)0xDFFF}, 1},
+
+        {{u'X', (char16_t)0xD800, u'Y'}, 1},
+        {{u'X', (char16_t)0xD900, u'Y'}, 1},
+        {{u'X', (char16_t)0xDA00, u'Y'}, 1},
+        {{u'X', (char16_t)0xDBFF, u'Y'}, 1},
+        {{u'X', (char16_t)0xDC00, u'Y'}, 1},
+        {{u'X', (char16_t)0xDD00, u'Y'}, 1},
+        {{u'X', (char16_t)0xDE00, u'Y'}, 1},
+        {{u'X', (char16_t)0xDFFF, u'Y'}, 1},
+
+        {{u'X', (char16_t)0xD800, (char16_t)0xDBFF, u'Y'}, 2},
+        {{u'X', (char16_t)0xD900, (char16_t)0xDA00, u'Y'}, 2},
+        {{u'X', (char16_t)0xDA00, (char16_t)0xD900, u'Y'}, 2},
+        {{u'X', (char16_t)0xDBFF, (char16_t)0xD800, u'Y'}, 2},
+        {{u'X', (char16_t)0xDC00, (char16_t)0xDFFF, u'Y'}, 2},
+        {{u'X', (char16_t)0xDD00, (char16_t)0xDE00, u'Y'}, 2},
+        {{u'X', (char16_t)0xDE00, (char16_t)0xDD00, u'Y'}, 2},
+        {{u'X', (char16_t)0xDFFF, (char16_t)0xDC00, u'Y'}, 2},
+
+        {{u'X', (char16_t)0xD800, (char16_t)0xDC00, u'Y'}, 0},
+        {{u'X', (char16_t)0xD800, (char16_t)0xDFFF, u'Y'}, 0},
+        {{u'X', (char16_t)0xDBFF, (char16_t)0xDC00, u'Y'}, 0},
+        {{u'X', (char16_t)0xDBFF, (char16_t)0xDFFF, u'Y'}, 0},
+    };
+
+    auto CountInvalidUTF16Sequences = [](std::u16string const& in) {
+        int count = 0;
+        cl::impl::ForEachUTF16EncodedCodepoint(in.begin(), in.end(), [&](char32_t U) {
+            if (U == cl::impl::kInvalidCodepoint)
+                ++count;
+            return true;
+        });
+        return count;
+    };
+
+    int i = 0;
+    for (auto const& test : tests)
+    {
+        int const num_invalid = CountInvalidUTF16Sequences(test.input);
         CAPTURE(i);
         CAPTURE(test.input);
         CHECK(test.num_replacements == num_invalid);
