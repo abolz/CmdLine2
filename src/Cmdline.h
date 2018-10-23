@@ -570,12 +570,14 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, wchar_t const
 #endif
 }
 
+} // namespace impl
+
 template <typename StringT>
 inline std::string ToUTF8(StringT const& str)
 {
     using CharT = std::remove_reference_t<decltype(*str.begin())>;
 
-    return ToUTF8_impl(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
+    return cl::impl::ToUTF8_impl(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
 }
 
 template <typename CharT>
@@ -585,10 +587,8 @@ inline std::string ToUTF8(CharT* const& c_str)
         ? std::char_traits<CharT>::length(c_str)
         : 0u;
 
-    return ToUTF8_impl(c_str, c_str + len, static_cast<CharT const*>(nullptr));
+    return cl::impl::ToUTF8_impl(c_str, c_str + len, static_cast<CharT const*>(nullptr));
 }
-
-} // namespace impl
 
 //==================================================================================================
 // Split strings
@@ -1287,7 +1287,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
     {
         // Make a copy of the current value.
         // NB: This is actually only needed for InputIterator's...
-        std::string const arg = cl::impl::ToUTF8(*curr);
+        std::string const arg = cl::ToUTF8(*curr);
 
         Status const res = Handle1(arg, curr, last);
         switch (res)
@@ -1859,7 +1859,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
 
         if (curr != last)
         {
-            std::string const arg = cl::impl::ToUTF8(*curr);
+            std::string const arg = cl::ToUTF8(*curr);
             return ParseOptionArgument(opt, name, arg);
         }
     }
