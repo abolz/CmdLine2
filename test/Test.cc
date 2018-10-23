@@ -10,14 +10,15 @@
 #undef max
 #include "catch.hpp"
 
+template <typename CharT>
 struct fancy_iterator
 {
-    using It                = std::initializer_list<char const*>::iterator;
-    using iterator_category = std::input_iterator_tag; //std::iterator_traits<It>::iterator_category;
-    using reference         = std::iterator_traits<It>::reference;
-    using pointer           = std::iterator_traits<It>::pointer;
-    using value_type        = std::iterator_traits<It>::value_type;
-    using difference_type   = std::iterator_traits<It>::difference_type;
+    using It                = typename std::initializer_list<CharT const*>::iterator;
+    using iterator_category = typename std::input_iterator_tag; //std::iterator_traits<It>::iterator_category;
+    using reference         = typename std::iterator_traits<It>::reference;
+    using pointer           = typename std::iterator_traits<It>::pointer;
+    using value_type        = typename std::iterator_traits<It>::value_type;
+    using difference_type   = typename std::iterator_traits<It>::difference_type;
 
     It it;
 
@@ -25,18 +26,18 @@ struct fancy_iterator
     explicit fancy_iterator(It it_) : it(it_) {}
 
 #if 0
-    char const* operator*() { return *it; }
+    CharT const* operator*() { return *it; }
     fancy_iterator& operator++() {
         ++it;
         return *this;
     }
 #endif
 #if 1
-    std::string operator*() const
+    std::basic_string<CharT> operator*() const
     {
-        std::string s(*it);
+        std::basic_string<CharT> s(*it);
         size_t k = s.size();
-        s.append(200, '~');
+        s.append(200, CharT('~'));
         s.resize(k);
         return s;
     }
@@ -68,10 +69,11 @@ struct fancy_iterator
 // XXX:
 // Cmdline needs a method like this, which takes a range...
 //
-static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<char const*> args)
+template <typename CharT = char>
+static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<CharT const*> args)
 {
-    fancy_iterator first{args.begin()};
-    fancy_iterator last {args.end()};
+    fancy_iterator<CharT> first{args.begin()};
+    fancy_iterator<CharT> last {args.end()};
 
 #if 0
     if (cl.Parse(first, last).success)
@@ -763,6 +765,52 @@ TEST_CASE("Wide strings")
     CHECK(str == L"hello😍😎world");
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=-😃-😜"}));
     CHECK(str == L"-😃-😜");
+}
+
+TEST_CASE("Unicode up-down")
+{
+    auto up_down_bool_parser = [](bool& value)
+    {
+        return [&value](cl::ParseContext const& ctx) {
+            if (ctx.arg.empty() || ctx.arg == u8"👍")
+                value = true;
+            else if (ctx.arg == u8"👎")
+                value = false;
+            else
+                return false;
+            return true;
+        };
+    };
+
+    bool value;
+
+    cl::Cmdline cli;
+    cli.Add("b", "up-down", up_down_bool_parser(value), cl::NumOpts::zero_or_more, cl::HasArg::optional);
+
+    CHECK(true == ParseArgs(cli, {u8"-b"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {u8"-b=👍"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {u8"-b=👎"}));
+    CHECK(false == value);
+    CHECK(true == ParseArgs(cli, {L"-b"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {L"-b=👍"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {L"-b=👎"}));
+    CHECK(false == value);
+    CHECK(true == ParseArgs(cli, {u"-b"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {u"-b=👍"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {u"-b=👎"}));
+    CHECK(false == value);
+    CHECK(true == ParseArgs(cli, {U"-b"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {U"-b=👍"}));
+    CHECK(true == value);
+    CHECK(true == ParseArgs(cli, {U"-b=👎"}));
+    CHECK(false == value);
 }
 
 #if _WIN32
