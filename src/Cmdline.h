@@ -419,7 +419,7 @@ It DecodeUTF16Sequence(It next, It last, char32_t& U)
 
     // Always consume the first UCN.
     // The second UCN - if any - will only be consumed if the UTF16-sequence is valid.
-    char32_t const W1 = *next;
+    char32_t const W1 = static_cast<char16_t>(*next);
     ++next;
 
     if (W1 < 0xD800 || W1 > 0xDFFF) {
@@ -437,7 +437,7 @@ It DecodeUTF16Sequence(It next, It last, char32_t& U)
         return next;
     }
 
-    char32_t const W2 = *next;
+    char32_t const W2 = static_cast<char16_t>(*next);
 
     if (W2 < 0xDC00 || W2 > 0xDFFF) {
         U = kInvalidCodepoint; // Invalid low surrogate
