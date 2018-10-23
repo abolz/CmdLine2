@@ -24,14 +24,14 @@ struct fancy_iterator
     fancy_iterator() = default;
     explicit fancy_iterator(It it_) : it(it_) {}
 
-#if 1
+#if 0
     char const* operator*() { return *it; }
     fancy_iterator& operator++() {
         ++it;
         return *this;
     }
 #endif
-#if 0
+#if 1
     std::string operator*() const
     {
         std::string s(*it);
