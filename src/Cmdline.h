@@ -2763,33 +2763,6 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
-#if _WIN32
-inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_line, ParseProgramName parse_program_name = ParseProgramName::yes)
-{
-    std::string command_line_utf8;
-
-    CL_ASSERT(command_line != nullptr);
-    auto next = command_line;
-    auto const last = command_line + std::char_traits<wchar_t>::length(command_line); // (NOLINT)
-
-    cl::impl::ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U)
-    {
-        if (U == cl::impl::kInvalidCodepoint)
-        {
-            // Replace invalid UTF-16 sequences with a single Unicode replacement character.
-            command_line_utf8.append("\xEF\xBF\xBD", 3);
-        }
-        else
-        {
-            cl::impl::EncodeUTF8(U, [&](char code_unit) { command_line_utf8.push_back(code_unit); });
-        }
-        return true;
-    });
-
-    return cl::TokenizeWindows(command_line_utf8, parse_program_name);
-}
-#endif // _WIN32
-
 } // namespace cl
 
 #if _MSC_VER
