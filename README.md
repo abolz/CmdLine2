@@ -17,6 +17,8 @@ arguments from the `argv` array.
 #include "Cmdline.h"
 
 int main(int argc, char* argv[])
+// or:
+// int wmain(int argc, wchar_t* argv[])
 {
     // Create a command line parser.
     cl::Cmdline cmd;
@@ -80,6 +82,8 @@ int main(int argc, char* argv[])
     // array defined below.
 
     std::vector<std::string> include_directories;
+    // or:
+    // std::vector<std::wstring> include_directories;
 
     cmd.Add(
         "I",
