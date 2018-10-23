@@ -751,7 +751,7 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 //==================================================================================================
 
 // Controls how often an option may/must be specified.
-enum class NumOpts : unsigned char {
+enum class NumOpts : uint8_t {
     // The option may appear at most once.
     // This is the default.
     optional,
@@ -764,7 +764,7 @@ enum class NumOpts : unsigned char {
 };
 
 // Controls the number of arguments the option accepts.
-enum class HasArg : unsigned char {
+enum class HasArg : uint8_t {
     // An argument is not allowed.
     // This is the default.
     no,
@@ -777,7 +777,7 @@ enum class HasArg : unsigned char {
 };
 
 // Controls whether the option may/must join its argument.
-enum class JoinArg : unsigned char {
+enum class JoinArg : uint8_t {
     // The option must not join its argument: "-I dir" and "-I=dir" are
     // possible. If the option is specified with an equals sign ("-I=dir") the
     // '=' will NOT be part of the option argument.
@@ -794,7 +794,7 @@ enum class JoinArg : unsigned char {
 };
 
 // May this option group with other options?
-enum class MayGroup : unsigned char {
+enum class MayGroup : uint8_t {
     // The option may not be grouped with other options (even if the option name
     // consists only of a single letter).
     // This is the default.
@@ -806,7 +806,7 @@ enum class MayGroup : unsigned char {
 };
 
 // Positional option?
-enum class Positional : unsigned char {
+enum class Positional : uint8_t {
     // The option is not a positional option, i.e. requires '-' or '--' as a
     // prefix when specified.
     // This is the default.
@@ -816,7 +816,7 @@ enum class Positional : unsigned char {
 };
 
 // Split the argument between commas?
-enum class CommaSeparated : unsigned char {
+enum class CommaSeparated : uint8_t {
     // Do not split the argument between commas.
     // This is the default.
     no,
@@ -827,7 +827,7 @@ enum class CommaSeparated : unsigned char {
 };
 
 // Stop parsing early?
-enum class StopParsing : unsigned char {
+enum class StopParsing : uint8_t {
     // Nothing special.
     // This is the default.
     no,
@@ -1008,7 +1008,7 @@ auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, 
 
 struct Diagnostic
 {
-    enum Type { error, warning, note };
+    enum Type : uint8_t { error, warning, note };
 
     Type type = Type::error;
     int index = -1;
@@ -1024,7 +1024,7 @@ struct Diagnostic
 };
 
 // Check for missing options in Cmdline::Parse?
-enum class CheckMissingOptions {
+enum class CheckMissingOptions : uint8_t {
     // Do not emit errors if required options have not been specified on the command line.
     no,
     // Emit errors if required options have not been specified on the command line.
@@ -1149,7 +1149,7 @@ public:
     void PrintHelp(string_view program_name, HelpFormat const& fmt = {}) const;
 
 private:
-    enum class Status {
+    enum class Status : uint8_t {
         success,
         done,
         error,
@@ -2734,7 +2734,7 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
     return argv;
 }
 
-enum class ParseProgramName {
+enum class ParseProgramName : uint8_t {
     no,
     yes,
 };
