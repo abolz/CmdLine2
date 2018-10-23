@@ -364,32 +364,32 @@ It DecodeUTF8Sequence(It next, It last, char32_t& U)
     return next;
 }
 
-template <typename PutChar8>
-void EncodeUTF8(char32_t U, PutChar8 put)
+template <typename PutChar>
+void EncodeUTF8(char32_t U, PutChar put)
 {
     CL_ASSERT(IsValidCodepoint(U));
 
     if (U <= 0x7F)
     {
-        put( static_cast<uint8_t>( U ) );
+        put( static_cast<char>(static_cast<uint8_t>( U )) );
     }
     else if (U <= 0x7FF)
     {
-        put( static_cast<uint8_t>( 0xC0 | ((U >>  6)       ) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+        put( static_cast<char>(static_cast<uint8_t>( 0xC0 | ((U >>  6)       ) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
     }
     else if (U <= 0xFFFF)
     {
-        put( static_cast<uint8_t>( 0xE0 | ((U >> 12)       ) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+        put( static_cast<char>(static_cast<uint8_t>( 0xE0 | ((U >> 12)       ) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
     }
     else
     {
-        put( static_cast<uint8_t>( 0xF0 | ((U >> 18) & 0x3F) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) ) );
-        put( static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) ) );
+        put( static_cast<char>(static_cast<uint8_t>( 0xF0 | ((U >> 18) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
     }
 }
 
@@ -2646,7 +2646,7 @@ inline std::vector<std::string> CommandLineToArgvUTF8(wchar_t const* command_lin
         }
         else
         {
-            cl::impl::EncodeUTF8(U, [&](uint8_t code_unit) { command_line_utf8.push_back(static_cast<char>(code_unit)); });
+            cl::impl::EncodeUTF8(U, [&](char code_unit) { command_line_utf8.push_back(code_unit); });
         }
         return true;
     });
