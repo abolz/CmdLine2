@@ -9,7 +9,11 @@ static int i = 0;
 static Standard standard = Standard::cxx11;
 static std::vector<std::string> input_files;
 
+#if 0
+int wmain(int argc, wchar_t* argv[])
+#else
 int main(int argc, char* argv[])
+#endif
 {
     cl::Cmdline cli;
 
