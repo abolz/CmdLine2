@@ -2010,9 +2010,32 @@ struct ParseValue
     template <typename Stream = std::istringstream>
     bool operator()(ParseContext const& ctx, T& value) const
     {
+        using Traits = typename Stream::traits_type;
+
         Stream stream{std::string(ctx.arg)};
         stream >> value;
-        return !stream.fail() && stream.eof();
+
+        if (stream.fail()) // tests badbit | failbit
+            return false;
+        if (stream.eof())
+            return true;
+
+        CL_ASSERT(stream.good());
+
+        // The stream is good(), but the eofbit has not been set.
+        //
+        // Peek the next character and test for EOF.
+        // This function should fail if there are any characters left in the
+        // input stream, but there are cases for which all characters have been
+        // extracted and the eofbit is not set yet.
+        //
+        // E.g.
+        //  T = std::filesystem::path
+        //  arg = "\"C:/path with spaces/\""
+        //
+        // In this case, parsing will stop at the second escaped '"', such that
+        // all characters have been extracted, but the eofbit is not yet set.
+        return Traits::eq_int_type(stream.peek(), Traits::eof());
     }
 };
 
