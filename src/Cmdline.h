@@ -2547,194 +2547,185 @@ It SkipWhitespace(It next, It last)
 
 } // namespace impl
 
-struct ParseArgUnix
+template <typename It, typename Fn>
+It ParseArgUnix(It next, It last, Fn fn)
 {
-    template <typename It, typename Fn>
-    It operator()(It next, It last, Fn fn) const
+    std::string arg;
+
+    // See:
+    // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
+    // http://wiki.bash-hackers.org/syntax/quoting
+
+    char quote_char = '\0';
+
+    next = cl::impl::SkipWhitespace(next, last);
+
+    for (; next != last; ++next)
     {
-        std::string arg;
+        auto const ch = *next;
 
-        // See:
-        // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
-        // http://wiki.bash-hackers.org/syntax/quoting
-
-        char quote_char = '\0';
-
-        next = cl::impl::SkipWhitespace(next, last);
-
-        for (; next != last; ++next)
+        // Quoting a single character using the backslash?
+        if (quote_char == '\\')
         {
-            auto const ch = *next;
-
-            // Quoting a single character using the backslash?
-            if (quote_char == '\\')
-            {
-                arg += ch;
-                quote_char = '\0';
-            }
-            // Currently quoting using ' or "?
-            else if (quote_char != '\0' && ch != quote_char)
-            {
-                arg += ch;
-            }
-            // Toggle quoting?
-            else if (ch == '\'' || ch == '"' || ch == '\\')
-            {
-                quote_char = (quote_char != '\0') ? '\0' : ch;
-            }
-            // Arguments are separated by whitespace
-            else if (cl::impl::IsWhitespace(ch))
-            {
-                ++next;
-                break;
-            }
-            else
-            {
-                arg += ch;
-            }
+            arg += ch;
+            quote_char = '\0';
         }
-
-        fn(std::move(arg));
-
-        return next;
+        // Currently quoting using ' or "?
+        else if (quote_char != '\0' && ch != quote_char)
+        {
+            arg += ch;
+        }
+        // Toggle quoting?
+        else if (ch == '\'' || ch == '"' || ch == '\\')
+        {
+            quote_char = (quote_char != '\0') ? '\0' : ch;
+        }
+        // Arguments are separated by whitespace
+        else if (cl::impl::IsWhitespace(ch))
+        {
+            ++next;
+            break;
+        }
+        else
+        {
+            arg += ch;
+        }
     }
-};
 
-struct ParseProgramNameWindows
+    fn(std::move(arg));
+
+    return next;
+}
+
+template <typename It, typename Fn>
+It ParseProgramNameWindows(It next, It last, Fn fn)
 {
     // TODO?!
     //
     // If the input string is empty, return a single command line argument
     // consisting of the absolute path of the executable...
 
-    template <typename It, typename Fn>
-    It operator()(It next, It last, Fn fn) const
+    std::string arg;
+
+    if (next != last && !cl::impl::IsWhitespace(*next))
     {
-        std::string arg;
+        bool const quoting = (*next == '"');
 
-        if (next != last && !cl::impl::IsWhitespace(*next))
-        {
-            bool const quoting = (*next == '"');
-
-            if (quoting)
-                ++next;
-
-            for (; next != last; ++next)
-            {
-                auto const ch = *next;
-                if ((quoting && ch == '"') || (!quoting && cl::impl::IsWhitespace(ch)))
-                {
-                    ++next;
-                    break;
-                }
-                arg += ch;
-            }
-        }
-
-        fn(std::move(arg));
-
-        return next;
-    }
-};
-
-struct ParseArgWindows
-{
-    template <typename It, typename Fn>
-    It operator()(It next, It last, Fn fn) const
-    {
-        std::string arg;
-
-        bool quoting = false;
-        bool recently_closed = false;
-        size_t num_backslashes = 0;
-
-        next = cl::impl::SkipWhitespace(next, last);
+        if (quoting)
+            ++next;
 
         for (; next != last; ++next)
         {
             auto const ch = *next;
-
-            if (ch == '"' && recently_closed)
+            if ((quoting && ch == '"') || (!quoting && cl::impl::IsWhitespace(ch)))
             {
-                recently_closed = false;
-
-                // If a closing " is followed immediately by another ", the 2nd
-                // " is accepted literally and added to the parameter.
-                //
-                // See:
-                // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
-
-                arg += '"';
+                ++next;
+                break;
             }
-            else if (ch == '"')
+            arg += ch;
+        }
+    }
+
+    fn(std::move(arg));
+
+    return next;
+}
+
+template <typename It, typename Fn>
+It ParseArgWindows(It next, It last, Fn fn)
+{
+    std::string arg;
+
+    bool quoting = false;
+    bool recently_closed = false;
+    size_t num_backslashes = 0;
+
+    next = cl::impl::SkipWhitespace(next, last);
+
+    for (; next != last; ++next)
+    {
+        auto const ch = *next;
+
+        if (ch == '"' && recently_closed)
+        {
+            recently_closed = false;
+
+            // If a closing " is followed immediately by another ", the 2nd
+            // " is accepted literally and added to the parameter.
+            //
+            // See:
+            // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
+
+            arg += '"';
+        }
+        else if (ch == '"')
+        {
+            // If an even number of backslashes is followed by a double
+            // quotation mark, one backslash is placed in the argv array for
+            // every pair of backslashes, and the double quotation mark is
+            // interpreted as a string delimiter.
+            //
+            // If an odd number of backslashes is followed by a double
+            // quotation mark, one backslash is placed in the argv array for
+            // every pair of backslashes, and the double quotation mark is
+            // "escaped" by the remaining backslash, causing a literal
+            // double quotation mark (") to be placed in argv.
+
+            bool const even = (num_backslashes % 2) == 0;
+
+            arg.append(num_backslashes / 2, '\\');
+            num_backslashes = 0;
+
+            if (even)
             {
-                // If an even number of backslashes is followed by a double
-                // quotation mark, one backslash is placed in the argv array for
-                // every pair of backslashes, and the double quotation mark is
-                // interpreted as a string delimiter.
-                //
-                // If an odd number of backslashes is followed by a double
-                // quotation mark, one backslash is placed in the argv array for
-                // every pair of backslashes, and the double quotation mark is
-                // "escaped" by the remaining backslash, causing a literal
-                // double quotation mark (") to be placed in argv.
-
-                bool const even = (num_backslashes % 2) == 0;
-
-                arg.append(num_backslashes / 2, '\\');
-                num_backslashes = 0;
-
-                if (even)
-                {
-                    recently_closed = quoting; // Remember if this is a closing "
-                    quoting = !quoting;
-                }
-                else
-                {
-                    arg += '"';
-                }
-            }
-            else if (ch == '\\')
-            {
-                recently_closed = false;
-
-                ++num_backslashes;
+                recently_closed = quoting; // Remember if this is a closing "
+                quoting = !quoting;
             }
             else
             {
-                recently_closed = false;
-
-                // Backslashes are interpreted literally, unless they
-                // immediately precede a double quotation mark.
-
-                arg.append(num_backslashes, '\\');
-                num_backslashes = 0;
-
-                if (!quoting && cl::impl::IsWhitespace(ch))
-                {
-                    // Arguments are delimited by white space, which is either a
-                    // space or a tab.
-                    //
-                    // A string surrounded by double quotation marks ("string")
-                    // is interpreted as single argument, regardless of white
-                    // space contained within. A quoted string can be embedded
-                    // in an argument.
-                    ++next;
-                    break;
-                }
-
-                arg += ch;
+                arg += '"';
             }
         }
-
-        if (!arg.empty() || quoting || recently_closed)
+        else if (ch == '\\')
         {
-            fn(std::move(arg));
-        }
+            recently_closed = false;
 
-        return next;
+            ++num_backslashes;
+        }
+        else
+        {
+            recently_closed = false;
+
+            // Backslashes are interpreted literally, unless they
+            // immediately precede a double quotation mark.
+
+            arg.append(num_backslashes, '\\');
+            num_backslashes = 0;
+
+            if (!quoting && cl::impl::IsWhitespace(ch))
+            {
+                // Arguments are delimited by white space, which is either a
+                // space or a tab.
+                //
+                // A string surrounded by double quotation marks ("string")
+                // is interpreted as single argument, regardless of white
+                // space contained within. A quoted string can be embedded
+                // in an argument.
+                ++next;
+                break;
+            }
+
+            arg += ch;
+        }
     }
-};
+
+    if (!arg.empty() || quoting || recently_closed)
+    {
+        fn(std::move(arg));
+    }
+
+    return next;
+}
 
 // Parse arguments from a command line string into an argv-array.
 // Using Bash-style escaping.
@@ -2750,7 +2741,7 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
     auto const last = str.data() + str.size();
 
     while (next != last) {
-        next = ParseArgUnix{}(next, last, push_back);
+        next = cl::ParseArgUnix(next, last, push_back);
     }
 
     return argv;
@@ -2775,11 +2766,11 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     auto const last = str.data() + str.size();
 
     if (parse_program_name == ParseProgramName::yes) {
-        next = ParseProgramNameWindows{}(next, last, push_back);
+        next = cl::ParseProgramNameWindows(next, last, push_back);
     }
 
     while (next != last) {
-        next = ParseArgWindows{}(next, last, push_back);
+        next = cl::ParseArgWindows(next, last, push_back);
     }
 
     return argv;
