@@ -14,7 +14,8 @@ template <typename CharT>
 struct fancy_iterator
 {
     using It                = typename std::initializer_list<CharT const*>::iterator;
-    using iterator_category = typename std::input_iterator_tag; //std::iterator_traits<It>::iterator_category;
+    using iterator_category = std::input_iterator_tag;
+//  using iterator_category = typename std::iterator_traits<It>::iterator_category;
     using reference         = typename std::iterator_traits<It>::reference;
     using pointer           = typename std::iterator_traits<It>::pointer;
     using value_type        = typename std::iterator_traits<It>::value_type;
