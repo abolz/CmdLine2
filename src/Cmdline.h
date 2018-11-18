@@ -2545,8 +2545,6 @@ It SkipWhitespace(It next, It last)
     return next;
 }
 
-} // namespace impl
-
 template <typename It, typename Fn>
 It ParseArgUnix(It next, It last, Fn fn)
 {
@@ -2727,6 +2725,8 @@ It ParseArgWindows(It next, It last, Fn fn)
     return next;
 }
 
+} // namespace impl
+
 // Parse arguments from a command line string into an argv-array.
 // Using Bash-style escaping.
 inline std::vector<std::string> TokenizeUnix(string_view str)
@@ -2741,7 +2741,7 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
     auto const last = str.data() + str.size();
 
     while (next != last) {
-        next = cl::ParseArgUnix(next, last, push_back);
+        next = cl::impl::ParseArgUnix(next, last, push_back);
     }
 
     return argv;
@@ -2766,11 +2766,11 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     auto const last = str.data() + str.size();
 
     if (parse_program_name == ParseProgramName::yes) {
-        next = cl::ParseProgramNameWindows(next, last, push_back);
+        next = cl::impl::ParseProgramNameWindows(next, last, push_back);
     }
 
     while (next != last) {
-        next = cl::ParseArgWindows(next, last, push_back);
+        next = cl::impl::ParseArgWindows(next, last, push_back);
     }
 
     return argv;
