@@ -125,7 +125,7 @@ public:
         CL_ASSERT(size_ == 0 || data_ != nullptr);
     }
 
-    string_view(const_pointer c_str) noexcept // (NOLINT)
+    string_view(const_pointer c_str) noexcept
         : data_(c_str)
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
@@ -139,7 +139,7 @@ public:
             std::is_convertible<decltype(std::declval<String const&>().size()), size_t>::value
         >
     >
-    string_view(String const& str) noexcept // (NOLINT)
+    string_view(String const& str) noexcept
         : data_(str.data())
         , size_(str.size())
     {
@@ -317,10 +317,11 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U)
     // NB:
     // The conditional here will likely be optimized out in the loop below.
 
-    if (state != kUTF8Accept)
+    if (state != kUTF8Accept) {
         U = (U << 6) | (byte & 0x3Fu);
-    else
+    } else {
         U = byte & (0xFFu >> type);
+    }
 
     state = kUTF8Decoder[256 + state * 16 + type];
     return state;
@@ -513,7 +514,7 @@ inline /*__forceinline*/ bool IsUTF8(It next, It last)
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char const*)
+inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char const* /*tag*/)
 {
     std::string s;
 
@@ -529,7 +530,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char const*)
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char16_t const*)
+inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char16_t const* /*tag*/)
 {
     std::string s;
 
@@ -545,7 +546,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char16_t cons
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t const*)
+inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t const* /*tag*/)
 {
     std::string s;
 
@@ -561,7 +562,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t cons
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, wchar_t const*)
+inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, wchar_t const* /*tag*/)
 {
 #if _WIN32
     return ToUTF8_impl(next, last, static_cast<char16_t const*>(nullptr));
@@ -868,7 +869,7 @@ class OptionBase
 
 private:
     template <typename T>
-    void Apply(T) = delete; // For slightly more useful error messages... (NOLINT)
+    void Apply(T) = delete; // For slightly more useful error messages...
 
     void Apply(NumOpts        v) { num_opts_        = v; }
     void Apply(HasArg         v) { has_arg_         = v; }
@@ -1130,9 +1131,9 @@ public:
 
     struct HelpFormat
     {
-        size_t indent;       // (NOLINT)
-        size_t descr_indent; // (NOLINT)
-        size_t line_length;  // (NOLINT)
+        size_t indent;
+        size_t descr_indent;
+        size_t line_length;
 
         HelpFormat()
             : indent(2)
@@ -1202,7 +1203,7 @@ inline void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string mess
     diag_.emplace_back(type, index, std::move(message));
 }
 
-inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...) // (NOLINT)
+inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...)
 {
     constexpr size_t kBufSize = 1024;
     char buf[kBufSize];
@@ -2022,8 +2023,6 @@ struct ParseValue
 
         CL_ASSERT(stream.good());
 
-        // The stream is good(), but the eofbit has not been set.
-        //
         // Peek the next character and test for EOF.
         // This function should fail if there are any characters left in the
         // input stream, but there are cases for which all characters have been
@@ -2092,7 +2091,7 @@ bool StrToX(string_view sv, T& value, Fn fn)
     if (ec1 == ERANGE)
         return false;
 
-    if (end != ptr + str.size()) // (NOLINT)
+    if (end != ptr + str.size())
         return false; // not all characters extracted
 
     value = val;
@@ -2385,11 +2384,11 @@ template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds)
 {
     static_assert(!std::is_const<T>::value,
-        "'Assign(T)' requires mutable lvalue-references");
+        "Assign() requires mutable lvalue-references");
     static_assert(std::is_default_constructible<T>::value,
-        "'Assign(T)' requires default-constructible types");
+        "Assign() requires default-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-        "'Assign(T)' requires move-assignable types");
+        "Assign() requires move-assignable types");
 
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
@@ -2410,11 +2409,11 @@ template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds)
 {
     static_assert(!std::is_const<T>::value,
-        "'PushBack(T)' requires mutable lvalue-references");
+        "PushBack() requires mutable lvalue-references");
     static_assert(cl::impl::IsContainer_t<T>::value,
-        "'PushBack(T)' requires STL-style container types");
+        "PushBack() requires STL-style container types");
     static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
-        "'PushBack(T)' requires default-constructible value_type's");
+        "PushBack() requires default-constructible value_type's");
 
     using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
 
@@ -2458,11 +2457,11 @@ template <typename T, typename... Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
 {
     static_assert(!std::is_const<T>::value,
-        "'Map(T)' requires mutable lvalue-references");
+        "Map() requires mutable lvalue-references");
     static_assert(std::is_copy_constructible<T>::value,
-        "'Map(T)' requires copy-constructible types");
+        "Map() requires copy-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-        "'Map(T)' requires move-assignable types");
+        "Map() requires move-assignable types");
 
     using MapType = std::vector<std::pair<char const*, T>>;
 
@@ -2500,7 +2499,7 @@ template <typename T>
 auto Flag(T& var, std::string const& inverse_prefix = "no-")
 {
     static_assert(!std::is_const<T>::value,
-        "'Flag(T)' requires mutable lvalue-references");
+        "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
         if (!ParseValue<>{}(ctx, var))
