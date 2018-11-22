@@ -732,16 +732,7 @@ private:
 
 protected:
     template <typename... Args>
-    explicit OptionBase(char const* name, char const* descr, Args&&... args)
-        : name_(name)
-        , descr_(descr)
-    {
-        int const unused[] = {(Apply(args), 0)..., 0};
-        static_cast<void>(unused);
-
-        CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
-        CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
-    }
+    explicit OptionBase(char const* name, char const* descr, Args&&... args);
 
 public:
     OptionBase(OptionBase const&) = default;
@@ -1183,6 +1174,18 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 //==================================================================================================
 //
 //==================================================================================================
+
+template <typename... Args>
+inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... args)
+    : name_(name)
+    , descr_(descr)
+{
+    int const unused[] = {(Apply(args), 0)..., 0};
+    static_cast<void>(unused);
+
+    CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
+    CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
+}
 
 inline OptionBase::~OptionBase() = default;
 
