@@ -783,23 +783,13 @@ class Option final : public OptionBase
 
 public:
     template <typename ParserInit, typename... Args>
-    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-        : OptionBase(name, descr, std::forward<Args>(args)...)
-        , parser_(std::forward<ParserInit>(parser))
-    {
-    }
+    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args);
 
     Parser const& parser() const { return parser_; }
     Parser& parser() { return parser_; }
 
 private:
-    bool Parse(ParseContext const& ctx) override
-    {
-        CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
-        CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
-
-        return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
-    }
+    bool Parse(ParseContext const& ctx) override;
 
     bool DoParse(ParseContext const& ctx, std::true_type /*parser_ returns bool*/) {
         return parser_(ctx);
@@ -1203,6 +1193,23 @@ inline bool OptionBase::IsOccurrenceRequired() const
         return count() == 0;
 
     return false;
+}
+
+template <typename Parser>
+template <typename ParserInit, typename... Args>
+inline Option<Parser>::Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+    : OptionBase(name, descr, std::forward<Args>(args)...)
+    , parser_(std::forward<ParserInit>(parser))
+{
+}
+
+template <typename Parser>
+bool Option<Parser>::Parse(ParseContext const& ctx)
+{
+    CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
+    CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
+
+    return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
 }
 
 inline Cmdline::Cmdline() = default;
