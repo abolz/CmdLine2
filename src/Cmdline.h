@@ -220,11 +220,10 @@ public:
         if (chars.empty())
             return npos;
 
-        if (from < size()) {
+        if (from < size())
             ++from;
-        } else {
+        else
             from = size();
-        }
 
         for (auto I = from; I != 0; --I) {
             if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr)
@@ -317,11 +316,10 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U)
     // NB:
     // The conditional here will likely be optimized out in the loop below.
 
-    if (state != kUTF8Accept) {
+    if (state != kUTF8Accept)
         U = (U << 6) | (byte & 0x3Fu);
-    } else {
+    else
         U = byte & (0xFFu >> type);
-    }
 
     state = kUTF8Decoder[256 + state * 16 + type];
     return state;
@@ -339,6 +337,7 @@ It DecodeUTF8Sequence(It next, It last, char32_t& U)
 
     char32_t W = 0;
     uint32_t state = DecodeUTF8Step(kUTF8Accept, b1, W);
+
     if (state == kUTF8Reject)
     {
         U = kInvalidCodepoint;
@@ -352,12 +351,14 @@ It DecodeUTF8Sequence(It next, It last, char32_t& U)
             U = kInvalidCodepoint;
             return next;
         }
+
         state = DecodeUTF8Step(state, static_cast<uint8_t>(*next), W);
         if (state == kUTF8Reject)
         {
             U = kInvalidCodepoint;
             return next;
         }
+
         ++next;
     }
 
@@ -405,9 +406,8 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put)
         CL_ASSERT(next != next1);
         next = next1;
 
-        if (!put(U)) {
+        if (!put(U))
             return false;
-        }
     }
 
     return true;
@@ -423,24 +423,28 @@ It DecodeUTF16Sequence(It next, It last, char32_t& U)
     char32_t const W1 = static_cast<char16_t>(*next);
     ++next;
 
-    if (W1 < 0xD800 || W1 > 0xDFFF) {
+    if (W1 < 0xD800 || W1 > 0xDFFF)
+    {
         U = W1;
         return next;
     }
 
-    if (W1 > 0xDBFF) {
+    if (W1 > 0xDBFF)
+    {
         U = kInvalidCodepoint; // Invalid high surrogate
         return next;
     }
 
-    if (next == last) {
+    if (next == last)
+    {
         U = kInvalidCodepoint; // Incomplete UTF-16 sequence
         return next;
     }
 
     char32_t const W2 = static_cast<char16_t>(*next);
 
-    if (W2 < 0xDC00 || W2 > 0xDFFF) {
+    if (W2 < 0xDC00 || W2 > 0xDFFF)
+    {
         U = kInvalidCodepoint; // Invalid low surrogate
         return next;
     }
@@ -480,9 +484,8 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put)
         CL_ASSERT(next != next1);
         next = next1;
 
-        if (!put(U)) {
+        if (!put(U))
             return false;
-        }
     }
 
     return true;
@@ -496,9 +499,8 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put)
         char32_t const U = static_cast<char32_t>(*next);
         ++next;
 
-        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint)) {
+        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint))
             return false;
-        }
     }
 
     return true;
@@ -631,9 +633,8 @@ struct ByLines
 
         // Find the position of the first CR or LF
         auto p = first;
-        while (p != last && (*p != '\n' && *p != '\r')) {
+        while (p != last && (*p != '\n' && *p != '\r'))
             ++p;
-        }
 
         if (p == last)
             return {string_view::npos, 0};
@@ -674,9 +675,8 @@ struct ByWords
         {
 #if 0
             size_t last_non_ws = last_ws;
-            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t')) {
+            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t'))
                 --last_non_ws;
-            }
             return {last_non_ws, last_ws - last_non_ws + 1};
 #else
             return {last_ws, 1};
@@ -969,7 +969,8 @@ public:
     Parser& parser() { return parser_; }
 
 private:
-    bool Parse(ParseContext const& ctx) override {
+    bool Parse(ParseContext const& ctx) override
+    {
         CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
         CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
 
@@ -1490,9 +1491,8 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     // NOTE:
     // Not wrapped.
     out.append(indent, ' ');
-    if (!is_positional) {
+    if (!is_positional)
         out += '-';
-    }
     out.append(opt->name().data(), opt->name().size());
     if (!opt->has_flag(HasArg::no))
     {
@@ -1510,9 +1510,8 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     auto const col = out.size() - col0;
     auto const wrap = (col >= descr_indent);
     auto const nspaces = wrap ? descr_indent : descr_indent - col;
-    if (wrap) {
+    if (wrap)
         out += '\n';
-    }
     out.append(nspaces, ' ');
     // Now at column descr_width.
     // Finally append the options' description.
@@ -1540,8 +1539,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     std::string spos;
 
     // Options
-    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
-    {
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->has_flag(Positional::yes))
             return true;
 
@@ -1556,26 +1554,22 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         return true;
     });
 
-    if (!sopt.empty()) {
+    if (!sopt.empty())
         res += " <options>";
-    }
 
     // Positional options
-    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt)
-    {
+    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (!opt->has_flag(Positional::yes))
             return true;
 
         bool const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
 
         res += ' ';
-        if (is_optional) {
+        if (is_optional)
             res += '[';
-        }
         res.append(opt->name().data(), opt->name().size());
-        if (is_optional) {
+        if (is_optional)
             res += ']';
-        }
 
         cl::impl::AppendDescr(spos, opt, fmt.indent, fmt.descr_indent, descr_width);
         return true;
@@ -1583,12 +1577,14 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
 
     res += '\n';
 
-    if (!sopt.empty()) {
+    if (!sopt.empty())
+    {
         res += "\nOptions:\n";
         res += sopt;
     }
 
-    if (!spos.empty()) {
+    if (!spos.empty())
+    {
         res += "\nPositional options:\n";
         res += spos;
     }
@@ -1646,9 +1642,8 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     // '-', if it is "-" itself, or if we have seen "--" already, or if the
     // argument doesn't look like a known option (see below).
     bool const is_positional = (optstr[0] != '-' || optstr == "-" || dashdash_);
-    if (is_positional) {
+    if (is_positional)
         return HandlePositional(optstr);
-    }
 
     auto const optstr_orig = optstr;
 
@@ -1658,35 +1653,30 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last)
     // If the name starts with a single dash, this is a short option and might
     // actually be an option group.
     bool const is_short = (optstr[0] != '-');
-    if (!is_short) {
+    if (!is_short)
         optstr.remove_prefix(1); // Remove the second dash.
-    }
 
     // 1. Try to handle options like "-f" and "-f file"
     Status res = HandleStandardOption(optstr, curr, last);
 
     // 2. Try to handle options like "-f=file"
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandleOption(optstr);
-    }
 
     // 3. Try to handle options like "-Idir"
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandlePrefix(optstr);
-    }
 
     // 4. Try to handle options like "-xvf=file" and "-xvf file"
-    if (res == Status::ignored && is_short) {
+    if (res == Status::ignored && is_short)
         res = HandleGroup(optstr, curr, last);
-    }
 
     // Otherwise this is an unknown option.
     //
     // 5. Try to handle this option as a positional option.
     //    If there are no more (hungry) positional options, this is an error.
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandlePositional(optstr_orig);
-    }
 
     return res;
 }
@@ -1967,8 +1957,7 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
 
         // Skip duplicate options.
         auto const curr_opt = I->option;
-        for (;;)
-        {
+        for (;;) {
             if (++I == E)
                 return true;
             if (I->option != curr_opt)
@@ -2042,7 +2031,8 @@ namespace impl {
 
 inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
 {
-    for (auto const& m : matches) {
+    for (auto const& m : matches)
+    {
         if (value == m)
             return true;
     }
@@ -2057,13 +2047,12 @@ struct ParseValue<bool>
 {
     bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"})) {
+        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
             value = true;
-        } else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"})) {
+        else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
             value = false;
-        } else {
+        else
             return false;
-        }
 
         return true;
     }
@@ -2393,7 +2382,8 @@ auto Assign(T& target, Predicates&&... preds)
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        {
             target = std::move(temp);
             return true;
         }
@@ -2419,7 +2409,8 @@ auto PushBack(T& container, Predicates&&... preds)
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        {
             container.insert(container.end(), std::move(temp));
             return true;
         }
@@ -2473,7 +2464,8 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
             // Parse into a local variable to allow the predicates to modify the value.
             T temp = p.second;
-            if (cl::impl::ApplyFuncs(ctx, temp, preds...)) {
+            if (cl::impl::ApplyFuncs(ctx, temp, preds...))
+            {
                 value = std::move(temp);
                 return true;
             }
@@ -2484,9 +2476,8 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
         ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
                                 static_cast<int>(ctx.arg.size()), ctx.arg.data(),
                                 static_cast<int>(ctx.name.size()), ctx.name.data());
-        for (auto const& p : map) {
+        for (auto const& p : map)
             ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
-        }
 
         return false;
     };
@@ -2538,9 +2529,8 @@ inline bool IsWhitespace(char ch)
 template <typename It>
 It SkipWhitespace(It next, It last)
 {
-    while (next != last && IsWhitespace(*next)) {
+    while (next != last && IsWhitespace(*next))
         ++next;
-    }
 
     return next;
 }
@@ -2562,24 +2552,20 @@ It ParseArgUnix(It next, It last, Fn fn)
     {
         auto const ch = *next;
 
-        // Quoting a single character using the backslash?
-        if (quote_char == '\\')
+        if (quote_char == '\\') // Quoting a single character using the backslash?
         {
             arg += ch;
             quote_char = '\0';
         }
-        // Currently quoting using ' or "?
-        else if (quote_char != '\0' && ch != quote_char)
+        else if (quote_char != '\0' && ch != quote_char) // Currently quoting using ' or "?
         {
             arg += ch;
         }
-        // Toggle quoting?
-        else if (ch == '\'' || ch == '"' || ch == '\\')
+        else if (ch == '\'' || ch == '"' || ch == '\\') // Toggle quoting?
         {
             quote_char = (quote_char != '\0') ? '\0' : ch;
         }
-        // Arguments are separated by whitespace
-        else if (cl::impl::IsWhitespace(ch))
+        else if (cl::impl::IsWhitespace(ch)) // Arguments are separated by whitespace
         {
             ++next;
             break;
@@ -2718,9 +2704,7 @@ It ParseArgWindows(It next, It last, Fn fn)
     }
 
     if (!arg.empty() || quoting || recently_closed)
-    {
         fn(std::move(arg));
-    }
 
     return next;
 }
@@ -2740,9 +2724,8 @@ inline std::vector<std::string> TokenizeUnix(string_view str)
     auto next = str.data();
     auto const last = str.data() + str.size();
 
-    while (next != last) {
+    while (next != last)
         next = cl::impl::ParseArgUnix(next, last, push_back);
-    }
 
     return argv;
 }
@@ -2765,13 +2748,11 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     auto next = str.data();
     auto const last = str.data() + str.size();
 
-    if (parse_program_name == ParseProgramName::yes) {
+    if (parse_program_name == ParseProgramName::yes)
         next = cl::impl::ParseProgramNameWindows(next, last, push_back);
-    }
 
-    while (next != last) {
+    while (next != last)
         next = cl::impl::ParseArgWindows(next, last, push_back);
-    }
 
     return argv;
 }
