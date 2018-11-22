@@ -21,12 +21,6 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
-#if _WIN32
-static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-#else
-static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
-#endif
-
 #include <cassert>
 #include <cerrno>
 #include <climits>
@@ -48,6 +42,24 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #include <windows.h>
 #endif
 
+#ifndef CL_ASSERT
+#define CL_ASSERT(X) assert(X)
+#endif
+
+#ifndef CL_WCHAR_IS_CHAR16
+#if _WIN32
+#define CL_WCHAR_IS_CHAR16 1
+#else
+#define CL_WCHAR_IS_CHAR16 0
+#endif
+#endif
+
+#if CL_WCHAR_IS_CHAR16
+static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+#else
+static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+#endif
+
 #if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
 #define CL_HAS_STD_INVOCABLE 1
 #endif
@@ -60,10 +72,6 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_ATTRIBUTE_PRINTF(X, Y) __attribute__((format(printf, X, Y)))
 #else
 #define CL_ATTRIBUTE_PRINTF(X, Y)
-#endif
-
-#ifndef CL_ASSERT
-#define CL_ASSERT(X) assert(X)
 #endif
 
 #if _MSC_VER
@@ -566,7 +574,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t cons
 template <typename It>
 inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, wchar_t const* /*tag*/)
 {
-#if _WIN32
+#if CL_WCHAR_IS_CHAR16
     return ToUTF8_impl(next, last, static_cast<char16_t const*>(nullptr));
 #else
     return ToUTF8_impl(next, last, static_cast<char32_t const*>(nullptr));
@@ -2227,7 +2235,7 @@ struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
         // We know that ctx.arg is well-formed UTF-8 already.
         cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
             CL_ASSERT(cl::impl::IsValidCodepoint(U));
-#if _WIN32
+#if CL_WCHAR_IS_CHAR16
             cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
 #else
             value.push_back(static_cast<wchar_t>(U));
