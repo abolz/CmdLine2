@@ -137,7 +137,8 @@ public:
         : data_(c_str)
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
-        CL_ASSERT(c_str != nullptr && "Constructing a string_view from a nullptr is incompatible with the std version");
+        CL_ASSERT(c_str != nullptr
+            && "Constructing a string_view from a nullptr is incompatible with the std version");
     }
 
     template <
@@ -1334,7 +1335,7 @@ inline bool Cmdline::AnyMissing()
         if (opt->IsOccurrenceRequired())
         {
             FormatDiag(Diagnostic::error, -1, "option '%.*s' is missing",
-                       static_cast<int>(opt->name().size()), opt->name().data());
+                static_cast<int>(opt->name().size()), opt->name().data());
             res = true;
         }
         return true;
@@ -1462,10 +1463,12 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
     cl::impl::Split(text, cl::impl::ByLines(), [&](string_view line) {
         // Find the position of the first tab-character in this line (if any).
         auto const tab_pos = line.find('\t');
-        CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos) && "Only a single tab-character per line is allowed");
+        CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos)
+            && "Only a single tab-character per line is allowed");
 
         // Append the first (or only) part of this line.
-        auto const col = cl::impl::AppendSingleLine(out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
+        auto const col = cl::impl::AppendSingleLine(
+            out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
 
         // If there is a tab-character, print the second half of this line.
         if (tab_pos != string_view::npos)
@@ -1476,7 +1479,8 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
             auto const new_indent = indent + block_col;
             auto const new_width  = column_width - block_col;
 
-            cl::impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
+            cl::impl::AppendSingleLine(
+                out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
         }
 
         do_indent = true;
@@ -1503,9 +1507,9 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
         char const* const arg_name
             = opt->has_flag(HasArg::optional)
                 ? "=<arg>"
-            : opt->has_flag(JoinArg::no)
-                ? " <arg>"
-                :  "<arg>";
+                : opt->has_flag(JoinArg::no)
+                    ? " <arg>"
+                    :  "<arg>";
 
         out += arg_name;
     }
@@ -1860,7 +1864,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     }
 
     FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' requires an argument",
-               static_cast<int>(name.size()), name.data());
+        static_cast<int>(name.size()), name.data());
     return Status::error;
 }
 
@@ -1871,7 +1875,7 @@ inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view na
     if (opt->has_flag(Positional::no) && opt->has_flag(HasArg::no))
     {
         FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' does not accept an argument",
-                   static_cast<int>(name.size()), name.data());
+            static_cast<int>(name.size()), name.data());
         return Status::error;
     }
 
@@ -1887,7 +1891,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
             // This gives slightly nicer error messages in case an option has
             // multiple names.
             FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' already specified",
-                       static_cast<int>(opt->name().size()), opt->name().data());
+                static_cast<int>(opt->name().size()), opt->name().data());
             return Status::error;
         }
 
@@ -1910,8 +1914,8 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
             if (!diagnostic_emitted)
             {
                 FormatDiag(Diagnostic::error, curr_index_, "invalid argument '%.*s' for option '%.*s'",
-                           static_cast<int>(arg1.size()), arg1.data(),
-                           static_cast<int>(name.size()), name.data());
+                    static_cast<int>(arg1.size()), arg1.data(),
+                    static_cast<int>(name.size()), name.data());
             }
 
             return Status::error;
@@ -2478,8 +2482,8 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
         }
 
         ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
-                                static_cast<int>(ctx.arg.size()), ctx.arg.data(),
-                                static_cast<int>(ctx.name.size()), ctx.name.data());
+            static_cast<int>(ctx.arg.size()), ctx.arg.data(),
+            static_cast<int>(ctx.name.size()), ctx.name.data());
         for (auto const& p : map)
             ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
 
