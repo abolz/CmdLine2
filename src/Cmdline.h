@@ -688,6 +688,96 @@ enum class StopParsing : uint8_t {
     yes,
 };
 
+// Provides information about the argument and the command line parser which
+// is currently parsing the arguments.
+// The members are only valid inside the callback (parser).
+struct ParseContext
+{
+    string_view name;           // Name of the option being parsed    (only valid in callback!)
+    string_view arg;            // Option argument                    (only valid in callback!)
+    int index = 0;              // Current index in the argv array
+    Cmdline* cmdline = nullptr; // The command line parser which currently parses the argument list (never null)
+};
+
+class OptionBase
+{
+    friend class Cmdline;
+
+    // The name of the option.
+    string_view name_;
+    // The description of this option
+    string_view descr_;
+    // Flags controlling how the option may/must be specified.
+    NumOpts        num_opts_        = NumOpts::optional;
+    HasArg         has_arg_         = HasArg::no;
+    JoinArg        join_arg_        = JoinArg::no;
+    MayGroup       may_group_       = MayGroup::no;
+    Positional     positional_      = Positional::no;
+    CommaSeparated comma_separated_ = CommaSeparated::no;
+    StopParsing    stop_parsing_    = StopParsing::no;
+    // The number of times this option was specified on the command line
+    int count_ = 0;
+
+private:
+    template <typename T>
+    void Apply(T) = delete; // For slightly more useful error messages...
+
+    void Apply(NumOpts        v) { num_opts_        = v; }
+    void Apply(HasArg         v) { has_arg_         = v; }
+    void Apply(JoinArg        v) { join_arg_        = v; }
+    void Apply(MayGroup       v) { may_group_       = v; }
+    void Apply(Positional     v) { positional_      = v; }
+    void Apply(CommaSeparated v) { comma_separated_ = v; }
+    void Apply(StopParsing    v) { stop_parsing_    = v; }
+
+protected:
+    template <typename... Args>
+    explicit OptionBase(char const* name, char const* descr, Args&&... args)
+        : name_(name)
+        , descr_(descr)
+    {
+        int const unused[] = {(Apply(args), 0)..., 0};
+        static_cast<void>(unused);
+
+        CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
+        CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
+    }
+
+public:
+    OptionBase(OptionBase const&) = default;
+    OptionBase(OptionBase&&) = default;
+    OptionBase& operator=(OptionBase const&) = default;
+    OptionBase& operator=(OptionBase&&) = default;
+    virtual ~OptionBase();
+
+public:
+    // Returns the name of this option
+    string_view name() const { return name_; }
+
+    // Returns the description of this option
+    string_view descr() const { return descr_; }
+
+    // Returns the flags controlling how the option may/must be specified.
+    bool has_flag(NumOpts        f) const { return num_opts_        == f; }
+    bool has_flag(HasArg         f) const { return has_arg_         == f; }
+    bool has_flag(JoinArg        f) const { return join_arg_        == f; }
+    bool has_flag(MayGroup       f) const { return may_group_       == f; }
+    bool has_flag(Positional     f) const { return positional_      == f; }
+    bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
+    bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
+
+    // Returns the number of times this option was specified on the command line
+    int count() const { return count_; }
+
+private:
+    bool IsOccurrenceAllowed() const;
+    bool IsOccurrenceRequired() const;
+
+    // Parse the given value from NAME and/or ARG and store the result.
+    // Return true on success, false otherwise.
+    virtual bool Parse(ParseContext const& ctx) = 0;
+};
+
 //==================================================================================================
 // Split strings
 //==================================================================================================
@@ -845,96 +935,6 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 //==================================================================================================
 //
 //==================================================================================================
-
-// Provides information about the argument and the command line parser which
-// is currently parsing the arguments.
-// The members are only valid inside the callback (parser).
-struct ParseContext
-{
-    string_view name;           // Name of the option being parsed    (only valid in callback!)
-    string_view arg;            // Option argument                    (only valid in callback!)
-    int index = 0;              // Current index in the argv array
-    Cmdline* cmdline = nullptr; // The command line parser which currently parses the argument list (never null)
-};
-
-class OptionBase
-{
-    friend class Cmdline;
-
-    // The name of the option.
-    string_view name_;
-    // The description of this option
-    string_view descr_;
-    // Flags controlling how the option may/must be specified.
-    NumOpts        num_opts_        = NumOpts::optional;
-    HasArg         has_arg_         = HasArg::no;
-    JoinArg        join_arg_        = JoinArg::no;
-    MayGroup       may_group_       = MayGroup::no;
-    Positional     positional_      = Positional::no;
-    CommaSeparated comma_separated_ = CommaSeparated::no;
-    StopParsing    stop_parsing_    = StopParsing::no;
-    // The number of times this option was specified on the command line
-    int count_ = 0;
-
-private:
-    template <typename T>
-    void Apply(T) = delete; // For slightly more useful error messages...
-
-    void Apply(NumOpts        v) { num_opts_        = v; }
-    void Apply(HasArg         v) { has_arg_         = v; }
-    void Apply(JoinArg        v) { join_arg_        = v; }
-    void Apply(MayGroup       v) { may_group_       = v; }
-    void Apply(Positional     v) { positional_      = v; }
-    void Apply(CommaSeparated v) { comma_separated_ = v; }
-    void Apply(StopParsing    v) { stop_parsing_    = v; }
-
-protected:
-    template <typename... Args>
-    explicit OptionBase(char const* name, char const* descr, Args&&... args)
-        : name_(name)
-        , descr_(descr)
-    {
-        int const unused[] = {(Apply(args), 0)..., 0};
-        static_cast<void>(unused);
-
-        CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
-        CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
-    }
-
-public:
-    OptionBase(OptionBase const&) = default;
-    OptionBase(OptionBase&&) = default;
-    OptionBase& operator=(OptionBase const&) = default;
-    OptionBase& operator=(OptionBase&&) = default;
-    virtual ~OptionBase();
-
-public:
-    // Returns the name of this option
-    string_view name() const { return name_; }
-
-    // Returns the description of this option
-    string_view descr() const { return descr_; }
-
-    // Returns the flags controlling how the option may/must be specified.
-    bool has_flag(NumOpts        f) const { return num_opts_        == f; }
-    bool has_flag(HasArg         f) const { return has_arg_         == f; }
-    bool has_flag(JoinArg        f) const { return join_arg_        == f; }
-    bool has_flag(MayGroup       f) const { return may_group_       == f; }
-    bool has_flag(Positional     f) const { return positional_      == f; }
-    bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
-    bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
-
-    // Returns the number of times this option was specified on the command line
-    int count() const { return count_; }
-
-private:
-    bool IsOccurrenceAllowed() const;
-    bool IsOccurrenceRequired() const;
-
-    // Parse the given value from NAME and/or ARG and store the result.
-    // Return true on success, false otherwise.
-    virtual bool Parse(ParseContext const& ctx) = 0;
-};
 
 inline OptionBase::~OptionBase() = default;
 
