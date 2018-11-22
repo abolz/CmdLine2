@@ -979,6 +979,9 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t c
 #endif
 }
 
+template <typename It, typename T>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, T const* /*tag*/) = delete;
+
 } // namespace impl
 
 template <typename It>
@@ -987,12 +990,18 @@ inline /*__forceinline*/ bool IsUTF8(It next, It last)
     return cl::impl::ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != cl::impl::kInvalidCodepoint; });
 }
 
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8(It next, It last)
+{
+    using CharT = std::remove_reference_t<decltype(*next)>;
+
+    return cl::impl::ToUTF8_dispatch(next, last, static_cast<CharT const*>(nullptr));
+}
+
 template <typename StringT>
 inline /*__forceinline*/ std::string ToUTF8(StringT const& str)
 {
-    using CharT = std::remove_reference_t<decltype(*str.begin())>;
-
-    return cl::impl::ToUTF8_dispatch(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
+    return cl::ToUTF8(str.begin(), str.end());
 }
 
 template <typename ElemT>
@@ -1004,7 +1013,7 @@ inline /*__forceinline*/ std::string ToUTF8(ElemT* const& c_str)
         ? std::char_traits<CharT>::length(c_str)
         : 0u;
 
-    return cl::impl::ToUTF8_dispatch(c_str, c_str + len, static_cast<CharT const*>(nullptr));
+    return cl::ToUTF8(c_str, c_str + len);
 }
 
 //==================================================================================================
