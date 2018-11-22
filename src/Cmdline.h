@@ -2483,6 +2483,15 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
     };
 }
 
+namespace impl {
+
+inline bool StartsWith(string_view str, string_view prefix)
+{
+    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
+
+} // namespace impl
+
 // For (boolean) flags.
 // Parses the options' argument and stores the result in 'var'.
 // If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
@@ -2495,10 +2504,7 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-")
     return [=, &var](ParseContext const& ctx) {
         if (!ParseValue<>{}(ctx, var))
             return false;
-
-        bool const invert = (ctx.name.size() >= inverse_prefix.size()
-                          && ctx.name.substr(0, inverse_prefix.size()) == inverse_prefix);
-        if (invert)
+        if (cl::impl::StartsWith(ctx.name, inverse_prefix))
             var = !var;
         return true;
     };
