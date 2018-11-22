@@ -591,9 +591,11 @@ inline std::string ToUTF8(StringT const& str)
     return cl::impl::ToUTF8_dispatch(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
 }
 
-template <typename CharT>
-inline std::string ToUTF8(CharT* const& c_str)
+template <typename ElemT>
+inline std::string ToUTF8(ElemT* const& c_str)
 {
+    using CharT = std::remove_const_t<ElemT>;
+
     auto const len = (c_str != nullptr)
         ? std::char_traits<CharT>::length(c_str)
         : 0u;
