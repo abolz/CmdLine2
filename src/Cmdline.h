@@ -24,7 +24,6 @@
 #include <cassert>
 #include <cerrno>
 #include <climits>
-#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -66,12 +65,6 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 
 #if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
 #define CL_HAS_DEDUCTION_GUIDES 1
-#endif
-
-#if __GNUC__
-#define CL_ATTRIBUTE_PRINTF(X, Y) __attribute__((format(printf, X, Y)))
-#else
-#define CL_ATTRIBUTE_PRINTF(X, Y)
 #endif
 
 #if _MSC_VER
@@ -559,11 +552,10 @@ public:
     // Returns the diagnostic messages
     std::vector<Diagnostic> const& diag() const { return diag_; }
 
-    // Adds a diagnostic message
-    void EmitDiag(Diagnostic::Type type, int index, std::string message);
-
-    // Adds a diagnostic message
-    void FormatDiag(Diagnostic::Type type, int index, char const* format, ...) CL_ATTRIBUTE_PRINTF(4, 5);
+    // Adds a diagnostic message.
+    // Every argument must be explicitly convertible to string_view.
+    template <typename ...Args>
+    void EmitDiag(Diagnostic::Type type, int index, Args&&... args);
 
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
@@ -670,6 +662,8 @@ private:
 
     template <typename Fn>
     bool ForEachUniqueOption(Fn fn) const;
+
+    void EmitDiagImpl(Diagnostic::Type type, int index, string_view const* strings, int num_strings);
 };
 
 //==================================================================================================
@@ -1664,11 +1658,9 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
             break;
         }
 
-        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
-            static_cast<int>(ctx.arg.size()), ctx.arg.data(),
-            static_cast<int>(ctx.name.size()), ctx.name.data());
+        ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "invalid argument '", ctx.arg, "' for option '", ctx.name, "'");
         for (auto const& p : map)
-            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
+            ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, "could be '", p.first, "'");
 
         return false;
     };
@@ -2017,24 +2009,11 @@ inline Cmdline::Cmdline() = default;
 
 inline Cmdline::~Cmdline() = default;
 
-inline void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string message)
+template <typename ...Args>
+void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&... args)
 {
-    CL_ASSERT(cl::IsUTF8(message.begin(), message.end()));
-
-    diag_.emplace_back(type, index, std::move(message));
-}
-
-inline void Cmdline::FormatDiag(Diagnostic::Type type, int index, char const* format, ...)
-{
-    constexpr size_t kBufSize = 1024;
-    char buf[kBufSize];
-
-    va_list args;
-    va_start(args, format);
-    vsnprintf(&buf[0], kBufSize, format, args);
-    va_end(args);
-
-    EmitDiag(type, index, std::string(&buf[0]));
+    string_view strings[] = {args...};
+    EmitDiagImpl(type, index, strings, sizeof...(Args));
 }
 
 template <typename ParserInit, typename... Args>
@@ -2114,7 +2093,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::error:
             return {curr, false};
         case Status::ignored:
-            FormatDiag(Diagnostic::error, curr_index_, "unknown option '%s'", arg.c_str());
+            EmitDiag(Diagnostic::error, curr_index_, "unknown option '", arg, "'");
             return {curr, false};
         }
 
@@ -2149,8 +2128,7 @@ inline bool Cmdline::AnyMissing()
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->IsOccurrenceRequired())
         {
-            FormatDiag(Diagnostic::error, -1, "option '%.*s' is missing",
-                static_cast<int>(opt->name().size()), opt->name().data());
+            EmitDiag(Diagnostic::error, -1, "option '", opt->name(), "' is missing");
             res = true;
         }
         return true;
@@ -2620,7 +2598,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         }
 
         // The option accepts an argument, but may not join its argument.
-        FormatDiag(Diagnostic::error, curr_index_, "option '%c' must be the last in a group", optstr[n]);
+        EmitDiag(Diagnostic::error, curr_index_, "option '", &optstr[n], "' must be the last in a group");
         return Status::error;
     }
 
@@ -2676,8 +2654,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
         }
     }
 
-    FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' requires an argument",
-        static_cast<int>(name.size()), name.data());
+    EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' requires an argument");
     return Status::error;
 }
 
@@ -2687,8 +2664,7 @@ inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view na
 
     if (opt->has_flag(Positional::no) && opt->has_flag(HasArg::no))
     {
-        FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' does not accept an argument",
-            static_cast<int>(name.size()), name.data());
+        EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' does not accept an argument");
         return Status::error;
     }
 
@@ -2703,8 +2679,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
             // Use opt->name() instead of name here.
             // This gives slightly nicer error messages in case an option has
             // multiple names.
-            FormatDiag(Diagnostic::error, curr_index_, "option '%.*s' already specified",
-                static_cast<int>(opt->name().size()), opt->name().data());
+            EmitDiag(Diagnostic::error, curr_index_, "option '", opt->name(), "' already specified");
             return Status::error;
         }
 
@@ -2725,11 +2700,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
         {
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
             if (!diagnostic_emitted)
-            {
-                FormatDiag(Diagnostic::error, curr_index_, "invalid argument '%.*s' for option '%.*s'",
-                    static_cast<int>(arg1.size()), arg1.data(),
-                    static_cast<int>(name.size()), name.data());
-            }
+                EmitDiag(Diagnostic::error, curr_index_, "invalid argument '", arg1, "' for option '", name, "'");
 
             return Status::error;
         }
@@ -2784,6 +2755,19 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
             if (I->option != curr_opt)
                 break;
         }
+    }
+}
+
+inline void Cmdline::EmitDiagImpl(Diagnostic::Type type, int index, string_view const* strings, int num_strings)
+{
+    diag_.emplace_back(type, index, std::string{});
+
+    auto& text = diag_.back().message;
+    for (int i = 0; i < num_strings; ++i)
+    {
+        auto s = strings[i];
+        CL_ASSERT(cl::IsUTF8(s.begin(), s.end()));
+        text.append(s.data(), s.size());
     }
 }
 
