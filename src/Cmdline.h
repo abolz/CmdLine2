@@ -533,11 +533,7 @@ class Cmdline final
         OptionBase* option = nullptr;
 
         NameOptionPair() = default;
-        NameOptionPair(string_view name_, OptionBase* option_)
-            : name(name_)
-            , option(option_)
-        {
-        }
+        NameOptionPair(string_view name_, OptionBase* option_) : name(name_), option(option_) {}
     };
 
     using Diagnostics   = std::vector<Diagnostic>;
@@ -593,11 +589,7 @@ public:
         bool success = false;
 
         ParseResult() = default;
-        ParseResult(It next_, bool success_)
-            : next(next_)
-            , success(success_)
-        {
-        }
+        ParseResult(It next_, bool success_) : next(next_), success(success_) {}
 
         // Test for success.
         explicit operator bool() const { return success; }
@@ -628,12 +620,7 @@ public:
         size_t descr_indent;
         size_t line_length;
 
-        HelpFormat()
-            : indent(2)
-            , descr_indent(27)
-            , line_length(100)
-        {
-        }
+        HelpFormat() : indent(2), descr_indent(27), line_length(100) {}
     };
 
     // Returns a short help message listing all registered options.
