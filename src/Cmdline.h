@@ -1162,7 +1162,7 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 } // namespace impl
 
 //==================================================================================================
-//
+// Parser
 //==================================================================================================
 
 namespace impl {
@@ -1706,7 +1706,7 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-")
 }
 
 //==================================================================================================
-//
+// Tokenize
 //==================================================================================================
 
 namespace impl {
@@ -1992,6 +1992,10 @@ inline bool OptionBase::IsOccurrenceRequired() const
     return false;
 }
 
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+
 template <typename Parser>
 template <typename ParserInit, typename... Args>
 inline Option<Parser>::Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
@@ -2008,6 +2012,10 @@ bool Option<Parser>::Parse(ParseContext const& ctx)
 
     return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
 }
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 
 inline Cmdline::Cmdline() = default;
 
