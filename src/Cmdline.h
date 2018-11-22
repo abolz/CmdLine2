@@ -922,12 +922,6 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put)
 // The internal encoding used by the library is UTF-8.
 
 template <typename It>
-inline /*__forceinline*/ bool IsUTF8(It next, It last)
-{
-    return ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != kInvalidCodepoint; });
-}
-
-template <typename It>
 inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/)
 {
     std::string s;
@@ -987,8 +981,14 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t c
 
 } // namespace impl
 
+template <typename It>
+inline /*__forceinline*/ bool IsUTF8(It next, It last)
+{
+    return cl::impl::ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != cl::impl::kInvalidCodepoint; });
+}
+
 template <typename StringT>
-inline std::string ToUTF8(StringT const& str)
+inline /*__forceinline*/ std::string ToUTF8(StringT const& str)
 {
     using CharT = std::remove_reference_t<decltype(*str.begin())>;
 
@@ -996,7 +996,7 @@ inline std::string ToUTF8(StringT const& str)
 }
 
 template <typename ElemT>
-inline std::string ToUTF8(ElemT* const& c_str)
+inline /*__forceinline*/ std::string ToUTF8(ElemT* const& c_str)
 {
     using CharT = std::remove_const_t<ElemT>;
 
@@ -1136,7 +1136,7 @@ inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
 template <typename Splitter, typename Function>
 bool Split(string_view str, Splitter&& split, Function&& fn)
 {
-    CL_ASSERT(cl::impl::IsUTF8(str.begin(), str.end()));
+    CL_ASSERT(cl::IsUTF8(str.begin(), str.end()));
 
     DoSplitResult curr;
 
@@ -1149,8 +1149,8 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
         if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
             return true;
 
-        CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
-        CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
+        CL_ASSERT(cl::IsUTF8(curr.tok.begin(), curr.tok.end()));
+        CL_ASSERT(cl::IsUTF8(curr.str.begin(), curr.str.end()));
 
         if (!fn(curr.tok))
             return false;
@@ -1970,8 +1970,8 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
     int const unused[] = {(Apply(args), 0)..., 0};
     static_cast<void>(unused);
 
-    CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
-    CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
+    CL_ASSERT(cl::IsUTF8(name_.begin(), name_.end()));
+    CL_ASSERT(cl::IsUTF8(descr_.begin(), descr_.end()));
 }
 
 inline OptionBase::~OptionBase() = default;
@@ -2007,8 +2007,8 @@ inline Option<Parser>::Option(char const* name, char const* descr, ParserInit&& 
 template <typename Parser>
 bool Option<Parser>::Parse(ParseContext const& ctx)
 {
-    CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
-    CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
+    CL_ASSERT(cl::IsUTF8(ctx.name.begin(), ctx.name.end()));
+    CL_ASSERT(cl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
 
     return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
 }
@@ -2023,7 +2023,7 @@ inline Cmdline::~Cmdline() = default;
 
 inline void Cmdline::EmitDiag(Diagnostic::Type type, int index, std::string message)
 {
-    CL_ASSERT(cl::impl::IsUTF8(message.begin(), message.end()));
+    CL_ASSERT(cl::IsUTF8(message.begin(), message.end()));
 
     diag_.emplace_back(type, index, std::move(message));
 }
@@ -2414,7 +2414,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
         res += spos;
     }
 
-    CL_ASSERT(cl::impl::IsUTF8(res.begin(), res.end()));
+    CL_ASSERT(cl::IsUTF8(res.begin(), res.end()));
     return res;
 }
 
