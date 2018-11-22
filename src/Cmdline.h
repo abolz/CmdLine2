@@ -524,7 +524,7 @@ inline /*__forceinline*/ bool IsUTF8(It next, It last)
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char const* /*tag*/)
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/)
 {
     std::string s;
 
@@ -540,7 +540,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char const* /
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char16_t const* /*tag*/)
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/)
 {
     std::string s;
 
@@ -556,7 +556,7 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char16_t cons
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t const* /*tag*/)
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/)
 {
     std::string s;
 
@@ -572,12 +572,12 @@ inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, char32_t cons
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_impl(It next, It last, wchar_t const* /*tag*/)
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/)
 {
 #if CL_WCHAR_IS_CHAR16
-    return ToUTF8_impl(next, last, static_cast<char16_t const*>(nullptr));
+    return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
 #else
-    return ToUTF8_impl(next, last, static_cast<char32_t const*>(nullptr));
+    return ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
 #endif
 }
 
@@ -588,7 +588,7 @@ inline std::string ToUTF8(StringT const& str)
 {
     using CharT = std::remove_reference_t<decltype(*str.begin())>;
 
-    return cl::impl::ToUTF8_impl(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
+    return cl::impl::ToUTF8_dispatch(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
 }
 
 template <typename CharT>
@@ -598,7 +598,7 @@ inline std::string ToUTF8(CharT* const& c_str)
         ? std::char_traits<CharT>::length(c_str)
         : 0u;
 
-    return cl::impl::ToUTF8_impl(c_str, c_str + len, static_cast<CharT const*>(nullptr));
+    return cl::impl::ToUTF8_dispatch(c_str, c_str + len, static_cast<CharT const*>(nullptr));
 }
 
 //==================================================================================================
