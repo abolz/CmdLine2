@@ -599,6 +599,96 @@ inline std::string ToUTF8(ElemT* const& c_str)
 }
 
 //==================================================================================================
+//
+//==================================================================================================
+
+// Controls how often an option may/must be specified.
+enum class NumOpts : uint8_t {
+    // The option may appear at most once.
+    // This is the default.
+    optional,
+    // The option must appear exactly once.
+    required,
+    // The option may appear multiple times.
+    zero_or_more,
+    // The option must appear at least once.
+    one_or_more,
+};
+
+// Controls the number of arguments the option accepts.
+enum class HasArg : uint8_t {
+    // An argument is not allowed.
+    // This is the default.
+    no,
+    // An argument is optional.
+    optional,
+    // An argument is required.
+    yes,
+    // An argument is required.
+    required = yes,
+};
+
+// Controls whether the option may/must join its argument.
+enum class JoinArg : uint8_t {
+    // The option must not join its argument: "-I dir" and "-I=dir" are
+    // possible. If the option is specified with an equals sign ("-I=dir") the
+    // '=' will NOT be part of the option argument.
+    // This is the default.
+    no,
+    // The option may join its argument: "-I dir" and "-Idir" are possible. If
+    // the option is specified with an equals sign ("-I=dir") the '=' will be
+    // part of the option argument.
+    optional,
+    // The option must join its argument: "-Idir" is the only possible format.
+    // If the option is specified with an equals sign ("-I=dir") the '=' will be
+    // part of the option argument.
+    yes,
+};
+
+// May this option group with other options?
+enum class MayGroup : uint8_t {
+    // The option may not be grouped with other options (even if the option name
+    // consists only of a single letter).
+    // This is the default.
+    no,
+    // The option may be grouped with other options.
+    // This flag is ignored if the names of the options are not a single letter
+    // and option groups must be prefixed with a single '-', e.g. "-xvf=file".
+    yes,
+};
+
+// Positional option?
+enum class Positional : uint8_t {
+    // The option is not a positional option, i.e. requires '-' or '--' as a
+    // prefix when specified.
+    // This is the default.
+    no,
+    // Positional option, no '-' required.
+    yes,
+};
+
+// Split the argument between commas?
+enum class CommaSeparated : uint8_t {
+    // Do not split the argument between commas.
+    // This is the default.
+    no,
+    // If this flag is set, the option's argument is split between commas, e.g.
+    // "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
+    // Note that each comma-separated argument counts as an option occurrence.
+    yes,
+};
+
+// Stop parsing early?
+enum class StopParsing : uint8_t {
+    // Nothing special.
+    // This is the default.
+    no,
+    // If an option with this flag is (successfully) parsed, all the remaining
+    // command line arguments are ignored and the parser returns immediately.
+    yes,
+};
+
+//==================================================================================================
 // Split strings
 //==================================================================================================
 
@@ -755,92 +845,6 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 //==================================================================================================
 //
 //==================================================================================================
-
-// Controls how often an option may/must be specified.
-enum class NumOpts : uint8_t {
-    // The option may appear at most once.
-    // This is the default.
-    optional,
-    // The option must appear exactly once.
-    required,
-    // The option may appear multiple times.
-    zero_or_more,
-    // The option must appear at least once.
-    one_or_more,
-};
-
-// Controls the number of arguments the option accepts.
-enum class HasArg : uint8_t {
-    // An argument is not allowed.
-    // This is the default.
-    no,
-    // An argument is optional.
-    optional,
-    // An argument is required.
-    yes,
-    // An argument is required.
-    required = yes,
-};
-
-// Controls whether the option may/must join its argument.
-enum class JoinArg : uint8_t {
-    // The option must not join its argument: "-I dir" and "-I=dir" are
-    // possible. If the option is specified with an equals sign ("-I=dir") the
-    // '=' will NOT be part of the option argument.
-    // This is the default.
-    no,
-    // The option may join its argument: "-I dir" and "-Idir" are possible. If
-    // the option is specified with an equals sign ("-I=dir") the '=' will be
-    // part of the option argument.
-    optional,
-    // The option must join its argument: "-Idir" is the only possible format.
-    // If the option is specified with an equals sign ("-I=dir") the '=' will be
-    // part of the option argument.
-    yes,
-};
-
-// May this option group with other options?
-enum class MayGroup : uint8_t {
-    // The option may not be grouped with other options (even if the option name
-    // consists only of a single letter).
-    // This is the default.
-    no,
-    // The option may be grouped with other options.
-    // This flag is ignored if the names of the options are not a single letter
-    // and option groups must be prefixed with a single '-', e.g. "-xvf=file".
-    yes,
-};
-
-// Positional option?
-enum class Positional : uint8_t {
-    // The option is not a positional option, i.e. requires '-' or '--' as a
-    // prefix when specified.
-    // This is the default.
-    no,
-    // Positional option, no '-' required.
-    yes,
-};
-
-// Split the argument between commas?
-enum class CommaSeparated : uint8_t {
-    // Do not split the argument between commas.
-    // This is the default.
-    no,
-    // If this flag is set, the option's argument is split between commas, e.g.
-    // "-i=1,2,,3" will be parsed as ["-i=1", "-i=2", "-i=", "-i=3"].
-    // Note that each comma-separated argument counts as an option occurrence.
-    yes,
-};
-
-// Stop parsing early?
-enum class StopParsing : uint8_t {
-    // Nothing special.
-    // This is the default.
-    no,
-    // If an option with this flag is (successfully) parsed, all the remaining
-    // command line arguments are ignored and the parser returns immediately.
-    yes,
-};
 
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
