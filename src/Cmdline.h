@@ -841,182 +841,6 @@ auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, 
         name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 }
 
-//==================================================================================================
-// Split strings
-//==================================================================================================
-
-namespace impl {
-
-// Return type for delimiters. Returned by the ByX delimiters.
-//
-// +-----+-----+------------+
-// ^ tok ^     ^    rest    ^
-//       f     f+c
-//
-// Either FIRST or COUNT must be non-zero.
-struct DelimiterResult
-{
-    size_t first;
-    size_t count;
-};
-
-struct ByChar
-{
-    char const ch;
-
-    explicit ByChar(char ch_) : ch(ch_) {}
-
-    DelimiterResult operator()(string_view str) const {
-        return {str.find(ch), 1};
-    }
-};
-
-// Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
-struct ByLines
-{
-    DelimiterResult operator()(string_view str) const
-    {
-        auto const first = str.begin();
-        auto const last = str.end();
-
-        // Find the position of the first CR or LF
-        auto p = first;
-        while (p != last && (*p != '\n' && *p != '\r'))
-            ++p;
-
-        if (p == last)
-            return {string_view::npos, 0};
-
-        auto const index = static_cast<size_t>(p - first);
-
-        // If this is CRLF, skip the other half.
-        if (*p == '\r' && ++p != last && *p == '\n')
-            return {index, 2};
-
-        return {index, 1};
-    }
-};
-
-// Breaks a string into words, i.e. searches for the first whitespace preceding
-// the given length. If there is no whitespace, breaks a single word at length
-// characters.
-struct ByWords
-{
-    size_t const length;
-
-    explicit ByWords(size_t length_)
-        : length(length_)
-    {
-        CL_ASSERT(length != 0 && "invalid parameter");
-    }
-
-    DelimiterResult operator()(string_view str) const
-    {
-        // If the string fits into the current line, just return this last line.
-        if (str.size() <= length)
-            return {string_view::npos, 0};
-
-        // Otherwise, search for the first space preceding the line length.
-        auto const last_ws = str.find_last_of(" \t", length);
-
-        if (last_ws != string_view::npos)
-        {
-#if 0
-            size_t last_non_ws = last_ws;
-            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t'))
-                --last_non_ws;
-            return {last_non_ws, last_ws - last_non_ws + 1};
-#else
-            return {last_ws, 1};
-#endif
-        }
-
-        return {length, 0}; // No space in current line, break at length.
-    }
-};
-
-struct DoSplitResult
-{
-    string_view tok; // The current token.
-    string_view str; // The rest of the string.
-    bool last = false;
-};
-
-inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
-{
-    if (del.first == string_view::npos)
-    {
-        res.tok = str;
-        //res.str = {};
-        res.last = true;
-        return true;
-    }
-
-    CL_ASSERT(del.first + del.count >= del.first);
-    CL_ASSERT(del.first + del.count <= str.size());
-
-    auto const off = del.first + del.count;
-    CL_ASSERT(off > 0 && "invalid delimiter result");
-
-    res.tok = string_view(str.data(), del.first);
-    res.str = string_view(str.data() + off, str.size() - off);
-    return true;
-}
-
-// Split the string STR into substrings using the Delimiter (or Tokenizer) SPLIT
-// and call FN for each substring.
-// FN must return bool. If FN returns false, this method stops splitting
-// the input string and returns false, too. Otherwise, returns true.
-template <typename Splitter, typename Function>
-bool Split(string_view str, Splitter&& split, Function&& fn)
-{
-    CL_ASSERT(cl::impl::IsUTF8(str.begin(), str.end()));
-
-    DoSplitResult curr;
-
-    curr.tok = string_view();
-    curr.str = str;
-    curr.last = false;
-
-    for (;;)
-    {
-        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
-            return true;
-
-        CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
-        CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
-
-        if (!fn(curr.tok))
-            return false;
-        if (curr.last)
-            return true;
-    }
-}
-
-} // namespace impl
-
-//==================================================================================================
-//
-//==================================================================================================
-
-inline OptionBase::~OptionBase() = default;
-
-inline bool OptionBase::IsOccurrenceAllowed() const
-{
-    if (has_flag(NumOpts::required) || has_flag(NumOpts::optional))
-        return count() == 0;
-
-    return true;
-}
-
-inline bool OptionBase::IsOccurrenceRequired() const
-{
-    if (has_flag(NumOpts::required) || has_flag(NumOpts::one_or_more))
-        return count() == 0;
-
-    return false;
-}
-
 struct Diagnostic
 {
     enum Type : uint8_t { error, warning, note };
@@ -1201,6 +1025,182 @@ private:
     template <typename Fn>
     bool ForEachUniqueOption(Fn fn) const;
 };
+
+//==================================================================================================
+// Split strings
+//==================================================================================================
+
+namespace impl {
+
+// Return type for delimiters. Returned by the ByX delimiters.
+//
+// +-----+-----+------------+
+// ^ tok ^     ^    rest    ^
+//       f     f+c
+//
+// Either FIRST or COUNT must be non-zero.
+struct DelimiterResult
+{
+    size_t first;
+    size_t count;
+};
+
+struct ByChar
+{
+    char const ch;
+
+    explicit ByChar(char ch_) : ch(ch_) {}
+
+    DelimiterResult operator()(string_view str) const {
+        return {str.find(ch), 1};
+    }
+};
+
+// Breaks a string into lines, i.e. searches for "\n" or "\r" or "\r\n".
+struct ByLines
+{
+    DelimiterResult operator()(string_view str) const
+    {
+        auto const first = str.begin();
+        auto const last = str.end();
+
+        // Find the position of the first CR or LF
+        auto p = first;
+        while (p != last && (*p != '\n' && *p != '\r'))
+            ++p;
+
+        if (p == last)
+            return {string_view::npos, 0};
+
+        auto const index = static_cast<size_t>(p - first);
+
+        // If this is CRLF, skip the other half.
+        if (*p == '\r' && ++p != last && *p == '\n')
+            return {index, 2};
+
+        return {index, 1};
+    }
+};
+
+// Breaks a string into words, i.e. searches for the first whitespace preceding
+// the given length. If there is no whitespace, breaks a single word at length
+// characters.
+struct ByWords
+{
+    size_t const length;
+
+    explicit ByWords(size_t length_)
+        : length(length_)
+    {
+        CL_ASSERT(length != 0 && "invalid parameter");
+    }
+
+    DelimiterResult operator()(string_view str) const
+    {
+        // If the string fits into the current line, just return this last line.
+        if (str.size() <= length)
+            return {string_view::npos, 0};
+
+        // Otherwise, search for the first space preceding the line length.
+        auto const last_ws = str.find_last_of(" \t", length);
+
+        if (last_ws != string_view::npos)
+        {
+#if 0
+            size_t last_non_ws = last_ws;
+            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t'))
+                --last_non_ws;
+            return {last_non_ws, last_ws - last_non_ws + 1};
+#else
+            return {last_ws, 1};
+#endif
+        }
+
+        return {length, 0}; // No space in current line, break at length.
+    }
+};
+
+struct DoSplitResult
+{
+    string_view tok; // The current token.
+    string_view str; // The rest of the string.
+    bool last = false;
+};
+
+inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
+{
+    if (del.first == string_view::npos)
+    {
+        res.tok = str;
+        //res.str = {};
+        res.last = true;
+        return true;
+    }
+
+    CL_ASSERT(del.first + del.count >= del.first);
+    CL_ASSERT(del.first + del.count <= str.size());
+
+    auto const off = del.first + del.count;
+    CL_ASSERT(off > 0 && "invalid delimiter result");
+
+    res.tok = string_view(str.data(), del.first);
+    res.str = string_view(str.data() + off, str.size() - off);
+    return true;
+}
+
+// Split the string STR into substrings using the Delimiter (or Tokenizer) SPLIT
+// and call FN for each substring.
+// FN must return bool. If FN returns false, this method stops splitting
+// the input string and returns false, too. Otherwise, returns true.
+template <typename Splitter, typename Function>
+bool Split(string_view str, Splitter&& split, Function&& fn)
+{
+    CL_ASSERT(cl::impl::IsUTF8(str.begin(), str.end()));
+
+    DoSplitResult curr;
+
+    curr.tok = string_view();
+    curr.str = str;
+    curr.last = false;
+
+    for (;;)
+    {
+        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
+            return true;
+
+        CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
+        CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
+
+        if (!fn(curr.tok))
+            return false;
+        if (curr.last)
+            return true;
+    }
+}
+
+} // namespace impl
+
+//==================================================================================================
+//
+//==================================================================================================
+
+inline OptionBase::~OptionBase() = default;
+
+inline bool OptionBase::IsOccurrenceAllowed() const
+{
+    if (has_flag(NumOpts::required) || has_flag(NumOpts::optional))
+        return count() == 0;
+
+    return true;
+}
+
+inline bool OptionBase::IsOccurrenceRequired() const
+{
+    if (has_flag(NumOpts::required) || has_flag(NumOpts::one_or_more))
+        return count() == 0;
+
+    return false;
+}
 
 inline Cmdline::Cmdline() = default;
 
