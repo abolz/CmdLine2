@@ -409,10 +409,7 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put)
     while (next != last)
     {
         char32_t U = 0;
-
-        auto const next1 = cl::impl::DecodeUTF8Sequence(next, last, U);
-        CL_ASSERT(next != next1);
-        next = next1;
+        next = cl::impl::DecodeUTF8Sequence(next, last, U);
 
         if (!put(U))
             return false;
@@ -487,10 +484,7 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put)
     while (next != last)
     {
         char32_t U = 0;
-
-        auto const next1 = cl::impl::DecodeUTF16Sequence(next, last, U);
-        CL_ASSERT(next != next1);
-        next = next1;
+        next = cl::impl::DecodeUTF16Sequence(next, last, U);
 
         if (!put(U))
             return false;
