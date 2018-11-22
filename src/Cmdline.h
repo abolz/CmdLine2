@@ -778,6 +778,69 @@ private:
     virtual bool Parse(ParseContext const& ctx) = 0;
 };
 
+template <typename Parser>
+class Option final : public OptionBase
+{
+#if CL_HAS_STD_INVOCABLE
+    static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value ||
+                  std::is_invocable_r<void, Parser, ParseContext&>::value,
+        "The parser must be invocable with an argument of type 'ParseContext&' "
+        "and the return type must be 'bool' or 'void'");
+#endif
+
+    Parser /*const*/ parser_;
+
+public:
+    template <typename ParserInit, typename... Args>
+    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+        : OptionBase(name, descr, std::forward<Args>(args)...)
+        , parser_(std::forward<ParserInit>(parser))
+    {
+    }
+
+    Parser const& parser() const { return parser_; }
+    Parser& parser() { return parser_; }
+
+private:
+    bool Parse(ParseContext const& ctx) override
+    {
+        CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
+        CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
+
+        return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
+    }
+
+    bool DoParse(ParseContext const& ctx, std::true_type /*parser_ returns bool*/) {
+        return parser_(ctx);
+    }
+
+    bool DoParse(ParseContext const& ctx, std::false_type /*parser_ returns bool*/) {
+        parser_(ctx);
+        return true;
+    }
+};
+
+#if CL_HAS_DEDUCTION_GUIDES
+template <typename ParserInit, typename... Args>
+Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
+#endif
+
+// Creates a new option from the given arguments.
+template <typename ParserInit, typename... Args>
+auto MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+{
+    return Option<std::decay_t<ParserInit>>(
+        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+}
+
+// Creates a new option from the given arguments wrapped into a unique_ptr.
+template <typename ParserInit, typename... Args>
+auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+{
+    return std::make_unique<Option<std::decay_t<ParserInit>>>(
+        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+}
+
 //==================================================================================================
 // Split strings
 //==================================================================================================
@@ -952,69 +1015,6 @@ inline bool OptionBase::IsOccurrenceRequired() const
         return count() == 0;
 
     return false;
-}
-
-template <typename Parser>
-class Option final : public OptionBase
-{
-#if CL_HAS_STD_INVOCABLE
-    static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value ||
-                  std::is_invocable_r<void, Parser, ParseContext&>::value,
-        "The parser must be invocable with an argument of type 'ParseContext&' "
-        "and the return type must be 'bool' or 'void'");
-#endif
-
-    Parser /*const*/ parser_;
-
-public:
-    template <typename ParserInit, typename... Args>
-    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-        : OptionBase(name, descr, std::forward<Args>(args)...)
-        , parser_(std::forward<ParserInit>(parser))
-    {
-    }
-
-    Parser const& parser() const { return parser_; }
-    Parser& parser() { return parser_; }
-
-private:
-    bool Parse(ParseContext const& ctx) override
-    {
-        CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
-        CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
-
-        return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
-    }
-
-    bool DoParse(ParseContext const& ctx, std::true_type /*parser_ returns bool*/) {
-        return parser_(ctx);
-    }
-
-    bool DoParse(ParseContext const& ctx, std::false_type /*parser_ returns bool*/) {
-        parser_(ctx);
-        return true;
-    }
-};
-
-#if CL_HAS_DEDUCTION_GUIDES
-template <typename ParserInit, typename... Args>
-Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
-#endif
-
-// Creates a new option from the given arguments.
-template <typename ParserInit, typename... Args>
-auto MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-{
-    return Option<std::decay_t<ParserInit>>(
-        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
-}
-
-// Creates a new option from the given arguments wrapped into a unique_ptr.
-template <typename ParserInit, typename... Args>
-auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-{
-    return std::make_unique<Option<std::decay_t<ParserInit>>>(
-        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 }
 
 struct Diagnostic
