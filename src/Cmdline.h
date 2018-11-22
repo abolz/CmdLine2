@@ -586,11 +586,6 @@ public:
     // Resets the parser. Sets the COUNT members of all registered options to 0.
     void Reset();
 
-    // Parse the command line arguments in ARGS.
-    // Emits an error for unknown options.
-    template <typename Container>
-    bool ParseArgs(Container const& args, CheckMissingOptions check_missing = CheckMissingOptions::yes);
-
     template <typename It>
     struct ParseResult
     {
@@ -612,6 +607,11 @@ public:
     // Emits an error for unknown options.
     template <typename It, typename EndIt>
     ParseResult<It> Parse(It curr, EndIt last, CheckMissingOptions check_missing = CheckMissingOptions::yes);
+
+    // Parse the command line arguments in ARGS.
+    // Emits an error for unknown options.
+    template <typename Container>
+    bool ParseArgs(Container const& args, CheckMissingOptions check_missing = CheckMissingOptions::yes);
 
     // Returns whether all required options have been parsed since the last call
     // to Parse() and emits errors for all missing options.
@@ -2103,15 +2103,6 @@ inline void Cmdline::Reset()
     });
 }
 
-template <typename Container>
-bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing)
-{
-    using std::begin; // using ADL!
-    using std::end;   // using ADL!
-
-    return Parse(begin(args), end(args), check_missing).success;
-}
-
 template <typename It, typename EndIt>
 Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions check_missing)
 {
@@ -2154,6 +2145,15 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         : true;
 
     return {curr, success};
+}
+
+template <typename Container>
+bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing)
+{
+    using std::begin; // using ADL!
+    using std::end;   // using ADL!
+
+    return Parse(begin(args), end(args), check_missing).success;
 }
 
 inline bool Cmdline::AnyMissing()
