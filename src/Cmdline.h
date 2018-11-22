@@ -674,7 +674,7 @@ struct ByWords
             return {string_view::npos, 0};
 
         // Otherwise, search for the first space preceding the line length.
-        size_t const last_ws = str.find_last_of(" \t", length);
+        auto const last_ws = str.find_last_of(" \t", length);
 
         if (last_ws != string_view::npos)
         {
@@ -712,7 +712,7 @@ inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del)
     CL_ASSERT(del.first + del.count >= del.first);
     CL_ASSERT(del.first + del.count <= str.size());
 
-    size_t const off = del.first + del.count;
+    auto const off = del.first + del.count;
     CL_ASSERT(off > 0 && "invalid delimiter result");
 
     res.tok = string_view(str.data(), del.first);
@@ -1294,7 +1294,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
     {
         // Make a copy of the current value.
         // NB: This is actually only needed for InputIterator's...
-        std::string const arg = cl::ToUTF8(*curr);
+        auto const arg = cl::ToUTF8(*curr);
 
         Status const res = Handle1(arg, curr, last);
         switch (res)
@@ -1351,18 +1351,16 @@ inline void Cmdline::PrintDiag() const
     if (diag_.empty())
         return;
 
-    HANDLE const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
-
+    auto const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
     if (stderr_handle == NULL)
         return; // No console.
-
     if (stderr_handle == INVALID_HANDLE_VALUE)
         return; // Error (Print without colors?!)
 
     CONSOLE_SCREEN_BUFFER_INFO sbi;
     GetConsoleScreenBufferInfo(stderr_handle, &sbi);
 
-    WORD const old_attributes = sbi.wAttributes;
+    auto const old_attributes = sbi.wAttributes;
 
     for (auto const& d : diag_)
     {
@@ -1906,7 +1904,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
         // XXX:
         // Implement a better way to determine if a diagnostic should be emitted here...
         //
-        size_t const num_diagnostics = diag_.size();
+        auto const num_diagnostics = diag_.size();
 
         if (!opt->Parse(ctx))
         {
