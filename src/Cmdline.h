@@ -277,328 +277,6 @@ inline bool operator>=(string_view s1, string_view s2) noexcept {
 }
 
 //==================================================================================================
-// Unicode support
-//==================================================================================================
-
-namespace impl {
-
-constexpr char32_t kInvalidCodepoint = 0xFFFFFFFF;
-constexpr char32_t kReplacementCharacter = 0xFFFD;
-
-inline bool IsValidCodepoint(char32_t U)
-{
-    // 1. Characters with values greater than 0x10FFFF cannot be encoded in
-    //    UTF-16.
-    // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
-    //    with UTF-16, and don't have any characters assigned to them.
-    return U < 0xD800 || (U > 0xDFFF && U <= 0x10FFFF);
-}
-
-constexpr uint32_t kUTF8Accept = 0;
-constexpr uint32_t kUTF8Reject = 1;
-
-inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U)
-{
-    // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
-    // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-
-    static constexpr uint8_t kUTF8Decoder[] = {
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
-        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
-        8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
-        0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
-        0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
-
-        0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
-        1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
-        1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
-        1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
-    };
-
-    uint8_t const type = kUTF8Decoder[byte];
-
-    // NB:
-    // The conditional here will likely be optimized out in the loop below.
-
-    if (state != kUTF8Accept)
-        U = (U << 6) | (byte & 0x3Fu);
-    else
-        U = byte & (0xFFu >> type);
-
-    state = kUTF8Decoder[256 + state * 16 + type];
-    return state;
-}
-
-template <typename It>
-It DecodeUTF8Sequence(It next, It last, char32_t& U)
-{
-    CL_ASSERT(next != last);
-
-    // Always consume the first byte.
-    // The following bytes will only be consumed while the UTF-8 sequence is still valid.
-    uint8_t const b1 = static_cast<uint8_t>(*next);
-    ++next;
-
-    char32_t W = 0;
-    uint32_t state = DecodeUTF8Step(kUTF8Accept, b1, W);
-
-    if (state == kUTF8Reject)
-    {
-        U = kInvalidCodepoint;
-        return next;
-    }
-
-    while (state != kUTF8Accept)
-    {
-        if (next == last)
-        {
-            U = kInvalidCodepoint;
-            return next;
-        }
-
-        state = DecodeUTF8Step(state, static_cast<uint8_t>(*next), W);
-        if (state == kUTF8Reject)
-        {
-            U = kInvalidCodepoint;
-            return next;
-        }
-
-        ++next;
-    }
-
-    U = W;
-    return next;
-}
-
-template <typename PutChar>
-void EncodeUTF8(char32_t U, PutChar put)
-{
-    CL_ASSERT(IsValidCodepoint(U));
-
-    if (U <= 0x7F)
-    {
-        put( static_cast<char>(static_cast<uint8_t>( U )) );
-    }
-    else if (U <= 0x7FF)
-    {
-        put( static_cast<char>(static_cast<uint8_t>( 0xC0 | ((U >>  6)       ) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
-    }
-    else if (U <= 0xFFFF)
-    {
-        put( static_cast<char>(static_cast<uint8_t>( 0xE0 | ((U >> 12)       ) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
-    }
-    else
-    {
-        put( static_cast<char>(static_cast<uint8_t>( 0xF0 | ((U >> 18) & 0x3F) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
-        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
-    }
-}
-
-template <typename It, typename PutChar32>
-bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put)
-{
-    while (next != last)
-    {
-        char32_t U = 0;
-        next = cl::impl::DecodeUTF8Sequence(next, last, U);
-
-        if (!put(U))
-            return false;
-    }
-
-    return true;
-}
-
-template <typename It>
-It DecodeUTF16Sequence(It next, It last, char32_t& U)
-{
-    CL_ASSERT(next != last);
-
-    // Always consume the first UCN.
-    // The second UCN - if any - will only be consumed if the UTF16-sequence is valid.
-    char32_t const W1 = static_cast<char16_t>(*next);
-    ++next;
-
-    if (W1 < 0xD800 || W1 > 0xDFFF)
-    {
-        U = W1;
-        return next;
-    }
-
-    if (W1 > 0xDBFF)
-    {
-        U = kInvalidCodepoint; // Invalid high surrogate
-        return next;
-    }
-
-    if (next == last)
-    {
-        U = kInvalidCodepoint; // Incomplete UTF-16 sequence
-        return next;
-    }
-
-    char32_t const W2 = static_cast<char16_t>(*next);
-
-    if (W2 < 0xDC00 || W2 > 0xDFFF)
-    {
-        U = kInvalidCodepoint; // Invalid low surrogate
-        return next;
-    }
-
-    ++next;
-
-    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
-    return next;
-}
-
-template <typename PutChar16>
-void EncodeUTF16(char32_t U, PutChar16 put)
-{
-    CL_ASSERT(IsValidCodepoint(U));
-
-    if (U < 0x10000)
-    {
-        put( static_cast<char16_t>(U) );
-    }
-    else
-    {
-        char32_t const Up = U - 0x10000;
-
-        put( static_cast<char16_t>(0xD800 + ((Up >> 10) & 0x3FF)) );
-        put( static_cast<char16_t>(0xDC00 + ((Up      ) & 0x3FF)) );
-    }
-}
-
-template <typename It, typename PutChar32>
-bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put)
-{
-    while (next != last)
-    {
-        char32_t U = 0;
-        next = cl::impl::DecodeUTF16Sequence(next, last, U);
-
-        if (!put(U))
-            return false;
-    }
-
-    return true;
-}
-
-template <typename It, typename PutChar32>
-bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put)
-{
-    while (next != last)
-    {
-        char32_t const U = static_cast<char32_t>(*next);
-        ++next;
-
-        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint))
-            return false;
-    }
-
-    return true;
-}
-
-// Convert to UTF-8.
-// The internal encoding used by the library is UTF-8.
-
-template <typename It>
-inline /*__forceinline*/ bool IsUTF8(It next, It last)
-{
-    return ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != kInvalidCodepoint; });
-}
-
-template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/)
-{
-    std::string s;
-
-    ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
-            U = 0xFFFD;
-
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
-        return true;
-    });
-
-    return s;
-}
-
-template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/)
-{
-    std::string s;
-
-    ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
-            U = 0xFFFD;
-
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
-        return true;
-    });
-
-    return s;
-}
-
-template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/)
-{
-    std::string s;
-
-    ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
-            U = 0xFFFD;
-
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
-        return true;
-    });
-
-    return s;
-}
-
-template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/)
-{
-#if CL_WCHAR_IS_CHAR16
-    return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
-#else
-    return ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
-#endif
-}
-
-} // namespace impl
-
-template <typename StringT>
-inline std::string ToUTF8(StringT const& str)
-{
-    using CharT = std::remove_reference_t<decltype(*str.begin())>;
-
-    return cl::impl::ToUTF8_dispatch(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
-}
-
-template <typename ElemT>
-inline std::string ToUTF8(ElemT* const& c_str)
-{
-    using CharT = std::remove_const_t<ElemT>;
-
-    auto const len = (c_str != nullptr)
-        ? std::char_traits<CharT>::length(c_str)
-        : 0u;
-
-    return cl::impl::ToUTF8_dispatch(c_str, c_str + len, static_cast<CharT const*>(nullptr));
-}
-
-//==================================================================================================
 //
 //==================================================================================================
 
@@ -1008,6 +686,328 @@ private:
 };
 
 //==================================================================================================
+// Unicode support
+//==================================================================================================
+
+namespace impl {
+
+constexpr char32_t kInvalidCodepoint = 0xFFFFFFFF;
+constexpr char32_t kReplacementCharacter = 0xFFFD;
+
+inline bool IsValidCodepoint(char32_t U)
+{
+    // 1. Characters with values greater than 0x10FFFF cannot be encoded in
+    //    UTF-16.
+    // 2. Values between 0xD800 and 0xDFFF are specifically reserved for use
+    //    with UTF-16, and don't have any characters assigned to them.
+    return U < 0xD800 || (U > 0xDFFF && U <= 0x10FFFF);
+}
+
+constexpr uint32_t kUTF8Accept = 0;
+constexpr uint32_t kUTF8Reject = 1;
+
+inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U)
+{
+    // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+    // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
+
+    static constexpr uint8_t kUTF8Decoder[] = {
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+        8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+        0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+        0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+
+        0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+        1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+        1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+        1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+    };
+
+    uint8_t const type = kUTF8Decoder[byte];
+
+    // NB:
+    // The conditional here will likely be optimized out in the loop below.
+
+    if (state != kUTF8Accept)
+        U = (U << 6) | (byte & 0x3Fu);
+    else
+        U = byte & (0xFFu >> type);
+
+    state = kUTF8Decoder[256 + state * 16 + type];
+    return state;
+}
+
+template <typename It>
+It DecodeUTF8Sequence(It next, It last, char32_t& U)
+{
+    CL_ASSERT(next != last);
+
+    // Always consume the first byte.
+    // The following bytes will only be consumed while the UTF-8 sequence is still valid.
+    uint8_t const b1 = static_cast<uint8_t>(*next);
+    ++next;
+
+    char32_t W = 0;
+    uint32_t state = DecodeUTF8Step(kUTF8Accept, b1, W);
+
+    if (state == kUTF8Reject)
+    {
+        U = kInvalidCodepoint;
+        return next;
+    }
+
+    while (state != kUTF8Accept)
+    {
+        if (next == last)
+        {
+            U = kInvalidCodepoint;
+            return next;
+        }
+
+        state = DecodeUTF8Step(state, static_cast<uint8_t>(*next), W);
+        if (state == kUTF8Reject)
+        {
+            U = kInvalidCodepoint;
+            return next;
+        }
+
+        ++next;
+    }
+
+    U = W;
+    return next;
+}
+
+template <typename PutChar>
+void EncodeUTF8(char32_t U, PutChar put)
+{
+    CL_ASSERT(IsValidCodepoint(U));
+
+    if (U <= 0x7F)
+    {
+        put( static_cast<char>(static_cast<uint8_t>( U )) );
+    }
+    else if (U <= 0x7FF)
+    {
+        put( static_cast<char>(static_cast<uint8_t>( 0xC0 | ((U >>  6)       ) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
+    }
+    else if (U <= 0xFFFF)
+    {
+        put( static_cast<char>(static_cast<uint8_t>( 0xE0 | ((U >> 12)       ) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
+    }
+    else
+    {
+        put( static_cast<char>(static_cast<uint8_t>( 0xF0 | ((U >> 18) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >> 12) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U >>  6) & 0x3F) )) );
+        put( static_cast<char>(static_cast<uint8_t>( 0x80 | ((U      ) & 0x3F) )) );
+    }
+}
+
+template <typename It, typename PutChar32>
+bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put)
+{
+    while (next != last)
+    {
+        char32_t U = 0;
+        next = cl::impl::DecodeUTF8Sequence(next, last, U);
+
+        if (!put(U))
+            return false;
+    }
+
+    return true;
+}
+
+template <typename It>
+It DecodeUTF16Sequence(It next, It last, char32_t& U)
+{
+    CL_ASSERT(next != last);
+
+    // Always consume the first UCN.
+    // The second UCN - if any - will only be consumed if the UTF16-sequence is valid.
+    char32_t const W1 = static_cast<char16_t>(*next);
+    ++next;
+
+    if (W1 < 0xD800 || W1 > 0xDFFF)
+    {
+        U = W1;
+        return next;
+    }
+
+    if (W1 > 0xDBFF)
+    {
+        U = kInvalidCodepoint; // Invalid high surrogate
+        return next;
+    }
+
+    if (next == last)
+    {
+        U = kInvalidCodepoint; // Incomplete UTF-16 sequence
+        return next;
+    }
+
+    char32_t const W2 = static_cast<char16_t>(*next);
+
+    if (W2 < 0xDC00 || W2 > 0xDFFF)
+    {
+        U = kInvalidCodepoint; // Invalid low surrogate
+        return next;
+    }
+
+    ++next;
+
+    U = (((W1 & 0x3FF) << 10) | (W2 & 0x3FF)) + 0x10000;
+    return next;
+}
+
+template <typename PutChar16>
+void EncodeUTF16(char32_t U, PutChar16 put)
+{
+    CL_ASSERT(IsValidCodepoint(U));
+
+    if (U < 0x10000)
+    {
+        put( static_cast<char16_t>(U) );
+    }
+    else
+    {
+        char32_t const Up = U - 0x10000;
+
+        put( static_cast<char16_t>(0xD800 + ((Up >> 10) & 0x3FF)) );
+        put( static_cast<char16_t>(0xDC00 + ((Up      ) & 0x3FF)) );
+    }
+}
+
+template <typename It, typename PutChar32>
+bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put)
+{
+    while (next != last)
+    {
+        char32_t U = 0;
+        next = cl::impl::DecodeUTF16Sequence(next, last, U);
+
+        if (!put(U))
+            return false;
+    }
+
+    return true;
+}
+
+template <typename It, typename PutChar32>
+bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put)
+{
+    while (next != last)
+    {
+        char32_t const U = static_cast<char32_t>(*next);
+        ++next;
+
+        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint))
+            return false;
+    }
+
+    return true;
+}
+
+// Convert to UTF-8.
+// The internal encoding used by the library is UTF-8.
+
+template <typename It>
+inline /*__forceinline*/ bool IsUTF8(It next, It last)
+{
+    return ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != kInvalidCodepoint; });
+}
+
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/)
+{
+    std::string s;
+
+    ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
+        if (U == kInvalidCodepoint)
+            U = 0xFFFD;
+
+        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        return true;
+    });
+
+    return s;
+}
+
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/)
+{
+    std::string s;
+
+    ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
+        if (U == kInvalidCodepoint)
+            U = 0xFFFD;
+
+        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        return true;
+    });
+
+    return s;
+}
+
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/)
+{
+    std::string s;
+
+    ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
+        if (U == kInvalidCodepoint)
+            U = 0xFFFD;
+
+        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        return true;
+    });
+
+    return s;
+}
+
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/)
+{
+#if CL_WCHAR_IS_CHAR16
+    return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
+#else
+    return ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
+#endif
+}
+
+} // namespace impl
+
+template <typename StringT>
+inline std::string ToUTF8(StringT const& str)
+{
+    using CharT = std::remove_reference_t<decltype(*str.begin())>;
+
+    return cl::impl::ToUTF8_dispatch(str.begin(), str.end(), static_cast<CharT const*>(nullptr));
+}
+
+template <typename ElemT>
+inline std::string ToUTF8(ElemT* const& c_str)
+{
+    using CharT = std::remove_const_t<ElemT>;
+
+    auto const len = (c_str != nullptr)
+        ? std::char_traits<CharT>::length(c_str)
+        : 0u;
+
+    return cl::impl::ToUTF8_dispatch(c_str, c_str + len, static_cast<CharT const*>(nullptr));
+}
+
+//==================================================================================================
 // Split strings
 //==================================================================================================
 
@@ -1160,6 +1160,803 @@ bool Split(string_view str, Splitter&& split, Function&& fn)
 }
 
 } // namespace impl
+
+//==================================================================================================
+//
+//==================================================================================================
+
+namespace impl {
+
+template <typename...> struct AlwaysVoid { using type = void; };
+template <typename... Ts> using Void_t = typename AlwaysVoid<Ts...>::type;
+
+template <typename T, typename /*Enable*/ = void>
+struct IsStreamExtractable
+    : std::false_type
+{
+};
+
+template <typename T>
+struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> std::declval<T&>()) >>
+    : std::true_type
+{
+};
+
+} // namespace impl
+
+// Convert the string representation in CTX.ARG into an object of type T.
+// Possibly emits diagnostics on error.
+template <typename T = void, typename /*Enable*/ = void>
+struct ParseValue
+{
+    static_assert(cl::impl::IsStreamExtractable<T>::value,
+        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
+
+    template <typename Stream = std::istringstream>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        using Traits = typename Stream::traits_type;
+
+        Stream stream{std::string(ctx.arg)};
+        stream >> value;
+
+        if (stream.fail()) // tests badbit | failbit
+            return false;
+        if (stream.eof())
+            return true;
+
+        CL_ASSERT(stream.good());
+
+        // Peek the next character and test for EOF.
+        // This function should fail if there are any characters left in the
+        // input stream, but there are cases for which all characters have been
+        // extracted and the eofbit is not set yet.
+        //
+        // E.g.
+        //  T = std::filesystem::path
+        //  arg = "\"C:/path with spaces/\""
+        //
+        // In this case, parsing will stop at the second escaped '"', such that
+        // all characters have been extracted, but the eofbit is not yet set.
+        return Traits::eq_int_type(stream.peek(), Traits::eof());
+    }
+};
+
+namespace impl {
+
+inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
+{
+    for (auto const& m : matches)
+    {
+        if (value == m)
+            return true;
+    }
+
+    return false;
+}
+
+} // namespace impl
+
+template <>
+struct ParseValue<bool>
+{
+    bool operator()(ParseContext const& ctx, bool& value) const
+    {
+        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
+            value = true;
+        else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
+            value = false;
+        else
+            return false;
+
+        return true;
+    }
+};
+
+namespace impl {
+
+template <typename T, typename Fn>
+bool StrToX(string_view sv, T& value, Fn fn)
+{
+    if (sv.empty())
+        return false;
+
+    std::string str(sv);
+
+    char const* const ptr = str.c_str();
+    char* end = nullptr;
+
+    int& ec = errno;
+
+    auto const ec0 = std::exchange(ec, 0);
+    auto const val = fn(ptr, &end);
+    auto const ec1 = std::exchange(ec, ec0);
+
+    if (ec1 == ERANGE)
+        return false;
+
+    if (end != ptr + str.size())
+        return false; // not all characters extracted
+
+    value = val;
+    return true;
+}
+
+// Note: Wrap into local function, to avoid instantiating StrToX with different
+// lambdas which actually all do the same thing: call strtol.
+inline bool StrToLongLong(string_view str, long long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
+}
+
+inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
+{
+    return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
+}
+
+struct ParseInt
+{
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        long long v = 0;
+        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
+        {
+            value = static_cast<T>(v);
+            return true;
+        }
+        return false;
+    }
+};
+
+struct ParseUnsignedInt
+{
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        unsigned long long v = 0;
+        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)())
+        {
+            value = static_cast<T>(v);
+            return true;
+        }
+        return false;
+    }
+};
+
+} // namespace impl
+
+template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed long        > : cl::impl::ParseInt {};
+template <> struct ParseValue< signed long long   > : cl::impl::ParseInt {};
+template <> struct ParseValue< unsigned char      > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
+template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
+
+template <>
+struct ParseValue<float>
+{
+    bool operator()(ParseContext const& ctx, float& value) const
+    {
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
+    }
+};
+
+template <>
+struct ParseValue<double>
+{
+    bool operator()(ParseContext const& ctx, double& value) const
+    {
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
+    }
+};
+
+template <>
+struct ParseValue<long double>
+{
+    bool operator()(ParseContext const& ctx, long double& value) const
+    {
+        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
+    }
+};
+
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<char, Traits, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char, Traits, Alloc>& value) const
+    {
+        // We know that ctx.arg is well-formed UTF-8 already.
+        // No need to re-check here.
+        value.assign(ctx.arg.begin(), ctx.arg.end());
+        return true;
+    }
+};
+
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<char16_t, Traits, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char16_t, Traits, Alloc>& value) const
+    {
+        value.clear();
+
+        // We know that ctx.arg is well-formed UTF-8 already.
+        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
+            CL_ASSERT(cl::impl::IsValidCodepoint(U));
+            cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(code_unit); });
+            return true;
+        });
+
+        return true;
+    }
+};
+
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<char32_t, Traits, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<char32_t, Traits, Alloc>& value) const
+    {
+        value.clear();
+
+        // We know that ctx.arg is well-formed UTF-8 already.
+        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
+            CL_ASSERT(cl::impl::IsValidCodepoint(U));
+            value.push_back(U);
+            return true;
+        });
+
+        return true;
+    }
+};
+
+template <typename Traits, typename Alloc>
+struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
+{
+    bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, Traits, Alloc>& value) const
+    {
+        value.clear();
+
+        // We know that ctx.arg is well-formed UTF-8 already.
+        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
+            CL_ASSERT(cl::impl::IsValidCodepoint(U));
+#if CL_WCHAR_IS_CHAR16
+            cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
+#else
+            value.push_back(static_cast<wchar_t>(U));
+#endif
+            return true;
+        });
+
+        return true;
+    }
+};
+
+template <>
+struct ParseValue<void>
+{
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) const
+    {
+        return ParseValue<T>{}(ctx, value);
+    }
+};
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+
+namespace check {
+
+// Returns a function object which checks whether a given value is in the range [lower, upper].
+template <typename T, typename U>
+auto InRange(T lower, U upper)
+{
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
+        return !(value < lower) && !(upper < value);
+    };
+}
+
+// Returns a function object which checks whether a given value is > lower.
+template <typename T>
+auto GreaterThan(T lower)
+{
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
+        return lower < value;
+    };
+}
+
+// Returns a function object which checks whether a given value is >= lower.
+template <typename T>
+auto GreaterEqual(T lower)
+{
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
+        return !(value < lower); // value >= lower
+    };
+}
+
+// Returns a function object which checks whether a given value is < upper.
+template <typename T>
+auto LessThan(T upper)
+{
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
+        return value < upper;
+    };
+}
+
+// Returns a function object which checks whether a given value is <= upper.
+template <typename T>
+auto LessEqual(T upper)
+{
+    return [=](ParseContext const& /*ctx*/, auto const& value) {
+        return !(upper < value); // upper >= value
+    };
+}
+
+} // namespace check
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+
+namespace impl {
+
+template <typename T>
+struct RemoveCVRec
+{
+    using type = std::remove_cv_t<T>;
+};
+
+template <template <typename...> class T, typename... Args>
+struct RemoveCVRec<T<Args...>>
+{
+    using type = T<typename RemoveCVRec<Args>::type...>;
+};
+
+template <typename T>
+using RemoveCVRec_t = typename RemoveCVRec<T>::type;
+
+// Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
+// Returns true iff all f return true.
+template <typename T, typename... Funcs>
+bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs)
+{
+    static_cast<void>(ctx_);   // may be unused if funcs is empty
+    static_cast<void>(value_); // may be unused if funcs is empty
+
+    bool res = true;
+    bool const unused[] = {(res = res && funcs(ctx_, value_))..., false};
+    static_cast<void>(unused);
+    return res;
+}
+
+template <typename T, typename /*Enable*/ = void>
+struct IsContainerImpl
+    : std::false_type
+{
+};
+
+template <typename T>
+struct IsContainerImpl<T, Void_t< decltype( std::declval<T&>().insert(std::declval<T&>().end(), std::declval<typename T::value_type>()) ) >>
+    : std::true_type
+{
+};
+
+template <typename T>
+struct IsContainer
+    : IsContainerImpl<T>
+{
+};
+
+// Do not handle strings as containers.
+template <typename Elem, typename Traits, typename Alloc>
+struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
+    : std::false_type
+{
+};
+
+template <typename T>
+using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
+
+} // namespace impl
+
+// Default parser for scalar types.
+// Uses an instance of Parser<> to convert the string.
+template <typename T, typename... Predicates>
+auto Assign(T& target, Predicates&&... preds)
+{
+    static_assert(!std::is_const<T>::value,
+        "Assign() requires mutable lvalue-references");
+    static_assert(std::is_default_constructible<T>::value,
+        "Assign() requires default-constructible types");
+    static_assert(std::is_move_assignable<T>::value,
+        "Assign() requires move-assignable types");
+
+    return [=, &target](ParseContext const& ctx) {
+        // Parse into a local variable so that target is not assigned if any of the predicates returns false.
+        T temp;
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        {
+            target = std::move(temp);
+            return true;
+        }
+        return false;
+    };
+}
+
+// Default parser for list types.
+// Uses an instance of Parser<> to convert the string and then inserts the
+// converted value into the container.
+// Predicates apply to the currently parsed value, not the whole list.
+template <typename T, typename... Predicates>
+auto PushBack(T& container, Predicates&&... preds)
+{
+    static_assert(!std::is_const<T>::value,
+        "PushBack() requires mutable lvalue-references");
+    static_assert(cl::impl::IsContainer_t<T>::value,
+        "PushBack() requires STL-style container types");
+    static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
+        "PushBack() requires default-constructible value_type's");
+
+    using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
+
+    return [=, &container](ParseContext const& ctx) {
+        V temp;
+        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        {
+            container.insert(container.end(), std::move(temp));
+            return true;
+        }
+        return false;
+    };
+}
+
+namespace impl {
+
+template <typename T, typename... Predicates>
+auto Var(std::false_type /*IsContainer*/, T& var, Predicates&&... preds)
+{
+    return cl::Assign(var, std::forward<Predicates>(preds)...);
+}
+
+template <typename T, typename... Predicates>
+auto Var(std::true_type /*IsContainer*/, T& var, Predicates&&... preds)
+{
+    return cl::PushBack(var, std::forward<Predicates>(preds)...);
+}
+
+} // namespace impl
+
+// Default parser.
+// Can be used as a replacement for Assign or PushBack (in almost all cases).
+template <typename T, typename... Predicates>
+auto Var(T& var, Predicates&&... preds)
+{
+    return cl::impl::Var(cl::impl::IsContainer_t<T>{}, var, std::forward<Predicates>(preds)...);
+}
+
+// Default parser for enum types.
+// Look up the key in the map and if it exists, returns the mapped value.
+template <typename T, typename... Predicates>
+auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
+{
+    static_assert(!std::is_const<T>::value,
+        "Map() requires mutable lvalue-references");
+    static_assert(std::is_copy_constructible<T>::value,
+        "Map() requires copy-constructible types");
+    static_assert(std::is_move_assignable<T>::value,
+        "Map() requires move-assignable types");
+
+    using MapType = std::vector<std::pair<char const*, T>>;
+
+    return [=, &value, map = MapType(ilist)](ParseContext const& ctx) {
+        for (auto const& p : map)
+        {
+            if (p.first != ctx.arg)
+                continue;
+
+            // Parse into a local variable to allow the predicates to modify the value.
+            T temp = p.second;
+            if (cl::impl::ApplyFuncs(ctx, temp, preds...))
+            {
+                value = std::move(temp);
+                return true;
+            }
+
+            break;
+        }
+
+        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
+            static_cast<int>(ctx.arg.size()), ctx.arg.data(),
+            static_cast<int>(ctx.name.size()), ctx.name.data());
+        for (auto const& p : map)
+            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
+
+        return false;
+    };
+}
+
+namespace impl {
+
+inline bool StartsWith(string_view str, string_view prefix)
+{
+    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
+
+} // namespace impl
+
+// For (boolean) flags.
+// Parses the options' argument and stores the result in 'var'.
+// If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
+template <typename T>
+auto Flag(T& var, std::string const& inverse_prefix = "no-")
+{
+    static_assert(!std::is_const<T>::value,
+        "Flag() requires mutable lvalue-references");
+
+    return [=, &var](ParseContext const& ctx) {
+        if (!ParseValue<>{}(ctx, var))
+            return false;
+        if (cl::impl::StartsWith(ctx.name, inverse_prefix))
+            var = !var;
+        return true;
+    };
+}
+
+//==================================================================================================
+//
+//==================================================================================================
+
+namespace impl {
+
+inline bool IsWhitespace(char ch)
+{
+    switch (ch)
+    {
+    case '\t':
+    case '\n':
+    case '\v':
+    case '\f':
+    case '\r':
+    case ' ':
+        return true;
+    default:
+        return false;
+    }
+}
+
+template <typename It>
+It SkipWhitespace(It next, It last)
+{
+    while (next != last && IsWhitespace(*next))
+        ++next;
+
+    return next;
+}
+
+template <typename It, typename Fn>
+It ParseArgUnix(It next, It last, Fn fn)
+{
+    std::string arg;
+
+    // See:
+    // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
+    // http://wiki.bash-hackers.org/syntax/quoting
+
+    char quote_char = '\0';
+
+    next = cl::impl::SkipWhitespace(next, last);
+
+    for (; next != last; ++next)
+    {
+        auto const ch = *next;
+
+        if (quote_char == '\\') // Quoting a single character using the backslash?
+        {
+            arg += ch;
+            quote_char = '\0';
+        }
+        else if (quote_char != '\0' && ch != quote_char) // Currently quoting using ' or "?
+        {
+            arg += ch;
+        }
+        else if (ch == '\'' || ch == '"' || ch == '\\') // Toggle quoting?
+        {
+            quote_char = (quote_char != '\0') ? '\0' : ch;
+        }
+        else if (cl::impl::IsWhitespace(ch)) // Arguments are separated by whitespace
+        {
+            ++next;
+            break;
+        }
+        else
+        {
+            arg += ch;
+        }
+    }
+
+    fn(std::move(arg));
+
+    return next;
+}
+
+template <typename It, typename Fn>
+It ParseProgramNameWindows(It next, It last, Fn fn)
+{
+    // TODO?!
+    //
+    // If the input string is empty, return a single command line argument
+    // consisting of the absolute path of the executable...
+
+    std::string arg;
+
+    if (next != last && !cl::impl::IsWhitespace(*next))
+    {
+        bool const quoting = (*next == '"');
+
+        if (quoting)
+            ++next;
+
+        for (; next != last; ++next)
+        {
+            auto const ch = *next;
+            if ((quoting && ch == '"') || (!quoting && cl::impl::IsWhitespace(ch)))
+            {
+                ++next;
+                break;
+            }
+            arg += ch;
+        }
+    }
+
+    fn(std::move(arg));
+
+    return next;
+}
+
+template <typename It, typename Fn>
+It ParseArgWindows(It next, It last, Fn fn)
+{
+    std::string arg;
+
+    bool quoting = false;
+    bool recently_closed = false;
+    size_t num_backslashes = 0;
+
+    next = cl::impl::SkipWhitespace(next, last);
+
+    for (; next != last; ++next)
+    {
+        auto const ch = *next;
+
+        if (ch == '"' && recently_closed)
+        {
+            recently_closed = false;
+
+            // If a closing " is followed immediately by another ", the 2nd
+            // " is accepted literally and added to the parameter.
+            //
+            // See:
+            // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
+
+            arg += '"';
+        }
+        else if (ch == '"')
+        {
+            // If an even number of backslashes is followed by a double
+            // quotation mark, one backslash is placed in the argv array for
+            // every pair of backslashes, and the double quotation mark is
+            // interpreted as a string delimiter.
+            //
+            // If an odd number of backslashes is followed by a double
+            // quotation mark, one backslash is placed in the argv array for
+            // every pair of backslashes, and the double quotation mark is
+            // "escaped" by the remaining backslash, causing a literal
+            // double quotation mark (") to be placed in argv.
+
+            bool const even = (num_backslashes % 2) == 0;
+
+            arg.append(num_backslashes / 2, '\\');
+            num_backslashes = 0;
+
+            if (even)
+            {
+                recently_closed = quoting; // Remember if this is a closing "
+                quoting = !quoting;
+            }
+            else
+            {
+                arg += '"';
+            }
+        }
+        else if (ch == '\\')
+        {
+            recently_closed = false;
+
+            ++num_backslashes;
+        }
+        else
+        {
+            recently_closed = false;
+
+            // Backslashes are interpreted literally, unless they
+            // immediately precede a double quotation mark.
+
+            arg.append(num_backslashes, '\\');
+            num_backslashes = 0;
+
+            if (!quoting && cl::impl::IsWhitespace(ch))
+            {
+                // Arguments are delimited by white space, which is either a
+                // space or a tab.
+                //
+                // A string surrounded by double quotation marks ("string")
+                // is interpreted as single argument, regardless of white
+                // space contained within. A quoted string can be embedded
+                // in an argument.
+                ++next;
+                break;
+            }
+
+            arg += ch;
+        }
+    }
+
+    if (!arg.empty() || quoting || recently_closed)
+        fn(std::move(arg));
+
+    return next;
+}
+
+} // namespace impl
+
+// Parse arguments from a command line string into an argv-array.
+// Using Bash-style escaping.
+inline std::vector<std::string> TokenizeUnix(string_view str)
+{
+    std::vector<std::string> argv;
+
+    auto push_back = [&](std::string arg) {
+        argv.push_back(std::move(arg));
+    };
+
+    auto next = str.data();
+    auto const last = str.data() + str.size();
+
+    while (next != last)
+        next = cl::impl::ParseArgUnix(next, last, push_back);
+
+    return argv;
+}
+
+enum class ParseProgramName : uint8_t {
+    no,
+    yes,
+};
+
+// Parse arguments from a command line string into an argv-array.
+// Using Windows-style escaping.
+inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramName parse_program_name = ParseProgramName::yes)
+{
+    std::vector<std::string> argv;
+
+    auto push_back = [&](std::string arg) {
+        argv.push_back(std::move(arg));
+    };
+
+    auto next = str.data();
+    auto const last = str.data() + str.size();
+
+    if (parse_program_name == ParseProgramName::yes)
+        next = cl::impl::ParseProgramNameWindows(next, last, push_back);
+
+    while (next != last)
+        next = cl::impl::ParseArgWindows(next, last, push_back);
+
+    return argv;
+}
 
 //==================================================================================================
 //
@@ -1984,803 +2781,6 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const
                 break;
         }
     }
-}
-
-//==================================================================================================
-//
-//==================================================================================================
-
-namespace impl {
-
-template <typename...> struct AlwaysVoid { using type = void; };
-template <typename... Ts> using Void_t = typename AlwaysVoid<Ts...>::type;
-
-template <typename T, typename /*Enable*/ = void>
-struct IsStreamExtractable
-    : std::false_type
-{
-};
-
-template <typename T>
-struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> std::declval<T&>()) >>
-    : std::true_type
-{
-};
-
-} // namespace impl
-
-// Convert the string representation in CTX.ARG into an object of type T.
-// Possibly emits diagnostics on error.
-template <typename T = void, typename /*Enable*/ = void>
-struct ParseValue
-{
-    static_assert(cl::impl::IsStreamExtractable<T>::value,
-        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
-
-    template <typename Stream = std::istringstream>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        using Traits = typename Stream::traits_type;
-
-        Stream stream{std::string(ctx.arg)};
-        stream >> value;
-
-        if (stream.fail()) // tests badbit | failbit
-            return false;
-        if (stream.eof())
-            return true;
-
-        CL_ASSERT(stream.good());
-
-        // Peek the next character and test for EOF.
-        // This function should fail if there are any characters left in the
-        // input stream, but there are cases for which all characters have been
-        // extracted and the eofbit is not set yet.
-        //
-        // E.g.
-        //  T = std::filesystem::path
-        //  arg = "\"C:/path with spaces/\""
-        //
-        // In this case, parsing will stop at the second escaped '"', such that
-        // all characters have been extracted, but the eofbit is not yet set.
-        return Traits::eq_int_type(stream.peek(), Traits::eof());
-    }
-};
-
-namespace impl {
-
-inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
-{
-    for (auto const& m : matches)
-    {
-        if (value == m)
-            return true;
-    }
-
-    return false;
-}
-
-} // namespace impl
-
-template <>
-struct ParseValue<bool>
-{
-    bool operator()(ParseContext const& ctx, bool& value) const
-    {
-        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
-            value = true;
-        else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
-            value = false;
-        else
-            return false;
-
-        return true;
-    }
-};
-
-namespace impl {
-
-template <typename T, typename Fn>
-bool StrToX(string_view sv, T& value, Fn fn)
-{
-    if (sv.empty())
-        return false;
-
-    std::string str(sv);
-
-    char const* const ptr = str.c_str();
-    char* end = nullptr;
-
-    int& ec = errno;
-
-    auto const ec0 = std::exchange(ec, 0);
-    auto const val = fn(ptr, &end);
-    auto const ec1 = std::exchange(ec, ec0);
-
-    if (ec1 == ERANGE)
-        return false;
-
-    if (end != ptr + str.size())
-        return false; // not all characters extracted
-
-    value = val;
-    return true;
-}
-
-// Note: Wrap into local function, to avoid instantiating StrToX with different
-// lambdas which actually all do the same thing: call strtol.
-inline bool StrToLongLong(string_view str, long long& value)
-{
-    return StrToX(str, value, [](char const* p, char** end) { return std::strtoll(p, end, 0); });
-}
-
-inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value)
-{
-    return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
-}
-
-struct ParseInt
-{
-    template <typename T>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        long long v = 0;
-        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)())
-        {
-            value = static_cast<T>(v);
-            return true;
-        }
-        return false;
-    }
-};
-
-struct ParseUnsignedInt
-{
-    template <typename T>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        unsigned long long v = 0;
-        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)())
-        {
-            value = static_cast<T>(v);
-            return true;
-        }
-        return false;
-    }
-};
-
-} // namespace impl
-
-template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed long        > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed long long   > : cl::impl::ParseInt {};
-template <> struct ParseValue< unsigned char      > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
-
-template <>
-struct ParseValue<float>
-{
-    bool operator()(ParseContext const& ctx, float& value) const
-    {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
-    }
-};
-
-template <>
-struct ParseValue<double>
-{
-    bool operator()(ParseContext const& ctx, double& value) const
-    {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
-    }
-};
-
-template <>
-struct ParseValue<long double>
-{
-    bool operator()(ParseContext const& ctx, long double& value) const
-    {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
-    }
-};
-
-template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char, Traits, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<char, Traits, Alloc>& value) const
-    {
-        // We know that ctx.arg is well-formed UTF-8 already.
-        // No need to re-check here.
-        value.assign(ctx.arg.begin(), ctx.arg.end());
-        return true;
-    }
-};
-
-template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char16_t, Traits, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<char16_t, Traits, Alloc>& value) const
-    {
-        value.clear();
-
-        // We know that ctx.arg is well-formed UTF-8 already.
-        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
-            CL_ASSERT(cl::impl::IsValidCodepoint(U));
-            cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(code_unit); });
-            return true;
-        });
-
-        return true;
-    }
-};
-
-template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char32_t, Traits, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<char32_t, Traits, Alloc>& value) const
-    {
-        value.clear();
-
-        // We know that ctx.arg is well-formed UTF-8 already.
-        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
-            CL_ASSERT(cl::impl::IsValidCodepoint(U));
-            value.push_back(U);
-            return true;
-        });
-
-        return true;
-    }
-};
-
-template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>>
-{
-    bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, Traits, Alloc>& value) const
-    {
-        value.clear();
-
-        // We know that ctx.arg is well-formed UTF-8 already.
-        cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
-            CL_ASSERT(cl::impl::IsValidCodepoint(U));
-#if CL_WCHAR_IS_CHAR16
-            cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
-#else
-            value.push_back(static_cast<wchar_t>(U));
-#endif
-            return true;
-        });
-
-        return true;
-    }
-};
-
-template <>
-struct ParseValue<void>
-{
-    template <typename T>
-    bool operator()(ParseContext const& ctx, T& value) const
-    {
-        return ParseValue<T>{}(ctx, value);
-    }
-};
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-
-namespace check {
-
-// Returns a function object which checks whether a given value is in the range [lower, upper].
-template <typename T, typename U>
-auto InRange(T lower, U upper)
-{
-    return [=](ParseContext const& /*ctx*/, auto const& value) {
-        return !(value < lower) && !(upper < value);
-    };
-}
-
-// Returns a function object which checks whether a given value is > lower.
-template <typename T>
-auto GreaterThan(T lower)
-{
-    return [=](ParseContext const& /*ctx*/, auto const& value) {
-        return lower < value;
-    };
-}
-
-// Returns a function object which checks whether a given value is >= lower.
-template <typename T>
-auto GreaterEqual(T lower)
-{
-    return [=](ParseContext const& /*ctx*/, auto const& value) {
-        return !(value < lower); // value >= lower
-    };
-}
-
-// Returns a function object which checks whether a given value is < upper.
-template <typename T>
-auto LessThan(T upper)
-{
-    return [=](ParseContext const& /*ctx*/, auto const& value) {
-        return value < upper;
-    };
-}
-
-// Returns a function object which checks whether a given value is <= upper.
-template <typename T>
-auto LessEqual(T upper)
-{
-    return [=](ParseContext const& /*ctx*/, auto const& value) {
-        return !(upper < value); // upper >= value
-    };
-}
-
-} // namespace check
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-
-namespace impl {
-
-template <typename T>
-struct RemoveCVRec
-{
-    using type = std::remove_cv_t<T>;
-};
-
-template <template <typename...> class T, typename... Args>
-struct RemoveCVRec<T<Args...>>
-{
-    using type = T<typename RemoveCVRec<Args>::type...>;
-};
-
-template <typename T>
-using RemoveCVRec_t = typename RemoveCVRec<T>::type;
-
-// Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
-// Returns true iff all f return true.
-template <typename T, typename... Funcs>
-bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs)
-{
-    static_cast<void>(ctx_);   // may be unused if funcs is empty
-    static_cast<void>(value_); // may be unused if funcs is empty
-
-    bool res = true;
-    bool const unused[] = {(res = res && funcs(ctx_, value_))..., false};
-    static_cast<void>(unused);
-    return res;
-}
-
-template <typename T, typename /*Enable*/ = void>
-struct IsContainerImpl
-    : std::false_type
-{
-};
-
-template <typename T>
-struct IsContainerImpl<T, Void_t< decltype( std::declval<T&>().insert(std::declval<T&>().end(), std::declval<typename T::value_type>()) ) >>
-    : std::true_type
-{
-};
-
-template <typename T>
-struct IsContainer
-    : IsContainerImpl<T>
-{
-};
-
-// Do not handle strings as containers.
-template <typename Elem, typename Traits, typename Alloc>
-struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
-    : std::false_type
-{
-};
-
-template <typename T>
-using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
-
-} // namespace impl
-
-// Default parser for scalar types.
-// Uses an instance of Parser<> to convert the string.
-template <typename T, typename... Predicates>
-auto Assign(T& target, Predicates&&... preds)
-{
-    static_assert(!std::is_const<T>::value,
-        "Assign() requires mutable lvalue-references");
-    static_assert(std::is_default_constructible<T>::value,
-        "Assign() requires default-constructible types");
-    static_assert(std::is_move_assignable<T>::value,
-        "Assign() requires move-assignable types");
-
-    return [=, &target](ParseContext const& ctx) {
-        // Parse into a local variable so that target is not assigned if any of the predicates returns false.
-        T temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
-        {
-            target = std::move(temp);
-            return true;
-        }
-        return false;
-    };
-}
-
-// Default parser for list types.
-// Uses an instance of Parser<> to convert the string and then inserts the
-// converted value into the container.
-// Predicates apply to the currently parsed value, not the whole list.
-template <typename T, typename... Predicates>
-auto PushBack(T& container, Predicates&&... preds)
-{
-    static_assert(!std::is_const<T>::value,
-        "PushBack() requires mutable lvalue-references");
-    static_assert(cl::impl::IsContainer_t<T>::value,
-        "PushBack() requires STL-style container types");
-    static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
-        "PushBack() requires default-constructible value_type's");
-
-    using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
-
-    return [=, &container](ParseContext const& ctx) {
-        V temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
-        {
-            container.insert(container.end(), std::move(temp));
-            return true;
-        }
-        return false;
-    };
-}
-
-namespace impl {
-
-template <typename T, typename... Predicates>
-auto Var(std::false_type /*IsContainer*/, T& var, Predicates&&... preds)
-{
-    return cl::Assign(var, std::forward<Predicates>(preds)...);
-}
-
-template <typename T, typename... Predicates>
-auto Var(std::true_type /*IsContainer*/, T& var, Predicates&&... preds)
-{
-    return cl::PushBack(var, std::forward<Predicates>(preds)...);
-}
-
-} // namespace impl
-
-// Default parser.
-// Can be used as a replacement for Assign or PushBack (in almost all cases).
-template <typename T, typename... Predicates>
-auto Var(T& var, Predicates&&... preds)
-{
-    return cl::impl::Var(cl::impl::IsContainer_t<T>{}, var, std::forward<Predicates>(preds)...);
-}
-
-// Default parser for enum types.
-// Look up the key in the map and if it exists, returns the mapped value.
-template <typename T, typename... Predicates>
-auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds)
-{
-    static_assert(!std::is_const<T>::value,
-        "Map() requires mutable lvalue-references");
-    static_assert(std::is_copy_constructible<T>::value,
-        "Map() requires copy-constructible types");
-    static_assert(std::is_move_assignable<T>::value,
-        "Map() requires move-assignable types");
-
-    using MapType = std::vector<std::pair<char const*, T>>;
-
-    return [=, &value, map = MapType(ilist)](ParseContext const& ctx) {
-        for (auto const& p : map)
-        {
-            if (p.first != ctx.arg)
-                continue;
-
-            // Parse into a local variable to allow the predicates to modify the value.
-            T temp = p.second;
-            if (cl::impl::ApplyFuncs(ctx, temp, preds...))
-            {
-                value = std::move(temp);
-                return true;
-            }
-
-            break;
-        }
-
-        ctx.cmdline->FormatDiag(Diagnostic::error, ctx.index, "invalid argument '%.*s' for option '%.*s'",
-            static_cast<int>(ctx.arg.size()), ctx.arg.data(),
-            static_cast<int>(ctx.name.size()), ctx.name.data());
-        for (auto const& p : map)
-            ctx.cmdline->FormatDiag(Diagnostic::note, ctx.index, "could be '%s'", p.first);
-
-        return false;
-    };
-}
-
-namespace impl {
-
-inline bool StartsWith(string_view str, string_view prefix)
-{
-    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
-}
-
-} // namespace impl
-
-// For (boolean) flags.
-// Parses the options' argument and stores the result in 'var'.
-// If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
-template <typename T>
-auto Flag(T& var, std::string const& inverse_prefix = "no-")
-{
-    static_assert(!std::is_const<T>::value,
-        "Flag() requires mutable lvalue-references");
-
-    return [=, &var](ParseContext const& ctx) {
-        if (!ParseValue<>{}(ctx, var))
-            return false;
-        if (cl::impl::StartsWith(ctx.name, inverse_prefix))
-            var = !var;
-        return true;
-    };
-}
-
-//==================================================================================================
-//
-//==================================================================================================
-
-namespace impl {
-
-inline bool IsWhitespace(char ch)
-{
-    switch (ch)
-    {
-    case '\t':
-    case '\n':
-    case '\v':
-    case '\f':
-    case '\r':
-    case ' ':
-        return true;
-    default:
-        return false;
-    }
-}
-
-template <typename It>
-It SkipWhitespace(It next, It last)
-{
-    while (next != last && IsWhitespace(*next))
-        ++next;
-
-    return next;
-}
-
-template <typename It, typename Fn>
-It ParseArgUnix(It next, It last, Fn fn)
-{
-    std::string arg;
-
-    // See:
-    // http://www.gnu.org/software/bash/manual/bashref.html#Quoting
-    // http://wiki.bash-hackers.org/syntax/quoting
-
-    char quote_char = '\0';
-
-    next = cl::impl::SkipWhitespace(next, last);
-
-    for (; next != last; ++next)
-    {
-        auto const ch = *next;
-
-        if (quote_char == '\\') // Quoting a single character using the backslash?
-        {
-            arg += ch;
-            quote_char = '\0';
-        }
-        else if (quote_char != '\0' && ch != quote_char) // Currently quoting using ' or "?
-        {
-            arg += ch;
-        }
-        else if (ch == '\'' || ch == '"' || ch == '\\') // Toggle quoting?
-        {
-            quote_char = (quote_char != '\0') ? '\0' : ch;
-        }
-        else if (cl::impl::IsWhitespace(ch)) // Arguments are separated by whitespace
-        {
-            ++next;
-            break;
-        }
-        else
-        {
-            arg += ch;
-        }
-    }
-
-    fn(std::move(arg));
-
-    return next;
-}
-
-template <typename It, typename Fn>
-It ParseProgramNameWindows(It next, It last, Fn fn)
-{
-    // TODO?!
-    //
-    // If the input string is empty, return a single command line argument
-    // consisting of the absolute path of the executable...
-
-    std::string arg;
-
-    if (next != last && !cl::impl::IsWhitespace(*next))
-    {
-        bool const quoting = (*next == '"');
-
-        if (quoting)
-            ++next;
-
-        for (; next != last; ++next)
-        {
-            auto const ch = *next;
-            if ((quoting && ch == '"') || (!quoting && cl::impl::IsWhitespace(ch)))
-            {
-                ++next;
-                break;
-            }
-            arg += ch;
-        }
-    }
-
-    fn(std::move(arg));
-
-    return next;
-}
-
-template <typename It, typename Fn>
-It ParseArgWindows(It next, It last, Fn fn)
-{
-    std::string arg;
-
-    bool quoting = false;
-    bool recently_closed = false;
-    size_t num_backslashes = 0;
-
-    next = cl::impl::SkipWhitespace(next, last);
-
-    for (; next != last; ++next)
-    {
-        auto const ch = *next;
-
-        if (ch == '"' && recently_closed)
-        {
-            recently_closed = false;
-
-            // If a closing " is followed immediately by another ", the 2nd
-            // " is accepted literally and added to the parameter.
-            //
-            // See:
-            // http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINCRULESDOC
-
-            arg += '"';
-        }
-        else if (ch == '"')
-        {
-            // If an even number of backslashes is followed by a double
-            // quotation mark, one backslash is placed in the argv array for
-            // every pair of backslashes, and the double quotation mark is
-            // interpreted as a string delimiter.
-            //
-            // If an odd number of backslashes is followed by a double
-            // quotation mark, one backslash is placed in the argv array for
-            // every pair of backslashes, and the double quotation mark is
-            // "escaped" by the remaining backslash, causing a literal
-            // double quotation mark (") to be placed in argv.
-
-            bool const even = (num_backslashes % 2) == 0;
-
-            arg.append(num_backslashes / 2, '\\');
-            num_backslashes = 0;
-
-            if (even)
-            {
-                recently_closed = quoting; // Remember if this is a closing "
-                quoting = !quoting;
-            }
-            else
-            {
-                arg += '"';
-            }
-        }
-        else if (ch == '\\')
-        {
-            recently_closed = false;
-
-            ++num_backslashes;
-        }
-        else
-        {
-            recently_closed = false;
-
-            // Backslashes are interpreted literally, unless they
-            // immediately precede a double quotation mark.
-
-            arg.append(num_backslashes, '\\');
-            num_backslashes = 0;
-
-            if (!quoting && cl::impl::IsWhitespace(ch))
-            {
-                // Arguments are delimited by white space, which is either a
-                // space or a tab.
-                //
-                // A string surrounded by double quotation marks ("string")
-                // is interpreted as single argument, regardless of white
-                // space contained within. A quoted string can be embedded
-                // in an argument.
-                ++next;
-                break;
-            }
-
-            arg += ch;
-        }
-    }
-
-    if (!arg.empty() || quoting || recently_closed)
-        fn(std::move(arg));
-
-    return next;
-}
-
-} // namespace impl
-
-// Parse arguments from a command line string into an argv-array.
-// Using Bash-style escaping.
-inline std::vector<std::string> TokenizeUnix(string_view str)
-{
-    std::vector<std::string> argv;
-
-    auto push_back = [&](std::string arg) {
-        argv.push_back(std::move(arg));
-    };
-
-    auto next = str.data();
-    auto const last = str.data() + str.size();
-
-    while (next != last)
-        next = cl::impl::ParseArgUnix(next, last, push_back);
-
-    return argv;
-}
-
-enum class ParseProgramName : uint8_t {
-    no,
-    yes,
-};
-
-// Parse arguments from a command line string into an argv-array.
-// Using Windows-style escaping.
-inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramName parse_program_name = ParseProgramName::yes)
-{
-    std::vector<std::string> argv;
-
-    auto push_back = [&](std::string arg) {
-        argv.push_back(std::move(arg));
-    };
-
-    auto next = str.data();
-    auto const last = str.data() + str.size();
-
-    if (parse_program_name == ParseProgramName::yes)
-        next = cl::impl::ParseProgramNameWindows(next, last, push_back);
-
-    while (next != last)
-        next = cl::impl::ParseArgWindows(next, last, push_back);
-
-    return argv;
 }
 
 } // namespace cl
