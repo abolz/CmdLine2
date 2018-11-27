@@ -2616,7 +2616,10 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         }
 
         // The option accepts an argument, but may not join its argument.
-        EmitDiag(Diagnostic::error, curr_index_, "option '", &optstr[n], "' must be the last in a group");
+        EmitDiag(Diagnostic::error, curr_index_, "option '", opt->name(), "' must be the last in a group");
+        EmitDiag(Diagnostic::note, curr_index_, "in group '", optstr, "' at position ", std::to_string(n + 1), ": '",
+            opt->name(), "' accepts an argument which may not join the option");
+
         return Status::error;
     }
 
@@ -2733,7 +2736,12 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
     {
         cl::impl::Split(arg, cl::impl::ByChar(','), [&](string_view s) {
             res = Parse1(s);
-            return res == Status::success;
+            if (res != Status::success)
+            {
+                EmitDiag(Diagnostic::note, curr_index_, "in comma-separated argument '", arg, "'");
+                return false;
+            }
+            return true;
         });
     }
     else
