@@ -532,7 +532,6 @@ class Cmdline final
     using Diagnostics   = std::vector<Diagnostic>;
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
     using Options       = std::vector<NameOptionPair>;
-    using SubCommands   = std::vector<Cmdline*>;
 
     string_view name_;             // Program/sub-command name
     Diagnostics diag_;             // List of diagnostic messages
