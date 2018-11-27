@@ -532,7 +532,9 @@ class Cmdline final
     using Diagnostics   = std::vector<Diagnostic>;
     using UniqueOptions = std::vector<std::unique_ptr<OptionBase>>;
     using Options       = std::vector<NameOptionPair>;
+    using SubCommands   = std::vector<Cmdline*>;
 
+    string_view name_;             // Program/sub-command name
     Diagnostics diag_;             // List of diagnostic messages
     UniqueOptions unique_options_; // Option storage.
     Options options_;              // List of options. Includes the positional options (in order).
@@ -542,12 +544,15 @@ class Cmdline final
     bool dashdash_ = false;        // "--" seen?
 
 public:
-    Cmdline();
+    Cmdline(char const* name = nullptr);
     Cmdline(Cmdline const&) = delete;
     Cmdline(Cmdline&&) = delete;
     Cmdline& operator=(Cmdline const&) = delete;
     Cmdline& operator=(Cmdline&&) = delete;
     ~Cmdline();
+
+    // Returns the name of the program or sub-command
+    string_view name() const { return name_; }
 
     // Returns the diagnostic messages
     std::vector<Diagnostic> const& diag() const { return diag_; }
@@ -616,10 +621,10 @@ public:
     };
 
     // Returns a short help message listing all registered options.
-    std::string FormatHelp(string_view program_name, HelpFormat const& fmt = {}) const;
+    std::string FormatHelp(HelpFormat const& fmt = {}) const;
 
     // Prints the help message to stderr
-    void PrintHelp(string_view program_name, HelpFormat const& fmt = {}) const;
+    void PrintHelp(HelpFormat const& fmt = {}) const;
 
 private:
     enum class Status : uint8_t {
@@ -2005,7 +2010,10 @@ bool Option<Parser>::Parse(ParseContext const& ctx)
 //
 //--------------------------------------------------------------------------------------------------
 
-inline Cmdline::Cmdline() = default;
+inline Cmdline::Cmdline(char const* name)
+    : name_(name)
+{
+}
 
 inline Cmdline::~Cmdline() = default;
 
@@ -2158,6 +2166,13 @@ inline void Cmdline::PrintDiag() const
     for (auto const& d : diag_)
     {
         fflush(stderr);
+
+        if (!name_.empty())
+        {
+            fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
+            fflush(stderr);
+        }
+
         switch (d.type)
         {
         case Diagnostic::error:
@@ -2197,6 +2212,9 @@ inline void Cmdline::PrintDiag() const
 {
     for (auto const& d : diag_)
     {
+        if (!name_.empty())
+            fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
+
         switch (d.type)
         {
         case Diagnostic::error:
@@ -2321,7 +2339,7 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
 
 } // namespace impl
 
-inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat const& fmt) const
+inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const
 {
     CL_ASSERT(fmt.descr_indent > fmt.indent);
     CL_ASSERT(fmt.descr_indent < SIZE_MAX);
@@ -2332,7 +2350,7 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
 
     std::string res = "Usage:\n";
     res.append(fmt.indent, ' ');
-    res.append(program_name.data(), program_name.size());
+    res.append(name().data(), name().size());
 
     std::string sopt;
     std::string spos;
@@ -2392,9 +2410,9 @@ inline std::string Cmdline::FormatHelp(string_view program_name, HelpFormat cons
     return res;
 }
 
-inline void Cmdline::PrintHelp(string_view program_name, HelpFormat const& fmt) const
+inline void Cmdline::PrintHelp(HelpFormat const& fmt) const
 {
-    auto const msg = FormatHelp(program_name, fmt);
+    auto const msg = FormatHelp(fmt);
     fprintf(stderr, "%s\n", msg.c_str());
 }
 

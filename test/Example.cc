@@ -9,13 +9,13 @@ static int i = 0;
 static Standard standard = Standard::cxx11;
 static std::vector<std::string> input_files;
 
-#if 0
+#if _MSC_VER
 int wmain(int argc, wchar_t* argv[])
 #else
 int main(int argc, char* argv[])
 #endif
 {
-    cl::Cmdline cli;
+    cl::Cmdline cli("Example");
 
     cli.Add("v", "Increase output verbosity",
         cl::Var(verbose),
@@ -42,8 +42,8 @@ int main(int argc, char* argv[])
     auto const res = cli.Parse(argv + 1, argv + argc);
     if (!res)
     {
-        cli.PrintDiag();
-        cli.PrintHelp("Example"); // Print help message to stderr.
+        cli.PrintDiag(); // Print error messages to stderr.
+        cli.PrintHelp(); // Print help message to stderr.
         return -1;
     }
 
