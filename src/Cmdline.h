@@ -543,7 +543,7 @@ class Cmdline final
     bool dashdash_ = false;        // "--" seen?
 
 public:
-    Cmdline(char const* name = nullptr);
+    Cmdline(char const* name = "");
     Cmdline(Cmdline const&) = delete;
     Cmdline(Cmdline&&) = delete;
     Cmdline& operator=(Cmdline const&) = delete;
