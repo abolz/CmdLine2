@@ -627,6 +627,8 @@ public:
     void PrintHelp(HelpFormat const& fmt = {}) const;
 
 private:
+    void DebugCheck() const;
+
     enum class Status : uint8_t {
         success,
         done,
@@ -2414,6 +2416,10 @@ inline void Cmdline::PrintHelp(HelpFormat const& fmt) const
 {
     auto const msg = FormatHelp(fmt);
     fprintf(stderr, "%s\n", msg.c_str());
+}
+
+inline void Cmdline::DebugCheck() const
+{
 }
 
 inline OptionBase* Cmdline::FindOption(string_view name) const
