@@ -1210,8 +1210,6 @@ struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> 
 {
 };
 
-} // namespace impl
-
 // Convert the string representation in CTX.ARG into an object of type T.
 // Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
@@ -1288,8 +1286,6 @@ struct ParseValue<bool>
     }
 };
 
-namespace impl {
-
 template <typename T, typename Fn>
 bool StrToX(string_view sv, T& value, Fn fn)
 {
@@ -1358,8 +1354,6 @@ struct ParseUnsignedInt
         return false;
     }
 };
-
-} // namespace impl
 
 template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
@@ -1478,6 +1472,8 @@ struct ParseValue<void>
         return ParseValue<T>{}(ctx, value);
     }
 };
+
+} // namespace impl
 
 //--------------------------------------------------------------------------------------------------
 //
@@ -1612,7 +1608,7 @@ auto Assign(T& target, Predicates&&... preds)
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ParseValue<>{}, preds...))
         {
             target = std::move(temp);
             return true;
@@ -1639,7 +1635,7 @@ auto PushBack(T& container, Predicates&&... preds)
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, ParseValue<>{}, preds...))
+        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ParseValue<>{}, preds...))
         {
             container.insert(container.end(), std::move(temp));
             return true;
@@ -1730,7 +1726,7 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-")
         "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
-        if (!ParseValue<>{}(ctx, var))
+        if (!cl::impl::ParseValue<>{}(ctx, var))
             return false;
         if (cl::impl::StartsWith(ctx.name, inverse_prefix))
             var = !var;
@@ -2067,7 +2063,8 @@ void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&... args)
 template <typename ParserInit, typename... Args>
 Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
 {
-    auto opt = cl::MakeUniqueOption(name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+    auto opt = std::make_unique<Option<std::decay_t<ParserInit>>>(
+        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
 
     auto const p = opt.get();
     Add(std::move(opt));
