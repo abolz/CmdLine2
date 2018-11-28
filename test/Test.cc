@@ -1396,3 +1396,57 @@ TEST_CASE("UTF-16")
         ++i;
     }
 }
+
+#if 0
+#include <filesystem>
+
+TEST_CASE("std::path 1")
+{
+    std::filesystem::path p;
+
+    cl::Cmdline cli;
+    cli.Add("p", "path", cl::Var(p), cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    p = "";
+    CHECK(true == ParseArgs(cli, {"-p", "path_without_spaces"}));
+    cli.PrintDiag();
+    CHECK(p.generic_string() == "path_without_spaces");
+    p = "";
+    CHECK(true == ParseArgs(cli, {"-p", "\"quoted path with spaces\""}));
+    cli.PrintDiag();
+    CHECK(p.generic_string() == "quoted path with spaces");
+    //p = "";
+    //CHECK(true == ParseArgs(cli, {"-p", "'quoted path with spaces'"}));
+    //cli.PrintDiag();
+    //CHECK(p.generic_string() == "quoted path with spaces");
+    //p = "";
+    //CHECK(true == ParseArgs(cli, {"-p", "path with spaces"}));
+    //cli.PrintDiag();
+    //CHECK(p.generic_string() == "path with spaces");
+}
+
+TEST_CASE("std::path 2")
+{
+    std::filesystem::path p;
+
+    cl::Cmdline cli;
+    cli.Add("p", "path", [&](cl::ParseContext const& ctx) { p.assign(ctx.arg.begin(), ctx.arg.end()); }, cl::NumOpts::zero_or_more, cl::HasArg::required);
+
+    p = "";
+    CHECK(true == ParseArgs(cli, {"-p", "path_without_spaces"}));
+    cli.PrintDiag();
+    CHECK(p.generic_string() == "path_without_spaces");
+    //p = "";
+    //CHECK(true == ParseArgs(cli, {"-p", "\"quoted path with spaces\""}));
+    //cli.PrintDiag();
+    //CHECK(p.generic_string() == "quoted path with spaces");
+    //p = "";
+    //CHECK(true == ParseArgs(cli, {"-p", "'quoted path with spaces'"}));
+    //cli.PrintDiag();
+    //CHECK(p.generic_string() == "quoted path with spaces");
+    p = "";
+    CHECK(true == ParseArgs(cli, {"-p", "path with spaces"}));
+    cli.PrintDiag();
+    CHECK(p.generic_string() == "path with spaces");
+}
+#endif
