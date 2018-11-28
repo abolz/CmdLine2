@@ -933,23 +933,20 @@ TEST_CASE("Tokenize Windows 2")
     bool a = false;
     bool b = false;
     bool c = false;
-    bool d = false;
 
     cl::Cmdline cl;
     cl.Add("a", "<descr>", cl::Var(a), cl::NumOpts::zero_or_more, cl::HasArg::no,       cl::MayGroup::yes);
     cl.Add("b", "<descr>", cl::Var(b), cl::NumOpts::zero_or_more, cl::HasArg::optional, cl::MayGroup::yes);
     cl.Add("c", "<descr>", cl::Var(c), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayGroup::yes);
-    cl.Add("d", "<descr>", cl::Var(d), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::JoinArg::yes);
 
     char const* command_line
-        = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true -dtrue -dno -d1";
+        = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true";
 
     CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, cl::ParseProgramName::yes)));
     cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);
     CHECK(c == true);
-    CHECK(d == true);
 }
 
 static auto Flag(bool& target)
@@ -1057,7 +1054,7 @@ TEST_CASE("Ex 2")
 
             return true;
         },
-        cl::JoinArg::yes,
+        cl::MayJoin::yes,
         cl::HasArg::yes,
         cl::NumOpts::required
         );

@@ -300,7 +300,7 @@ enum class HasArg : uint8_t {
 };
 
 // Controls whether the option may/must join its argument.
-enum class JoinArg : uint8_t {
+enum class MayJoin : uint8_t {
     // The option must not join its argument: "-I dir" and "-I=dir" are
     // possible. If the option is specified with an equals sign ("-I=dir") the
     // '=' will NOT be part of the option argument.
@@ -308,10 +308,6 @@ enum class JoinArg : uint8_t {
     no,
     // The option may join its argument: "-I dir" and "-Idir" are possible. If
     // the option is specified with an equals sign ("-I=dir") the '=' will be
-    // part of the option argument.
-    optional,
-    // The option must join its argument: "-Idir" is the only possible format.
-    // If the option is specified with an equals sign ("-I=dir") the '=' will be
     // part of the option argument.
     yes,
 };
@@ -381,7 +377,7 @@ class OptionBase
     // Flags controlling how the option may/must be specified.
     NumOpts        num_opts_        = NumOpts::optional;
     HasArg         has_arg_         = HasArg::no;
-    JoinArg        join_arg_        = JoinArg::no;
+    MayJoin        join_arg_        = MayJoin::no;
     MayGroup       may_group_       = MayGroup::no;
     Positional     positional_      = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
@@ -395,7 +391,7 @@ private:
 
     void Apply(NumOpts        v) { num_opts_        = v; }
     void Apply(HasArg         v) { has_arg_         = v; }
-    void Apply(JoinArg        v) { join_arg_        = v; }
+    void Apply(MayJoin        v) { join_arg_        = v; }
     void Apply(MayGroup       v) { may_group_       = v; }
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
@@ -422,7 +418,7 @@ public:
     // Returns the flags controlling how the option may/must be specified.
     bool has_flag(NumOpts        f) const { return num_opts_        == f; }
     bool has_flag(HasArg         f) const { return has_arg_         == f; }
-    bool has_flag(JoinArg        f) const { return join_arg_        == f; }
+    bool has_flag(MayJoin        f) const { return join_arg_        == f; }
     bool has_flag(MayGroup       f) const { return may_group_       == f; }
     bool has_flag(Positional     f) const { return positional_      == f; }
     bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
@@ -2074,7 +2070,7 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
         CL_ASSERT(name.find('"') == string_view::npos);
         CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
 
-        if (!opt->has_flag(JoinArg::no))
+        if (opt->has_flag(MayJoin::yes))
         {
             auto const n = static_cast<int>(name.size());
             if (max_prefix_len_ < n)
@@ -2341,7 +2337,7 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
         char const* const arg_name
             = opt->has_flag(HasArg::optional)
                 ? "=<arg>"
-                : opt->has_flag(JoinArg::no)
+                : opt->has_flag(MayJoin::no)
                     ? " <arg>"
                     :  "<arg>";
 
@@ -2579,7 +2575,7 @@ inline Cmdline::Status Cmdline::HandleOption(string_view optstr)
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->has_flag(JoinArg::no))
+            if (opt->has_flag(MayJoin::no))
                 ++arg_start;
 
             return HandleOccurrence(opt, name, optstr.substr(arg_start));
@@ -2604,7 +2600,7 @@ inline Cmdline::Status Cmdline::HandlePrefix(string_view optstr)
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt != nullptr && !opt->has_flag(JoinArg::no))
+        if (opt != nullptr && !opt->has_flag(MayJoin::no))
             return HandleOccurrence(opt, name, optstr.substr(n));
     }
 
@@ -2643,7 +2639,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         // The option requires an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
-        if (optstr[n + 1] == '=' || !opt->has_flag(JoinArg::no))
+        if (optstr[n + 1] == '=' || !opt->has_flag(MayJoin::no))
         {
             group.push_back(opt);
             break;
@@ -2677,7 +2673,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
 
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->has_flag(JoinArg::no))
+        if (optstr[arg_start] == '=' && opt->has_flag(MayJoin::no))
             ++arg_start;
 
         return HandleOccurrence(opt, name, optstr.substr(arg_start));
@@ -2692,21 +2688,19 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     CL_ASSERT(curr != last);
 
     // We get here if no argument was specified.
-    // If the option must join its argument, this is an error.
-    if (!opt->has_flag(JoinArg::yes))
+    // If an argument is required, try to steal one from the command line.
+
+    if (!opt->has_flag(HasArg::required))
+        return ParseOptionArgument(opt, name, {});
+
+    // If the option requires an argument, steal one from the command line.
+    ++curr;
+    ++curr_index_;
+
+    if (curr != last)
     {
-        if (!opt->has_flag(HasArg::required))
-            return ParseOptionArgument(opt, name, {});
-
-        // If the option requires an argument, steal one from the command line.
-        ++curr;
-        ++curr_index_;
-
-        if (curr != last)
-        {
-            std::string const arg = cl::ToUTF8(*curr);
-            return ParseOptionArgument(opt, name, arg);
-        }
+        std::string const arg = cl::ToUTF8(*curr);
+        return ParseOptionArgument(opt, name, arg);
     }
 
     EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' requires an argument");
