@@ -474,24 +474,9 @@ private:
 
 #if CL_HAS_DEDUCTION_GUIDES
 template <typename ParserInit, typename... Args>
-Option(char const*, char const*, ParserInit&&, Args&&...) -> Option<std::decay_t<ParserInit>>;
+Option(char const*, char const*, ParserInit&&, Args&&...)
+    -> Option<std::decay_t<ParserInit>>;
 #endif
-
-// Creates a new option from the given arguments.
-template <typename ParserInit, typename... Args>
-auto MakeOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-{
-    return Option<std::decay_t<ParserInit>>(
-        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
-}
-
-// Creates a new option from the given arguments wrapped into a unique_ptr.
-template <typename ParserInit, typename... Args>
-auto MakeUniqueOption(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-{
-    return std::make_unique<Option<std::decay_t<ParserInit>>>(
-        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
-}
 
 struct Diagnostic
 {
