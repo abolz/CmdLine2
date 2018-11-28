@@ -909,7 +909,7 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put)
 // The internal encoding used by the library is UTF-8.
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/)
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::input_iterator_tag /*cat*/)
 {
     std::string s;
 
@@ -922,6 +922,38 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
     });
 
     return s;
+}
+
+#if 1
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::forward_iterator_tag /*cat*/)
+{
+    std::string s;
+//  s.reserve(std::distance(next, last));
+
+    while (next != last)
+    {
+        char32_t U = 0;
+        auto const I = cl::impl::DecodeUTF8Sequence(next, last, U);
+
+        if (U == kInvalidCodepoint)
+            s.append("\xEF\xBF\xBD", 3);
+        else
+            s.append(next, I);
+
+        next = I;
+    }
+
+    return s;
+}
+#endif
+
+template <typename It>
+inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* tag)
+{
+    using Cat = typename std::iterator_traits<It>::iterator_category;
+
+    return cl::impl::ToUTF8_dispatch(next, last, tag, Cat{});
 }
 
 template <typename It>
