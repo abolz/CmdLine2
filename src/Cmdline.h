@@ -2068,7 +2068,10 @@ inline OptionBase* Cmdline::Add(OptionBase* opt)
     CL_ASSERT(opt != nullptr);
 
     cl::impl::Split(opt->name(), cl::impl::ByChar('|'), [&](string_view name) {
-        CL_ASSERT(!name.empty());
+        CL_ASSERT(!name.empty()); // Empty option names are not allowed.
+        // An '"' is not a valid option name.
+        // Actually, an option name must not contain an '"'
+        CL_ASSERT(name.find('"') == string_view::npos);
         CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
 
         if (!opt->has_flag(JoinArg::no))
@@ -2620,19 +2623,24 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
     // First determine if this is a valid option group.
     for (size_t n = 0; n < optstr.size(); ++n)
     {
+        // An '=' is not a valid option.
+        // It automatically terminates the option group.
+        if (optstr[n] == '=')
+            break;
+
         auto const name = optstr.substr(n, 1);
         auto const opt = FindOption(name);
 
         if (opt == nullptr || opt->has_flag(MayGroup::no))
             return Status::ignored;
 
-        if (opt->has_flag(HasArg::no) || n + 1 == optstr.size())
+        if (!opt->has_flag(HasArg::required) || n + 1 == optstr.size())
         {
             group.push_back(opt);
             continue;
         }
 
-        // The option accepts an argument. This terminates the option group.
+        // The option requires an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
         if (optstr[n + 1] == '=' || !opt->has_flag(JoinArg::no))
@@ -2655,7 +2663,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last)
         auto const name = optstr.substr(n, 1);
         auto const opt = group[n];
 
-        if (opt->has_flag(HasArg::no) || n + 1 == optstr.size())
+        if (!opt->has_flag(HasArg::required) || n + 1 == optstr.size())
         {
             if (Status::success != HandleOccurrence(opt, name, curr, last))
                 return Status::error;
