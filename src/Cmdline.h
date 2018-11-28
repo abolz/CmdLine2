@@ -1684,9 +1684,9 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
     static_assert(std::is_move_assignable<T>::value,
         "Map() requires move-assignable types");
 
-    using MapType = std::vector<std::pair<char const*, T>>;
+    using MapType = std::vector<std::pair<string_view, T>>;
 
-    return [=, &value, map = MapType(ilist)](ParseContext const& ctx) {
+    return [=, &value, map = MapType(ilist.begin(), ilist.end())](ParseContext const& ctx) {
         for (auto const& p : map)
         {
             if (p.first != ctx.arg)
