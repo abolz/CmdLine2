@@ -1218,32 +1218,39 @@ struct ParseValue
     }
 };
 
-namespace impl {
-
-inline bool IsAnyOf(string_view value, std::initializer_list<string_view> matches)
-{
-    for (auto const& m : matches)
-    {
-        if (value == m)
-            return true;
-    }
-
-    return false;
-}
-
-} // namespace impl
-
 template <>
 struct ParseValue<bool>
 {
     bool operator()(ParseContext const& ctx, bool& value) const
     {
-        if (cl::impl::IsAnyOf(ctx.arg, {"", "1", "y", "true", "True", "yes", "Yes", "on", "On"}))
+        if (ctx.arg.empty() ||
+            ctx.arg == "1" ||
+            ctx.arg == "y" ||
+            ctx.arg == "yes" ||
+            ctx.arg == "Yes" ||
+            ctx.arg == "on" ||
+            ctx.arg == "On" ||
+            ctx.arg == "true" ||
+            ctx.arg == "True")
+        {
             value = true;
-        else if (cl::impl::IsAnyOf(ctx.arg, {"0", "n", "false", "False", "no", "No", "off", "Off"}))
+        }
+        else if (
+            ctx.arg == "0" ||
+            ctx.arg == "n" ||
+            ctx.arg == "no" ||
+            ctx.arg == "No" ||
+            ctx.arg == "off" ||
+            ctx.arg == "Off" ||
+            ctx.arg == "false" ||
+            ctx.arg == "False")
+        {
             value = false;
+        }
         else
+        {
             return false;
+        }
 
         return true;
     }
@@ -1259,19 +1266,19 @@ bool StrToX(string_view sv, T& value, Fn fn)
 
     std::string str(sv);
 
-    char const* const ptr = str.c_str();
+    auto const next = str.c_str();
+    auto const last = next + str.size();
     char* end = nullptr;
 
     int& ec = errno;
 
     auto const ec0 = std::exchange(ec, 0);
-    auto const val = fn(ptr, &end);
+    auto const val = fn(next, &end);
     auto const ec1 = std::exchange(ec, ec0);
 
     if (ec1 == ERANGE)
         return false;
-
-    if (end != ptr + str.size())
+    if (end != last)
         return false; // not all characters extracted
 
     value = val;
