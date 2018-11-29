@@ -21,6 +21,12 @@
 #ifndef CL_CMDLINE_H
 #define CL_CMDLINE_H 1
 
+#if _WIN32
+static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
+#else
+static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
+#endif
+
 #include <cassert>
 #include <cerrno>
 #include <climits>
@@ -43,20 +49,6 @@
 
 #ifndef CL_ASSERT
 #define CL_ASSERT(X) assert(X)
-#endif
-
-#ifndef CL_WCHAR_IS_CHAR16
-#if _WIN32
-#define CL_WCHAR_IS_CHAR16 1
-#else
-#define CL_WCHAR_IS_CHAR16 0
-#endif
-#endif
-
-#if CL_WCHAR_IS_CHAR16
-static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
-#else
-static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #endif
 
 #if __cpp_lib_string_view >= 201606
@@ -956,7 +948,7 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t 
 
 template <typename It>
 inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/) {
-#if CL_WCHAR_IS_CHAR16
+#if _WIN32
     return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
 #else
     return ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
@@ -1465,7 +1457,7 @@ struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>> {
         // We know that ctx.arg is well-formed UTF-8 already.
         cl::impl::ForEachUTF8EncodedCodepoint(ctx.arg.begin(), ctx.arg.end(), [&](char32_t U) {
             CL_ASSERT(cl::impl::IsValidCodepoint(U));
-#if CL_WCHAR_IS_CHAR16
+#if _WIN32
             cl::impl::EncodeUTF16(U, [&](char16_t code_unit) { value.push_back(static_cast<wchar_t>(code_unit)); });
 #else
             value.push_back(static_cast<wchar_t>(U));
