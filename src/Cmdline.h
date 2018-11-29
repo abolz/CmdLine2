@@ -1883,6 +1883,14 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
+inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, ParseProgramName parse_program_name = ParseProgramName::yes) {
+    return cl::TokenizeWindows(cl::impl::ToUTF8(wstr), parse_program_name);
+}
+
+inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, size_t wlen, ParseProgramName parse_program_name = ParseProgramName::yes) {
+    return cl::TokenizeWindows(cl::impl::ToUTF8(wstr, wstr + wlen), parse_program_name);
+}
+
 //==================================================================================================
 //
 //==================================================================================================
