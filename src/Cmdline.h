@@ -863,6 +863,11 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put) {
 // The internal encoding used by the library is UTF-8.
 
 template <typename It>
+inline /*__forceinline*/ bool IsUTF8(It next, It last) {
+    return cl::impl::ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != cl::impl::kInvalidCodepoint; });
+}
+
+template <typename It>
 inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::input_iterator_tag /*cat*/) {
     std::string s;
 
@@ -952,13 +957,6 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t c
 template <typename It, typename T>
 inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, T const* /*tag*/) = delete;
 
-} // namespace impl
-
-template <typename It>
-inline /*__forceinline*/ bool IsUTF8(It next, It last) {
-    return cl::impl::ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != cl::impl::kInvalidCodepoint; });
-}
-
 template <typename It>
 inline /*__forceinline*/ std::string ToUTF8(It next, It last) {
     using CharT = std::remove_reference_t<decltype(*next)>;
@@ -968,7 +966,7 @@ inline /*__forceinline*/ std::string ToUTF8(It next, It last) {
 
 template <typename StringT>
 inline /*__forceinline*/ std::string ToUTF8(StringT const& str) {
-    return cl::ToUTF8(str.begin(), str.end());
+    return cl::impl::ToUTF8(str.begin(), str.end());
 }
 
 template <typename ElemT>
@@ -979,8 +977,10 @@ inline /*__forceinline*/ std::string ToUTF8(ElemT* const& c_str) {
                          ? std::char_traits<CharT>::length(c_str)
                          : 0u;
 
-    return cl::ToUTF8(c_str, c_str + len);
+    return cl::impl::ToUTF8(c_str, c_str + len);
 }
+
+} // namespace impl
 
 //==================================================================================================
 // Split strings
@@ -1105,7 +1105,7 @@ inline bool DoSplit(DoSplitResult& res, string_view str, DelimiterResult del) {
 // the input string and returns false, too. Otherwise, returns true.
 template <typename Splitter, typename Function>
 bool Split(string_view str, Splitter&& split, Function&& fn) {
-    CL_ASSERT(cl::IsUTF8(str.begin(), str.end()));
+    CL_ASSERT(cl::impl::IsUTF8(str.begin(), str.end()));
 
     DoSplitResult curr;
 
@@ -1118,8 +1118,8 @@ bool Split(string_view str, Splitter&& split, Function&& fn) {
             return true;
         }
 
-        CL_ASSERT(cl::IsUTF8(curr.tok.begin(), curr.tok.end()));
-        CL_ASSERT(cl::IsUTF8(curr.str.begin(), curr.str.end()));
+        CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
+        CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
 
         if (!fn(curr.tok)) {
             return false;
@@ -1895,8 +1895,8 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
     int const unused[] = {(Apply(args), 0)..., 0};
     static_cast<void>(unused);
 
-    CL_ASSERT(cl::IsUTF8(name_.begin(), name_.end()));
-    CL_ASSERT(cl::IsUTF8(descr_.begin(), descr_.end()));
+    CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
+    CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
 }
 
 inline OptionBase::~OptionBase() = default;
@@ -1931,8 +1931,8 @@ inline Option<ParserT>::Option(char const* name, char const* descr, ParserInit&&
 
 template <typename ParserT>
 bool Option<ParserT>::Parse(ParseContext const& ctx) {
-    CL_ASSERT(cl::IsUTF8(ctx.name.begin(), ctx.name.end()));
-    CL_ASSERT(cl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
+    CL_ASSERT(cl::impl::IsUTF8(ctx.name.begin(), ctx.name.end()));
+    CL_ASSERT(cl::impl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
 
     return DoParse(ctx, std::is_convertible<decltype(parser_(ctx)), bool>{});
 }
@@ -2015,7 +2015,7 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
     while (curr != last) {
         // Make a copy of the current value.
         // NB: This is actually only needed for InputIterator's...
-        auto const arg = cl::ToUTF8(*curr);
+        auto const arg = cl::impl::ToUTF8(*curr);
 
         Status const res = Handle1(arg, curr, last);
         switch (res) {
@@ -2322,7 +2322,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         res += spos;
     }
 
-    CL_ASSERT(cl::IsUTF8(res.begin(), res.end()));
+    CL_ASSERT(cl::impl::IsUTF8(res.begin(), res.end()));
     return res;
 }
 
@@ -2591,7 +2591,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     ++curr_index_;
 
     if (curr != last) {
-        std::string const arg = cl::ToUTF8(*curr);
+        std::string const arg = cl::impl::ToUTF8(*curr);
         return ParseOptionArgument(opt, name, arg);
     }
 
@@ -2704,7 +2704,7 @@ inline void Cmdline::EmitDiagImpl(Diagnostic::Type type, int index, string_view 
     auto& text = diag_.back().message;
     for (int i = 0; i < num_strings; ++i) {
         auto s = strings[i];
-        CL_ASSERT(cl::IsUTF8(s.begin(), s.end()));
+        CL_ASSERT(cl::impl::IsUTF8(s.begin(), s.end()));
         text.append(s.data(), s.size());
     }
 }
