@@ -47,21 +47,21 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #include <windows.h>
 #endif
 
-#ifndef CL_ASSERT
-#define CL_ASSERT(X) assert(X)
-#endif
-
 #if __cpp_lib_string_view >= 201606
 #define CL_HAS_STD_STRING_VIEW 1
 #include <string_view>
 #endif
 
-#if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
+#if __cpp_lib_is_invocable >= 201703
 #define CL_HAS_STD_INVOCABLE 1
 #endif
 
-#if __cplusplus >= 201703 || __cpp_deduction_guides >= 201606
+#if __cpp_deduction_guides >= 201606
 #define CL_HAS_DEDUCTION_GUIDES 1
+#endif
+
+#ifndef CL_ASSERT
+#define CL_ASSERT(X) assert(X)
 #endif
 
 #if _MSC_VER
