@@ -1445,3 +1445,38 @@ TEST_CASE("std::path 2")
     CHECK(p.generic_string() == "path with spaces");
 }
 #endif
+
+TEST_CASE("MayJoin")
+{
+    std::string value;
+
+    cl::Cmdline cli;
+    cli.Add("n", "", cl::Var(value), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayJoin::no);
+    cli.Add("y", "", cl::Var(value), cl::NumOpts::zero_or_more, cl::HasArg::required, cl::MayJoin::yes);
+
+    value = "?";
+    CHECK(false == ParseArgs(cli, {"-n"}));
+    CHECK(value == "?");
+    value = "?";
+    CHECK(true == ParseArgs(cli, {"-n", "dir"}));
+    CHECK(value == "dir");
+    value = "?";
+    CHECK(true == ParseArgs(cli, {"-n=dir"}));
+    CHECK(value == "dir");
+    value = "?";
+    CHECK(false == ParseArgs(cli, {"-ndir"}));
+    CHECK(value == "?");
+
+    value = "?";
+    CHECK(false == ParseArgs(cli, {"-y"}));
+    CHECK(value == "?");
+    value = "?";
+    CHECK(true == ParseArgs(cli, {"-y", "dir"}));
+    CHECK(value == "dir");
+    value = "?";
+    CHECK(true == ParseArgs(cli, {"-y=dir"}));
+    CHECK(value == "=dir");
+    value = "?";
+    CHECK(true == ParseArgs(cli, {"-ydir"}));
+    CHECK(value == "dir");
+}
