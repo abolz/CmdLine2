@@ -1133,7 +1133,7 @@ bool Split(string_view str, Splitter&& split, Function&& fn) {
 } // namespace impl
 
 //==================================================================================================
-// Parser
+//
 //==================================================================================================
 
 namespace impl {
@@ -1152,6 +1152,88 @@ struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> 
     : std::true_type
 {
 };
+
+template <typename T>
+struct RemoveCVRec {
+    using type = std::remove_cv_t<T>;
+};
+
+template <template <typename...> class T, typename... Args>
+struct RemoveCVRec<T<Args...>> {
+    using type = T<typename RemoveCVRec<Args>::type...>;
+};
+
+template <typename T>
+using RemoveCVRec_t = typename RemoveCVRec<T>::type;
+
+template <typename T, typename /*Enable*/ = void>
+struct IsContainerImpl
+    : std::false_type
+{
+};
+
+template <typename T>
+struct IsContainerImpl<T, Void_t< decltype( std::declval<T&>().insert(std::declval<T&>().end(), std::declval<typename T::value_type>()) ) >>
+    : std::true_type
+{
+};
+
+template <typename T>
+struct IsContainer
+    : IsContainerImpl<T>
+{
+};
+
+// Do not handle strings as containers.
+template <typename Elem, typename Traits, typename Alloc>
+struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
+    : std::false_type
+{
+};
+
+template <typename T>
+using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
+
+#if 0
+#if CL_HAS_FOLD_EXPRESSIONS
+
+template <typename Lhs, typename... Rhs>
+CL_FORCE_INLINE bool IsAnyOf(Lhs const& lhs, Rhs&&... rhs) {
+    return (false || ... || (lhs == std::forward<Rhs>(rhs)));
+}
+
+#else
+
+template <typename Lhs>
+CL_FORCE_INLINE bool IsAnyOf(Lhs const& /*lhs*/) {
+    return false;
+}
+
+template <typename Lhs, typename Rhs1, typename... Rhs>
+CL_FORCE_INLINE bool IsAnyOf(Lhs const& lhs, Rhs1&& rhs1, Rhs&&... rhs) {
+    return (lhs == std::forward<Rhs1>(rhs1))
+        ? true
+        : cl::impl::IsAnyOf(lhs, std::forward<Rhs>(rhs)...);
+}
+
+#endif
+#endif // 0
+
+inline bool StartsWith(string_view str, string_view prefix) {
+    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
+
+inline bool IsWhitespace(char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\v' || ch == '\f' || ch == '\r';
+}
+
+} // namespace impl
+
+//==================================================================================================
+// Parser
+//==================================================================================================
+
+namespace impl {
 
 // Convert the string representation in CTX.ARG into an object of type T.
 // Possibly emits diagnostics on error.
@@ -1450,19 +1532,6 @@ auto LessEqual(T upper) {
 
 namespace impl {
 
-template <typename T>
-struct RemoveCVRec {
-    using type = std::remove_cv_t<T>;
-};
-
-template <template <typename...> class T, typename... Args>
-struct RemoveCVRec<T<Args...>> {
-    using type = T<typename RemoveCVRec<Args>::type...>;
-};
-
-template <typename T>
-using RemoveCVRec_t = typename RemoveCVRec<T>::type;
-
 // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
 // Returns true iff all f return true.
 template <typename T, typename... Funcs>
@@ -1475,34 +1544,6 @@ bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs) {
     static_cast<void>(unused);
     return res;
 }
-
-template <typename T, typename /*Enable*/ = void>
-struct IsContainerImpl
-    : std::false_type
-{
-};
-
-template <typename T>
-struct IsContainerImpl<T, Void_t< decltype( std::declval<T&>().insert(std::declval<T&>().end(), std::declval<typename T::value_type>()) ) >>
-    : std::true_type
-{
-};
-
-template <typename T>
-struct IsContainer
-    : IsContainerImpl<T>
-{
-};
-
-// Do not handle strings as containers.
-template <typename Elem, typename Traits, typename Alloc>
-struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
-    : std::false_type
-{
-};
-
-template <typename T>
-using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 
 } // namespace impl
 
@@ -1611,14 +1652,6 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
     };
 }
 
-namespace impl {
-
-inline bool StartsWith(string_view str, string_view prefix) {
-    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
-}
-
-} // namespace impl
-
 // For (boolean) flags.
 // Parses the options' argument and stores the result in 'var'.
 // If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
@@ -1643,20 +1676,6 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-") {
 //==================================================================================================
 
 namespace impl {
-
-inline bool IsWhitespace(char ch) {
-    switch (ch) {
-    case '\t':
-    case '\n':
-    case '\v':
-    case '\f':
-    case '\r':
-    case ' ':
-        return true;
-    default:
-        return false;
-    }
-}
 
 template <typename It>
 It SkipWhitespace(It next, It last) {
