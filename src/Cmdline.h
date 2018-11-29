@@ -412,24 +412,24 @@ public:
 
 public:
     // Returns the name of this option
-    string_view name() const { return name_; }
+    string_view Name() const { return name_; }
 
     // Returns the description of this option
-    string_view descr() const { return descr_; }
+    string_view Descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
     // clang-format off
-    bool has_flag(NumOpts        f) const { return num_opts_        == f; }
-    bool has_flag(HasArg         f) const { return has_arg_         == f; }
-    bool has_flag(MayJoin        f) const { return join_arg_        == f; }
-    bool has_flag(MayGroup       f) const { return may_group_       == f; }
-    bool has_flag(Positional     f) const { return positional_      == f; }
-    bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
-    bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
+    bool HasFlag(NumOpts        f) const { return num_opts_        == f; }
+    bool HasFlag(HasArg         f) const { return has_arg_         == f; }
+    bool HasFlag(MayJoin        f) const { return join_arg_        == f; }
+    bool HasFlag(MayGroup       f) const { return may_group_       == f; }
+    bool HasFlag(Positional     f) const { return positional_      == f; }
+    bool HasFlag(CommaSeparated f) const { return comma_separated_ == f; }
+    bool HasFlag(StopParsing    f) const { return stop_parsing_    == f; }
     // clang-format on
 
     // Returns the number of times this option was specified on the command line
-    int count() const { return count_; }
+    int Count() const { return count_; }
 
 private:
     bool IsOccurrenceAllowed() const;
@@ -440,22 +440,22 @@ private:
     virtual bool Parse(ParseContext const& ctx) = 0;
 };
 
-template <typename Parser>
+template <typename ParserT>
 class Option final : public OptionBase {
 #if CL_HAS_STD_INVOCABLE
-    static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value || std::is_invocable_r<void, Parser, ParseContext&>::value,
+    static_assert(std::is_invocable_r<bool, ParserT, ParseContext&>::value || std::is_invocable_r<void, ParserT, ParseContext&>::value,
                   "The parser must be invocable with an argument of type 'ParseContext&' "
                   "and the return type must be 'bool' or 'void'");
 #endif
 
-    Parser /*const*/ parser_;
+    ParserT /*const*/ parser_;
 
 public:
     template <typename ParserInit, typename... Args>
     Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args);
 
-    Parser const& parser() const { return parser_; }
-    Parser& parser() { return parser_; }
+    ParserT const& Parser() const { return parser_; }
+    ParserT& Parser() { return parser_; }
 
 private:
     bool Parse(ParseContext const& ctx) override;
@@ -535,10 +535,10 @@ public:
     ~Cmdline();
 
     // Returns the name of the program or sub-command
-    string_view name() const { return name_; }
+    string_view Name() const { return name_; }
 
     // Returns the diagnostic messages
-    std::vector<Diagnostic> const& diag() const { return diag_; }
+    std::vector<Diagnostic> const& Diag() const { return diag_; }
 
     // Adds a diagnostic message.
     // Every argument must be explicitly convertible to string_view.
@@ -1902,16 +1902,16 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
 inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const {
-    if (has_flag(NumOpts::required) || has_flag(NumOpts::optional)) {
-        return count() == 0;
+    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::optional)) {
+        return Count() == 0;
     }
 
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const {
-    if (has_flag(NumOpts::required) || has_flag(NumOpts::one_or_more)) {
-        return count() == 0;
+    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::one_or_more)) {
+        return Count() == 0;
     }
 
     return false;
@@ -1921,16 +1921,16 @@ inline bool OptionBase::IsOccurrenceRequired() const {
 //
 //--------------------------------------------------------------------------------------------------
 
-template <typename Parser>
+template <typename ParserT>
 template <typename ParserInit, typename... Args>
-inline Option<Parser>::Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
+inline Option<ParserT>::Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
     : OptionBase(name, descr, std::forward<Args>(args)...)
     , parser_(std::forward<ParserInit>(parser))
 {
 }
 
-template <typename Parser>
-bool Option<Parser>::Parse(ParseContext const& ctx) {
+template <typename ParserT>
+bool Option<ParserT>::Parse(ParseContext const& ctx) {
     CL_ASSERT(cl::IsUTF8(ctx.name.begin(), ctx.name.end()));
     CL_ASSERT(cl::IsUTF8(ctx.arg.begin(), ctx.arg.end()));
 
@@ -1973,14 +1973,14 @@ inline OptionBase* Cmdline::Add(std::unique_ptr<OptionBase> opt) {
 inline OptionBase* Cmdline::Add(OptionBase* opt) {
     CL_ASSERT(opt != nullptr);
 
-    cl::impl::Split(opt->name(), cl::impl::ByChar('|'), [&](string_view name) {
+    cl::impl::Split(opt->Name(), cl::impl::ByChar('|'), [&](string_view name) {
         CL_ASSERT(!name.empty()); // Empty option names are not allowed.
         // An '"' is not a valid option name.
         // Actually, an option name must not contain an '"'
         CL_ASSERT(name.find('"') == string_view::npos);
         CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
 
-        if (opt->has_flag(MayJoin::yes)) {
+        if (opt->HasFlag(MayJoin::yes)) {
             auto const n = static_cast<int>(name.size());
             if (max_prefix_len_ < n) {
                 max_prefix_len_ = n;
@@ -2061,7 +2061,7 @@ inline bool Cmdline::AnyMissing() {
     bool res = false;
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
         if (opt->IsOccurrenceRequired()) {
-            EmitDiag(Diagnostic::error, -1, "option '", opt->name(), "' is missing");
+            EmitDiag(Diagnostic::error, -1, "option '", opt->Name(), "' is missing");
             res = true;
         }
         return true;
@@ -2214,7 +2214,7 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
 }
 
 inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t descr_indent, size_t descr_width) {
-    bool const is_positional = opt->has_flag(Positional::yes);
+    bool const is_positional = opt->HasFlag(Positional::yes);
 
     auto const col0 = out.size();
     CL_ASSERT(col0 == 0 || out[col0 - 1] == '\n');
@@ -2226,11 +2226,11 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     if (!is_positional) {
         out += '-';
     }
-    out.append(opt->name().data(), opt->name().size());
-    if (!opt->has_flag(HasArg::no)) {
-        char const* const arg_name = opt->has_flag(HasArg::optional)
+    out.append(opt->Name().data(), opt->Name().size());
+    if (!opt->HasFlag(HasArg::no)) {
+        char const* const arg_name = opt->HasFlag(HasArg::optional)
                                          ? "=<arg>"
-                                         : opt->has_flag(MayJoin::no)
+                                         : opt->HasFlag(MayJoin::no)
                                                ? " <arg>"
                                                : "<arg>";
 
@@ -2247,7 +2247,7 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     out.append(nspaces, ' ');
     // Now at column descr_width.
     // Finally append the options' description.
-    cl::impl::AppendLines(out, opt->descr(), descr_indent, descr_width);
+    cl::impl::AppendLines(out, opt->Descr(), descr_indent, descr_width);
 
     out += '\n'; // One option per line
 }
@@ -2264,21 +2264,21 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
 
     std::string res = "Usage:\n";
     res.append(fmt.indent, ' ');
-    res.append(name().data(), name().size());
+    res.append(Name().data(), Name().size());
 
     std::string sopt;
     std::string spos;
 
     // Options
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
-        if (opt->has_flag(Positional::yes)) {
+        if (opt->HasFlag(Positional::yes)) {
             return true;
         }
 
-        bool const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
+        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
         if (!is_optional) {
             res += ' ';
-            res.append(opt->name().data(), opt->name().size());
+            res.append(opt->Name().data(), opt->Name().size());
         }
 
         cl::impl::AppendDescr(sopt, opt, fmt.indent, fmt.descr_indent, descr_width);
@@ -2291,17 +2291,17 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
 
     // Positional options
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
-        if (!opt->has_flag(Positional::yes)) {
+        if (!opt->HasFlag(Positional::yes)) {
             return true;
         }
 
-        bool const is_optional = (opt->has_flag(NumOpts::optional) || opt->has_flag(NumOpts::zero_or_more));
+        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
 
         res += ' ';
         if (is_optional) {
             res += '[';
         }
-        res.append(opt->name().data(), opt->name().size());
+        res.append(opt->Name().data(), opt->Name().size());
         if (is_optional) {
             res += ']';
         }
@@ -2345,7 +2345,7 @@ inline OptionBase* Cmdline::FindOption(string_view name) const {
         // And the command line should be considered invalid!!!
         //
 #if 0
-        if (p.option->has_flag(Positional::yes)) {
+        if (p.option->HasFlag(Positional::yes)) {
             continue;
         }
 #endif
@@ -2430,7 +2430,7 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr) {
     for (; curr_positional_ != E; ++curr_positional_) { // find_if
         auto opt = options_[static_cast<size_t>(curr_positional_)].option;
 
-        if (!opt->has_flag(Positional::yes)) {
+        if (!opt->HasFlag(Positional::yes)) {
             continue;
         }
         if (!opt->IsOccurrenceAllowed()) {
@@ -2439,7 +2439,7 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr) {
 
         // The argument of a positional option is the value specified on the
         // command line.
-        return HandleOccurrence(opt, opt->name(), optstr);
+        return HandleOccurrence(opt, opt->Name(), optstr);
     }
 
     return Status::ignored;
@@ -2469,7 +2469,7 @@ inline Cmdline::Status Cmdline::HandleOption(string_view optstr) {
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->has_flag(MayJoin::no)) {
+            if (opt->HasFlag(MayJoin::no)) {
                 ++arg_start;
             }
 
@@ -2494,7 +2494,7 @@ inline Cmdline::Status Cmdline::HandlePrefix(string_view optstr) {
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt != nullptr && !opt->has_flag(MayJoin::no)) {
+        if (opt != nullptr && !opt->HasFlag(MayJoin::no)) {
             return HandleOccurrence(opt, name, optstr.substr(n));
         }
     }
@@ -2521,11 +2521,11 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
         auto const name = optstr.substr(n, 1);
         auto const opt = FindOption(name);
 
-        if (opt == nullptr || opt->has_flag(MayGroup::no)) {
+        if (opt == nullptr || opt->HasFlag(MayGroup::no)) {
             return Status::ignored;
         }
 
-        if (!opt->has_flag(HasArg::required) || n + 1 == optstr.size()) {
+        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
             group.push_back(opt);
             continue;
         }
@@ -2533,15 +2533,15 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
         // The option requires an argument. This terminates the option group.
         // It is a valid option if the next character is an equal sign, or if
         // the option may join its argument.
-        if (optstr[n + 1] == '=' || !opt->has_flag(MayJoin::no)) {
+        if (optstr[n + 1] == '=' || !opt->HasFlag(MayJoin::no)) {
             group.push_back(opt);
             break;
         }
 
         // The option accepts an argument, but may not join its argument.
-        EmitDiag(Diagnostic::error, curr_index_, "option '", opt->name(), "' must be the last in a group");
+        EmitDiag(Diagnostic::error, curr_index_, "option '", opt->Name(), "' must be the last in a group");
         EmitDiag(Diagnostic::note, curr_index_, "in group '", optstr, "' at position ", std::to_string(n + 1), ": '",
-            opt->name(), "' accepts an argument which may not join the option");
+            opt->Name(), "' accepts an argument which may not join the option");
 
         return Status::error;
     }
@@ -2551,7 +2551,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
         auto const name = optstr.substr(n, 1);
         auto const opt = group[n];
 
-        if (!opt->has_flag(HasArg::required) || n + 1 == optstr.size()) {
+        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
             if (Status::success != HandleOccurrence(opt, name, curr, last)) {
                 return Status::error;
             }
@@ -2565,7 +2565,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
 
         // If the next character is '=' and the option may not join its
         // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->has_flag(MayJoin::no)) {
+        if (optstr[arg_start] == '=' && opt->HasFlag(MayJoin::no)) {
             ++arg_start;
         }
 
@@ -2582,7 +2582,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     // We get here if no argument was specified.
     // If an argument is required, try to steal one from the command line.
 
-    if (!opt->has_flag(HasArg::required)) {
+    if (!opt->HasFlag(HasArg::required)) {
         return ParseOptionArgument(opt, name, {});
     }
 
@@ -2602,7 +2602,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
 inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg) {
     // An argument was specified for OPT.
 
-    if (opt->has_flag(Positional::no) && opt->has_flag(HasArg::no)) {
+    if (opt->HasFlag(Positional::no) && opt->HasFlag(HasArg::no)) {
         EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' does not accept an argument");
         return Status::error;
     }
@@ -2613,10 +2613,10 @@ inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view na
 inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view name, string_view arg) {
     auto Parse1 = [&](string_view arg1) {
         if (!opt->IsOccurrenceAllowed()) {
-            // Use opt->name() instead of name here.
+            // Use opt->Name() instead of name here.
             // This gives slightly nicer error messages in case an option has
             // multiple names.
-            EmitDiag(Diagnostic::error, curr_index_, "option '", opt->name(), "' already specified");
+            EmitDiag(Diagnostic::error, curr_index_, "option '", opt->Name(), "' already specified");
             return Status::error;
         }
 
@@ -2648,7 +2648,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     Status res = Status::success;
 
-    if (opt->has_flag(CommaSeparated::yes)) {
+    if (opt->HasFlag(CommaSeparated::yes)) {
         cl::impl::Split(arg, cl::impl::ByChar(','), [&](string_view s) {
             res = Parse1(s);
             if (res != Status::success) {
@@ -2663,7 +2663,7 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     if (res == Status::success) {
         // If the current option has the StopParsing flag set, we're done.
-        if (opt->has_flag(StopParsing::yes)) {
+        if (opt->HasFlag(StopParsing::yes)) {
             res = Status::done;
         }
     }
