@@ -130,7 +130,7 @@ public:
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
         CL_ASSERT(c_str != nullptr
-            && "Constructing a string_view from a nullptr is incompatible with the std version");
+                  && "Constructing a string_view from a nullptr is incompatible with the std version");
     }
 
     template <
@@ -434,10 +434,9 @@ private:
 template <typename Parser>
 class Option final : public OptionBase {
 #if CL_HAS_STD_INVOCABLE
-    static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value ||
-                  std::is_invocable_r<void, Parser, ParseContext&>::value,
-        "The parser must be invocable with an argument of type 'ParseContext&' "
-        "and the return type must be 'bool' or 'void'");
+    static_assert(std::is_invocable_r<bool, Parser, ParseContext&>::value || std::is_invocable_r<void, Parser, ParseContext&>::value,
+                  "The parser must be invocable with an argument of type 'ParseContext&' "
+                  "and the return type must be 'bool' or 'void'");
 #endif
 
     Parser /*const*/ parser_;
@@ -469,7 +468,11 @@ Option(char const*, char const*, ParserInit&&, Args&&...)
 #endif
 
 struct Diagnostic {
-    enum Type : uint8_t { error, warning, note };
+    enum Type : uint8_t {
+        error,
+        warning,
+        note,
+    };
 
     Type type = Type::error;
     int index = -1;
@@ -530,7 +533,7 @@ public:
 
     // Adds a diagnostic message.
     // Every argument must be explicitly convertible to string_view.
-    template <typename ...Args>
+    template <typename... Args>
     void EmitDiag(Diagnostic::Type type, int index, Args&&... args);
 
     // Add an option to the command line.
@@ -666,6 +669,7 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
     // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
     // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
+    // clang-format off
     static constexpr uint8_t kUTF8Decoder[] = {
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
@@ -683,6 +687,7 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
         1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
         1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
     };
+    // clang-format on
 
     uint8_t const type = kUTF8Decoder[byte];
 
@@ -804,8 +809,8 @@ It DecodeUTF16Sequence(It next, It last, char32_t& U) {
     return next;
 }
 
-template <typename PutChar16> void EncodeUTF16(char32_t U, PutChar16 put)
-{
+template <typename PutChar16>
+void EncodeUTF16(char32_t U, PutChar16 put) {
     CL_ASSERT(IsValidCodepoint(U));
 
     if (U < 0x10000) {
@@ -954,8 +959,8 @@ inline /*__forceinline*/ std::string ToUTF8(ElemT* const& c_str) {
     using CharT = std::remove_const_t<ElemT>;
 
     auto const len = (c_str != nullptr)
-        ? std::char_traits<CharT>::length(c_str)
-        : 0u;
+                         ? std::char_traits<CharT>::length(c_str)
+                         : 0u;
 
     return cl::ToUTF8(c_str, c_str + len);
 }
@@ -1128,7 +1133,7 @@ struct IsStreamExtractable<T, Void_t< decltype(std::declval<std::istream&>() >> 
 template <typename T = void, typename /*Enable*/ = void>
 struct ParseValue {
     static_assert(cl::impl::IsStreamExtractable<T>::value,
-        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
+                  "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
 
     template <typename Stream = std::istringstream>
     bool operator()(ParseContext const& ctx, T& value) const {
@@ -1255,6 +1260,7 @@ struct ParseUnsignedInt {
     }
 };
 
+// clang-format off
 template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
@@ -1265,6 +1271,7 @@ template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt
 template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
 template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
 template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
+// clang-format on
 
 template <>
 struct ParseValue<float> {
@@ -1474,11 +1481,11 @@ using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-        "Assign() requires mutable lvalue-references");
+                  "Assign() requires mutable lvalue-references");
     static_assert(std::is_default_constructible<T>::value,
-        "Assign() requires default-constructible types");
+                  "Assign() requires default-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-        "Assign() requires move-assignable types");
+                  "Assign() requires move-assignable types");
 
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
@@ -1498,11 +1505,11 @@ auto Assign(T& target, Predicates&&... preds) {
 template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-        "PushBack() requires mutable lvalue-references");
+                  "PushBack() requires mutable lvalue-references");
     static_assert(cl::impl::IsContainer_t<T>::value,
-        "PushBack() requires STL-style container types");
+                  "PushBack() requires STL-style container types");
     static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
-        "PushBack() requires default-constructible value_type's");
+                  "PushBack() requires default-constructible value_type's");
 
     using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
 
@@ -1542,11 +1549,11 @@ auto Var(T& var, Predicates&&... preds) {
 template <typename T, typename... Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-        "Map() requires mutable lvalue-references");
+                  "Map() requires mutable lvalue-references");
     static_assert(std::is_copy_constructible<T>::value,
-        "Map() requires copy-constructible types");
+                  "Map() requires copy-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-        "Map() requires move-assignable types");
+                  "Map() requires move-assignable types");
 
     using MapType = std::vector<std::pair<string_view, T>>;
 
@@ -1587,7 +1594,7 @@ inline bool StartsWith(string_view str, string_view prefix) {
 template <typename T>
 auto Flag(T& var, std::string const& inverse_prefix = "no-") {
     static_assert(!std::is_const<T>::value,
-        "Flag() requires mutable lvalue-references");
+                  "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
         if (!cl::impl::ParseValue<>{}(ctx, var))
@@ -1881,7 +1888,7 @@ inline Cmdline::Cmdline(char const* name)
 
 inline Cmdline::~Cmdline() = default;
 
-template <typename ...Args>
+template <typename... Args>
 void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&... args) {
     string_view strings[] = {args...};
     EmitDiagImpl(type, index, strings, sizeof...(Args));
@@ -1974,8 +1981,8 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
     }
 
     bool const success = (check_missing == CheckMissingOptions::yes)
-        ? !AnyMissing()
-        : true;
+                             ? !AnyMissing()
+                             : true;
 
     return {curr, success};
 }
@@ -2117,7 +2124,7 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
         // Find the position of the first tab-character in this line (if any).
         auto const tab_pos = line.find('\t');
         CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos)
-            && "Only a single tab-character per line is allowed");
+                  && "Only a single tab-character per line is allowed");
 
         // Append the first (or only) part of this line.
         auto const col = cl::impl::AppendSingleLine(
@@ -2154,12 +2161,11 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
         out += '-';
     out.append(opt->name().data(), opt->name().size());
     if (!opt->has_flag(HasArg::no)) {
-        char const* const arg_name
-            = opt->has_flag(HasArg::optional)
-                ? "=<arg>"
-                : opt->has_flag(MayJoin::no)
-                    ? " <arg>"
-                    :  "<arg>";
+        char const* const arg_name = opt->has_flag(HasArg::optional)
+                                         ? "=<arg>"
+                                         : opt->has_flag(MayJoin::no)
+                                               ? " <arg>"
+                                               : "<arg>";
 
         out += arg_name;
     }
@@ -2339,7 +2345,7 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr) {
     CL_ASSERT(curr_positional_ >= 0);
     CL_ASSERT(curr_positional_ <= E);
 
-    for ( ; curr_positional_ != E; ++curr_positional_) { // find_if
+    for (; curr_positional_ != E; ++curr_positional_) { // find_if
         auto opt = options_[static_cast<size_t>(curr_positional_)].option;
 
         if (!opt->has_flag(Positional::yes))
