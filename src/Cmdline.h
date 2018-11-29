@@ -64,11 +64,6 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_ASSERT(X) assert(X)
 #endif
 
-#if _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4459) // declaration of 'identifier' hides global declaration
-#endif
-
 namespace cl {
 
 class Cmdline;
@@ -2725,9 +2720,5 @@ inline void Cmdline::EmitDiagImpl(Diagnostic::Type type, int index, string_view 
 }
 
 } // namespace cl
-
-#if _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif // CL_CMDLINE_H
