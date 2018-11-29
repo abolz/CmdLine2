@@ -375,13 +375,13 @@ class OptionBase {
     // The description of this option
     string_view descr_;
     // Flags controlling how the option may/must be specified.
-    NumOpts        num_opts_        = NumOpts::optional;
-    HasArg         has_arg_         = HasArg::no;
-    MayJoin        join_arg_        = MayJoin::no;
-    MayGroup       may_group_       = MayGroup::no;
-    Positional     positional_      = Positional::no;
+    NumOpts num_opts_ = NumOpts::optional;
+    HasArg has_arg_ = HasArg::no;
+    MayJoin join_arg_ = MayJoin::no;
+    MayGroup may_group_ = MayGroup::no;
+    Positional positional_ = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
-    StopParsing    stop_parsing_    = StopParsing::no;
+    StopParsing stop_parsing_ = StopParsing::no;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
@@ -389,6 +389,7 @@ private:
     template <typename T>
     void Apply(T) = delete; // For slightly more useful error messages...
 
+    // clang-format off
     void Apply(NumOpts        v) { num_opts_        = v; }
     void Apply(HasArg         v) { has_arg_         = v; }
     void Apply(MayJoin        v) { join_arg_        = v; }
@@ -396,6 +397,7 @@ private:
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
     void Apply(StopParsing    v) { stop_parsing_    = v; }
+    // clang-format on
 
 protected:
     template <typename... Args>
@@ -416,6 +418,7 @@ public:
     string_view descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
+    // clang-format off
     bool has_flag(NumOpts        f) const { return num_opts_        == f; }
     bool has_flag(HasArg         f) const { return has_arg_         == f; }
     bool has_flag(MayJoin        f) const { return join_arg_        == f; }
@@ -423,6 +426,7 @@ public:
     bool has_flag(Positional     f) const { return positional_      == f; }
     bool has_flag(CommaSeparated f) const { return comma_separated_ == f; }
     bool has_flag(StopParsing    f) const { return stop_parsing_    == f; }
+    // clang-format on
 
     // Returns the number of times this option was specified on the command line
     int count() const { return count_; }
