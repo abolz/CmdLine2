@@ -21,15 +21,15 @@ AlwaysBreakTemplateDeclarations:  true
 BinPackArguments:                 false
 BinPackParameters:                false
 BraceWrapping:
-  AfterClass:                       true
-  AfterControlStatement:            true
+  AfterClass:                       false
+  AfterControlStatement:            false
   AfterEnum:                        false
-  AfterFunction:                    true
+  AfterFunction:                    false
   AfterNamespace:                   false
-  AfterStruct:                      true
-  AfterUnion:                       true
-  BeforeCatch:                      true
-  BeforeElse:                       true
+  AfterStruct:                      false
+  AfterUnion:                       false
+  BeforeCatch:                      false
+  BeforeElse:                       false
   IndentBraces:                     false
   SplitEmptyFunction:               true
   SplitEmptyNamespace:              true
@@ -42,7 +42,7 @@ BreakBeforeTernaryOperators:      true
 BreakConstructorInitializers:     BeforeComma
 BreakConstructorInitializersBeforeComma: true
 BreakStringLiterals:              true
-ColumnLimit:                      0
+ColumnLimit:                      120
 CompactNamespaces:                false
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
