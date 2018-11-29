@@ -59,6 +59,11 @@ static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
 static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #endif
 
+#if __cpp_lib_string_view >= 201606
+#define CL_HAS_STD_STRING_VIEW 1
+#include <string_view>
+#endif
+
 #if __cpp_lib_is_invocable >= 201703 || (_MSC_VER >= 1911 && _HAS_CXX17)
 #define CL_HAS_STD_INVOCABLE 1
 #endif
@@ -80,6 +85,9 @@ class Cmdline;
 //
 //==================================================================================================
 
+#if CL_HAS_STD_STRING_VIEW
+using string_view = std::string_view;
+#else
 class string_view { // A minimal std::string_view replacement
 public:
     using value_type      = char;
@@ -270,6 +278,7 @@ inline bool operator>(string_view s1, string_view s2) noexcept {
 inline bool operator>=(string_view s1, string_view s2) noexcept {
     return !(s1 < s2);
 }
+#endif
 
 //==================================================================================================
 //
@@ -1883,6 +1892,11 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     return argv;
 }
 
+#if CL_HAS_STD_STRING_VIEW
+inline std::vector<std::string> TokenizeWindows(std::wstring_view str, ParseProgramName parse_program_name = ParseProgramName::yes) {
+    return cl::TokenizeWindows(cl::impl::ToUTF8(str.begin(), str.end()), parse_program_name);
+}
+#else
 inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, ParseProgramName parse_program_name = ParseProgramName::yes) {
     return cl::TokenizeWindows(cl::impl::ToUTF8(wstr), parse_program_name);
 }
@@ -1890,6 +1904,7 @@ inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, ParseProgra
 inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, size_t wlen, ParseProgramName parse_program_name = ParseProgramName::yes) {
     return cl::TokenizeWindows(cl::impl::ToUTF8(wstr, wstr + wlen), parse_program_name);
 }
+#endif
 
 //==================================================================================================
 //
