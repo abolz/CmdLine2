@@ -548,6 +548,12 @@ class Cmdline final {
     bool dashdash_ = false;        // "--" seen?
 
 public:
+    // Note:
+    // Option and Cmdline names
+    //  - must not be empty,
+    //  - must not start with a '-',
+    //  - must not contain an '=' sign.
+
     explicit Cmdline(char const* name, char const* descr);
     Cmdline(Cmdline const&) = delete;
     Cmdline(Cmdline&&) = delete;
@@ -1956,6 +1962,8 @@ inline OptionBase* Cmdline::Add(OptionBase* opt) {
         CL_ASSERT(!name.empty() && "Empty option names are not allowed");
         CL_ASSERT(name[0] != '-' && "Option names must not start with a '-'");
         CL_ASSERT(name.find('"') == string_view::npos && "An option name must not contain an '\"'");
+        // TODO:
+        // Abort/throw if an option with the given name already exists?
         CL_ASSERT(FindOption(name) == nullptr && "Option already exists");
 
         if (opt->HasFlag(MayJoin::yes)) {
