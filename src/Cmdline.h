@@ -1972,7 +1972,7 @@ inline void Cmdline::Reset() {
     curr_index_ = 0;
     dashdash_ = false;
 
-    ForEachUniqueOption([](string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([](OptionBase* opt) {
         opt->count_ = 0;
         return true;
     });
@@ -2029,7 +2029,7 @@ bool Cmdline::ParseArgs(Container const& args, CheckMissingOptions check_missing
 
 inline bool Cmdline::AnyMissing() {
     bool res = false;
-    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([&](OptionBase* opt) {
         if (opt->IsOccurrenceRequired()) {
             EmitDiag(Diagnostic::error, -1, "option '", opt->Name(), "' is missing");
             res = true;
@@ -2237,7 +2237,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
 
     bool has_pos = false;
     bool has_opt = false;
-    ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
+    ForEachUniqueOption([&](OptionBase* opt) {
         bool const is_positional = opt->HasFlag(Positional::yes);
         bool const is_optional = opt->HasFlag(Required::no);
 
@@ -2614,7 +2614,7 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const {
         return true;
 
     for (;;) {
-        if (!fn(I->name, I->option))
+        if (!fn(I->option))
             return false;
 
         // Skip duplicate options.
