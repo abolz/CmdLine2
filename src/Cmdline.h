@@ -1934,7 +1934,7 @@ inline Cmdline::Cmdline(char const* name, char const* descr)
 inline Cmdline::~Cmdline() = default;
 
 template <typename... Args>
-void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&... args) {
+CL_FORCE_INLINE void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&... args) {
     string_view strings[] = {args...};
     EmitDiagImpl(type, index, strings, sizeof...(Args));
 }
