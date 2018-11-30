@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 // int wmain(int argc, wchar_t* argv[])
 {
     // Create a command line parser.
-    cl::Cmdline cmd;
+    cl::Cmdline cli("Example", "A short description");
 
     // The parser needs to know about the valid options (and the syntax which
     // might be used to specifiy the options on the command line).
@@ -33,18 +33,24 @@ int main(int argc, char* argv[])
 
     bool debug = false;
 
-    cmd.Add(
+    cli.Add(
         // The first three parameters are mandatory.
 
+        // 1)
+        //
         // The 1st parameter is the name of the option. Multiple option names
         // may be separated by `|`. So the `debug` option might be specified as
         // `-d` or `--debug`.
         "d|debug",
 
+        // 2)
+        //
         // The 2nd parameter provides a short description of the option which
         // will be displayed in the automatically generated help message.
         "Enable debug output",
 
+        // 3)
+        //
         // The 3rd parameter is the actual option parser which effectively takes
         // the string representation of the command line argument and is used to
         // convert the option (or the options' argument - if present) into the
@@ -56,22 +62,25 @@ int main(int argc, char* argv[])
         // More advanced usages of the parser will be described later.
         cl::Var(debug),
 
+        // 4)
+        //
         // The following parameters are optional and specifiy how and how often
         // the option might be specified on the command line and whether the
         // option takes an argument or not. These flags might be specified in
         // any order.
 
-        // The `NumOpts` flag can be used to tell the parser how often the
-        // option may or must occur on the command line. The `zero_or_more`
-        // value means the this option is optional and may be specified as many
-        // times as the user likes.
-        cl::NumOpts::zero_or_more,
+        // The `Multiple` flag can be used to tell the parser that an option
+        // may appear multiple times on the command line.
+        // The default value for `Multiple` is `no`, i.e. the option may
+        // appear at most once on the command line.
+        cl::Multiple::yes,
 
-        // The `HasArg` flag can used to tell the parser whether the option
+        // The `Arg` flag can be used to tell the parser whether the option
         // accepts an argument. The `optional` value means that an argument is
         // optional, i.e. both `--debug` and `--debug=on` or `--debug=false` are
         // valid.
-        cl::HasArg::optional
+        // The default value is `Arg::no`, i.e. an argument is not allowed.
+        cl::Arg::optional
 
         // There are more options which can be used to customize the syntax for
         // options. These are described later.
@@ -85,25 +94,23 @@ int main(int argc, char* argv[])
     // or:
     // std::vector<std::wstring> include_directories;
 
-    cmd.Add(
-        "I",
-        "Include directories",
+    cli.Add("I", "Include directories",
 
         // `Var` works with STL containers, too.
         cl::Var(include_directories),
 
-        // A value of `zero_or_more` allows to specify the option multiple times
+        // A value of `yes` allows to specify the option multiple times
         // on the command line. Each occurrence will add a string to the
         // `include_directories` array.
-        cl::NumOpts::zero_or_more,
+        cl::Multiple::yes,
 
-        // The `HasArg::required` flag tells the parser the an "-I" must have an
+        // The `Arg::required` flag tells the parser that an "-I" must have an
         // argument specified. Either using the "-I=dir" syntax or as an
         // additional argument like "-I dir".
-        cl::HasArg::required
+        cl::Arg::required
         );
 
-    // The `cmd` object now knows everything it needs to know to parse the
+    // The `cli` object now knows everything it needs to know to parse the
     // command line argument array.
 
     // The Cmdline::Parse method takes a pair of iterators, parses the command
@@ -111,7 +118,7 @@ int main(int argc, char* argv[])
     // some objects of another type. Note that the Parse method does not know
     // anything about the program name which is stored in argv[0], so we skip
     // that.
-    auto const result = cmd.Parse(argv + 1, argv + argc);
+    auto const result = cli.Parse(argv + 1, argv + argc);
     if (!result)
     {
         // If the method returns false, the command line was invalid, i.e. the
@@ -123,7 +130,7 @@ int main(int argc, char* argv[])
         // returns an array with error (and/or warning messages). For
         // convenience the `Cmdline::PrintDiag()` method can be used to print
         // these messages to `stderr`.
-        cmd.PrintDiag();
+        cli.PrintDiag();
 
         // To provide the user with some information how to avoid these mistakes
         // the Cmdling objects provides a `FormatHelp` methods which returns a
@@ -132,7 +139,7 @@ int main(int argc, char* argv[])
         // Again, for convenience, the `PrintHelp` method prints this help
         // message to `stderr`. Here we need to tell the CmdLine library the
         // program name in order to print some nicer help message...
-        cmd.PrintHelp("Example");
+        cli.PrintHelp();
 
         return -1;
     }
