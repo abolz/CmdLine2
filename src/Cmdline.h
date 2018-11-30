@@ -280,19 +280,6 @@ inline bool operator>=(string_view s1, string_view s2) noexcept {
 //
 //==================================================================================================
 
-// Controls how often an option may/must be specified.
-//enum class NumOpts : uint8_t {
-//    // The option may appear at most once.
-//    // This is the default.
-//    optional,
-//    // The option must appear exactly once.
-//    required,
-//    // The option may appear multiple times.
-//    zero_or_more,
-//    // The option must appear at least once.
-//    one_or_more,
-//};
-
 // Controls whether an option must appear on the command line.
 enum class Required : uint8_t {
     // The option is not required to appear on the command line.
@@ -404,7 +391,7 @@ class OptionBase {
     Required required_ = Required::no;
     Multiple multiple_ = Multiple::no;
     Arg arg_ = Arg::no;
-    MayJoin join_arg_ = MayJoin::no;
+    MayJoin may_join_ = MayJoin::no;
     MayGroup may_group_ = MayGroup::no;
     Positional positional_ = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
@@ -417,14 +404,10 @@ private:
     void Apply(T) = delete; // For slightly more useful error messages...
 
     // clang-format off
-    //void Apply(NumOpts v) {
-    //    required_ = (v == NumOpts::required || v == NumOpts::one_or_more) ? Required::yes : Required::no;
-    //    multiple_ = (v == NumOpts::zero_or_more || v == NumOpts::one_or_more) ? Multiple::yes : Multiple::no;
-    //}
     void Apply(Required       v) { required_        = v; }
     void Apply(Multiple       v) { multiple_        = v; }
     void Apply(Arg            v) { arg_             = v; }
-    void Apply(MayJoin        v) { join_arg_        = v; }
+    void Apply(MayJoin        v) { may_join_        = v; }
     void Apply(MayGroup       v) { may_group_       = v; }
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
@@ -451,23 +434,10 @@ public:
 
     // Returns the flags controlling how the option may/must be specified.
     // clang-format off
-    //bool HasFlag(NumOpts f) {
-    //    switch (f) {
-    //    case NumOpts::optional:
-    //        return required_ == Required::no  && multiple_ == Multiple::no;
-    //    case NumOpts::required:
-    //        return required_ == Required::yes && multiple_ == Multiple::no;
-    //    case NumOpts::zero_or_more:
-    //        return required_ == Required::no  && multiple_ == Multiple::yes;
-    //    case NumOpts::one_or_more:
-    //        return required_ == Required::yes && multiple_ == Multiple::yes;
-    //    }
-    //    return false; // Fix warning
-    //}
     bool HasFlag(Required       f) const { return required_        == f; }
     bool HasFlag(Multiple       f) const { return multiple_        == f; }
     bool HasFlag(Arg            f) const { return arg_             == f; }
-    bool HasFlag(MayJoin        f) const { return join_arg_        == f; }
+    bool HasFlag(MayJoin        f) const { return may_join_        == f; }
     bool HasFlag(MayGroup       f) const { return may_group_       == f; }
     bool HasFlag(Positional     f) const { return positional_      == f; }
     bool HasFlag(CommaSeparated f) const { return comma_separated_ == f; }
