@@ -1946,11 +1946,10 @@ inline OptionBase* Cmdline::Add(OptionBase* opt) {
     CL_ASSERT(opt != nullptr);
 
     cl::impl::Split(opt->Name(), cl::impl::ByChar('|'), [&](string_view name) {
-        CL_ASSERT(!name.empty()); // Empty option names are not allowed.
-        // An '"' is not a valid option name.
-        // Actually, an option name must not contain an '"'
-        CL_ASSERT(name.find('"') == string_view::npos);
-        CL_ASSERT(FindOption(name) == nullptr); // option already exists?!
+        CL_ASSERT(!name.empty() && "Empty option names are not allowed");
+        CL_ASSERT(name[0] != '-' && "Option names must not start with a '-'");
+        CL_ASSERT(name.find('"') == string_view::npos && "An option name must not contain an '\"'");
+        CL_ASSERT(FindOption(name) == nullptr && "Option already exists");
 
         if (opt->HasFlag(MayJoin::yes)) {
             auto const n = static_cast<int>(name.size());
