@@ -310,17 +310,21 @@ TEST_CASE("MayGroup")
     a = false;
     b = false;
     c = false;
-    CHECK(false == ParseArgs(cl, {"-cba"})); // c must be the last option
+    CHECK(false == ParseArgs(cl, {"-cba"})); // c must not join its argument
     CHECK(a == false);
     CHECK(b == false);
     CHECK(c == false);
-    CHECK(false == ParseArgs(cl, {"-abcab=true"})); // c must be the last option
-    CHECK(a == false);
-    CHECK(b == false);
+    //cl.Reset();
+    CHECK(false == ParseArgs(cl, {"-abcab=true"})); // c must not join its argument
+    //cl.PrintDiag();
+    CHECK(a == true);
+    CHECK(b == true);
     CHECK(c == false);
 
     cl.Add("ab", "", cl::Var(ab), cl::NumOpts::zero_or_more, cl::HasArg::no);
 
+    a = false;
+    b = false;
     CHECK(true == ParseArgs(cl, {"-ab", "--ab"}));
     CHECK(a == false);
     CHECK(b == false);
@@ -349,6 +353,14 @@ TEST_CASE("MayGroup")
     CHECK(c == false);
     CHECK(abc == true);
     abc = false;
+
+    //cl.Reset();
+    CHECK(false == ParseArgs(cl, {"-aa=true"})); // a does not accept an argument
+    CHECK(a == true); // The first a has been parsed
+    //cl.PrintDiag();
+    a = false;
+
+    CHECK(false == ParseArgs(cl, {"-="}));
 }
 
 TEST_CASE("Positional")
@@ -942,7 +954,7 @@ TEST_CASE("Tokenize Windows 2")
     char const* command_line
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true";
 
-    CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, cl::ParseProgramName::yes)));
+    CHECK(true == cl.ParseArgs(cl::TokenizeWindows(command_line, cl::ParseProgramName::no)));
     cl.PrintDiag();
     CHECK(a == true);
     CHECK(b == true);

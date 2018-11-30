@@ -2520,10 +2520,8 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
     //
     std::vector<OptionBase*> group;
 
-    // First determine if this is a valid option group.
+    // First determine the largest prefix which is a valid option group.
     for (size_t n = 0; n < optstr.size(); ++n) {
-        // An '=' is not a valid option.
-        // It automatically terminates the option group.
         if (optstr[n] == '=') {
             break;
         }
@@ -2535,25 +2533,17 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
             return Status::ignored;
         }
 
-        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
-            group.push_back(opt);
-            continue;
-        }
+        group.push_back(opt);
 
-        // The option requires an argument. This terminates the option group.
-        // It is a valid option if the next character is an equal sign, or if
-        // the option may join its argument.
-        if (optstr[n + 1] == '=' || !opt->HasFlag(MayJoin::no)) {
-            group.push_back(opt);
+        if (!opt->HasFlag(HasArg::no)) {
+            // The option accepts an argument.
+            // This terminates the option group.
             break;
         }
+    }
 
-        // The option accepts an argument, but may not join its argument.
-        EmitDiag(Diagnostic::error, curr_index_, "option '", opt->Name(), "' must be the last in a group");
-        EmitDiag(Diagnostic::note, curr_index_, "in group '", optstr, "' at position ", std::to_string(n + 1), ": '",
-            opt->Name(), "' accepts an argument which may not join the option");
-
-        return Status::error;
+    if (group.empty()) { // "-=" is invalid
+        return Status::ignored;
     }
 
     // Then process all options.
@@ -2561,25 +2551,37 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
         auto const name = optstr.substr(n, 1);
         auto const opt = group[n];
 
-        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
-            if (Status::success != HandleOccurrence(opt, name, curr, last)) {
+        CL_ASSERT(opt != nullptr);
+        CL_ASSERT(opt->HasFlag(MayGroup::yes));
+
+        if (n + 1 != group.size() || group.size() == optstr.size()) {
+            // This is either an option which does not allow an argument (which may
+            // or may not be the last option in the group), or it is the last option and
+            // an argument has not been provided.
+            // In case the option has the HasArg::required flag set, HandleOccurrence
+            // will try to get an argument from the command line.
+            if (Status::success != HandleOccurrence(opt, name, curr, last))
                 return Status::error;
+        } else {
+            // This is the last option in the group and the argument is the rest of optstr.
+            // In case an argument is not allowed, HandleOccurrence will emit an error.
+            size_t arg_start = n + 1;
+
+            if (opt->HasFlag(MayJoin::no)) {
+                // The option may not join its argument.
+                // If the next character is an '=', this is like "--f=filename",
+                // so discard the equals sign.
+                // Otherwise this is an error.
+                if (optstr[arg_start] != '=') {
+                    EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' must not join its argument");
+                    return Status::error;
+                }
+
+                ++arg_start;
             }
 
-            continue;
+            return HandleOccurrence(opt, name, optstr.substr(arg_start));
         }
-
-        // Almost done. Process the last option which accepts an argument.
-
-        size_t arg_start = n + 1;
-
-        // If the next character is '=' and the option may not join its
-        // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->HasFlag(MayJoin::no)) {
-            ++arg_start;
-        }
-
-        return HandleOccurrence(opt, name, optstr.substr(arg_start));
     }
 
     return Status::success;
@@ -2717,6 +2719,8 @@ inline void Cmdline::EmitDiagImpl(Diagnostic::Type type, int index, string_view 
         CL_ASSERT(cl::impl::IsUTF8(s.begin(), s.end()));
         text.append(s.data(), s.size());
     }
+
+    //fprintf(stderr, "%s\n", text.c_str());
 }
 
 } // namespace cl
