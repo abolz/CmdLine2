@@ -1615,7 +1615,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 template <typename T>
 auto Flag(T& var, std::string const& inverse_prefix = "no-") {
     static_assert(!std::is_const<T>::value,
-                  "Flag() requires mutable lvalue-references");
+        "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
         if (!cl::impl::ParseValue<>{}(ctx, var))
