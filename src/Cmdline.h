@@ -1891,14 +1891,14 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
 inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::optional))
+    if (HasFlag(Multiple::no))
         return Count() == 0;
 
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::one_or_more))
+    if (HasFlag(Required::yes))
         return Count() == 0;
 
     return false;
@@ -2249,8 +2249,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         if (opt->HasFlag(Positional::yes))
             return true;
 
-        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
-        if (!is_optional) {
+        if (opt->HasFlag(Required::yes)) {
             res += ' ';
             res.append(opt->Name().data(), opt->Name().size());
         }
@@ -2267,13 +2266,11 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         if (!opt->HasFlag(Positional::yes))
             return true;
 
-        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
-
         res += ' ';
-        if (is_optional)
+        if (opt->HasFlag(Required::no))
             res += '[';
         res.append(opt->Name().data(), opt->Name().size());
-        if (is_optional)
+        if (opt->HasFlag(Required::no))
             res += ']';
 
         cl::impl::AppendDescr(spos, opt, fmt.indent, fmt.descr_indent, descr_width);
