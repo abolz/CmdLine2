@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
 {
     cl::Cmdline cli("Example");
 
-#if 1 // !CL_HAS_DEDUCTION_GUIDES
+#if !CL_HAS_DEDUCTION_GUIDES
     cli.Add("v", "Increase output verbosity",
         cl::Var(verbose),
         cl::Multiple::yes, cl::MayGroup::yes, cl::Arg::optional);

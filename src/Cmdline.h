@@ -403,7 +403,6 @@ private:
     template <typename T>
     void Apply(T) = delete; // For slightly more useful error messages...
 
-    // clang-format off
     void Apply(Required       v) { required_        = v; }
     void Apply(Multiple       v) { multiple_        = v; }
     void Apply(Arg            v) { arg_             = v; }
@@ -412,7 +411,6 @@ private:
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
     void Apply(StopParsing    v) { stop_parsing_    = v; }
-    // clang-format on
 
 protected:
     template <typename... Args>
@@ -433,7 +431,6 @@ public:
     string_view Descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
-    // clang-format off
     bool HasFlag(Required       f) const { return required_        == f; }
     bool HasFlag(Multiple       f) const { return multiple_        == f; }
     bool HasFlag(Arg            f) const { return arg_             == f; }
@@ -442,7 +439,6 @@ public:
     bool HasFlag(Positional     f) const { return positional_      == f; }
     bool HasFlag(CommaSeparated f) const { return comma_separated_ == f; }
     bool HasFlag(StopParsing    f) const { return stop_parsing_    == f; }
-    // clang-format on
 
     // Returns the number of times this option was specified on the command line
     int Count() const { return count_; }
@@ -695,7 +691,6 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
     // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
     // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-    // clang-format off
     static constexpr uint8_t kUTF8Decoder[] = {
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
@@ -713,7 +708,6 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
         1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
         1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
     };
-    // clang-format on
 
     uint8_t const type = kUTF8Decoder[byte];
 
@@ -886,7 +880,7 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
 
     ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint)
-            U = 0xFFFD;
+            U = kReplacementCharacter;
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -930,7 +924,7 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t 
 
     ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint)
-            U = 0xFFFD;
+            U = kReplacementCharacter;
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -945,7 +939,7 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t 
 
     ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint)
-            U = 0xFFFD;
+            U = kReplacementCharacter;
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -1340,7 +1334,6 @@ struct ParseUnsignedInt {
     }
 };
 
-// clang-format off
 template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
 template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
@@ -1351,7 +1344,6 @@ template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt
 template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
 template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
 template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
-// clang-format on
 
 template <>
 struct ParseValue<float> {
