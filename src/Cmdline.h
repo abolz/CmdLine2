@@ -531,6 +531,7 @@ class Cmdline final {
     using Options       = std::vector<NameOptionPair>;
 
     string_view name_;             // Program/sub-command name
+    string_view descr_;
     Diagnostics diag_;             // List of diagnostic messages
     UniqueOptions unique_options_; // Option storage.
     Options options_;              // List of options. Includes the positional options (in order).
@@ -540,7 +541,7 @@ class Cmdline final {
     bool dashdash_ = false;        // "--" seen?
 
 public:
-    Cmdline(char const* name = "");
+    explicit Cmdline(char const* name, char const* descr);
     Cmdline(Cmdline const&) = delete;
     Cmdline(Cmdline&&) = delete;
     Cmdline& operator=(Cmdline const&) = delete;
@@ -549,6 +550,9 @@ public:
 
     // Returns the name of the program or sub-command
     string_view Name() const { return name_; }
+
+    // Returns the description of the program or sub-command
+    string_view Descr() const { return descr_; }
 
     // Returns the diagnostic messages
     std::vector<Diagnostic> const& Diag() const { return diag_; }
@@ -1908,8 +1912,9 @@ bool Option<ParserT>::Parse(ParseContext const& ctx) {
 //
 //--------------------------------------------------------------------------------------------------
 
-inline Cmdline::Cmdline(char const* name)
+inline Cmdline::Cmdline(char const* name, char const* descr)
     : name_(name)
+    , descr_(descr)
 {
 }
 
@@ -2055,10 +2060,8 @@ inline void Cmdline::PrintDiag() const {
     for (auto const& d : diag_) {
         fflush(stderr);
 
-        if (!name_.empty()) {
-            fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
-            fflush(stderr);
-        }
+        fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
+        fflush(stderr);
 
         switch (d.type) {
         case Diagnostic::error:
@@ -2096,8 +2099,7 @@ inline void Cmdline::PrintDiag() const {
 
 inline void Cmdline::PrintDiag() const {
     for (auto const& d : diag_) {
-        if (!name_.empty())
-            fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
+        fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
 
         switch (d.type) {
         case Diagnostic::error:
@@ -2217,7 +2219,12 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
     CL_ASSERT(line_length > fmt.descr_indent);
     auto const descr_width = line_length - fmt.descr_indent;
 
-    std::string res = "Usage:\n";
+    std::string res;
+
+    res.append(Name().data(), Name().size());
+    res += " - ";
+    res.append(Descr().data(), Descr().size());
+    res += "\n\nUsage:\n";
     res.append(fmt.indent, ' ');
     res.append(Name().data(), Name().size());
 
