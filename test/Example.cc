@@ -17,42 +17,42 @@ int main(int argc, char* argv[])
 {
     cl::Cmdline cli("Example");
 
-#if !CL_HAS_DEDUCTION_GUIDES
+#if 1 // !CL_HAS_DEDUCTION_GUIDES
     cli.Add("v", "Increase output verbosity",
         cl::Var(verbose),
-        cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
+        cl::Multiple::yes, cl::MayGroup::yes, cl::Arg::optional);
 
     cli.Add("i|ints", "Some ints in the range [0,6]",
         cl::Var(i, cl::check::InRange(0, 6)),
-        cl::NumOpts::zero_or_more, cl::HasArg::yes, cl::CommaSeparated::yes);
+        cl::Multiple::yes, cl::Arg::required, cl::CommaSeparated::yes);
 
     cli.Add("std", "C++ standard version",
         cl::Map(standard, {{"c++11", Standard::cxx11},
                            {"c++14", Standard::cxx14},
                            {"c++17", Standard::cxx17}}),
-        cl::HasArg::yes);
+        cl::Arg::required);
 
     cli.Add("input-files", "List of input files",
         cl::Var(input_files),
-        cl::NumOpts::one_or_more, cl::Positional::yes);
+        cl::Required::yes, cl::Multiple::yes, cl::Positional::yes);
 #else
     cl::Option opt_v("v", "Increase output verbosity",
         cl::Var(verbose),
-        cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
+        cl::Multiple::yes, cl::MayGroup::yes, cl::Arg::optional);
 
     cl::Option opt_i("i|ints", "Some ints in the range [0,6]",
         cl::Var(i, cl::check::InRange(0, 6)),
-        cl::NumOpts::zero_or_more, cl::HasArg::yes, cl::CommaSeparated::yes);
+        cl::Multiple::yes, cl::Arg::required, cl::CommaSeparated::yes);
 
     cl::Option opt_std("std", "C++ standard version",
         cl::Map(standard, {{"c++11", Standard::cxx11},
                            {"c++14", Standard::cxx14},
                            {"c++17", Standard::cxx17}}),
-        cl::HasArg::yes);
+        cl::Arg::required);
 
     cl::Option opt_input_files("input-files", "List of input files",
         cl::Var(input_files),
-        cl::NumOpts::one_or_more, cl::Positional::yes);
+        cl::Required::yes, cl::Multiple::yes, cl::Positional::yes);
 
     cli.Add(&opt_v);
     cli.Add(&opt_i);
