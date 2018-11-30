@@ -60,6 +60,21 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_HAS_DEDUCTION_GUIDES 1
 #endif
 
+#if __cpp_fold_expressions >= 201603
+#define CL_HAS_FOLD_EXPRESSIONS 1
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define CL_FORCE_INLINE __attribute__((always_inline)) inline
+#define CL_NEVER_INLINE __attribute__((noinline)) inline
+#elif defined(_MSC_VER)
+#define CL_FORCE_INLINE __forceinline
+#define CL_NEVER_INLINE __declspec(noinline) inline
+#else
+#define CL_FORCE_INLINE inline
+#define CL_NEVER_INLINE inline
+#endif
+
 #ifndef CL_ASSERT
 #define CL_ASSERT(X) assert(X)
 #endif
@@ -1165,7 +1180,6 @@ struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
 template <typename T>
 using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 
-#if 0
 #if CL_HAS_FOLD_EXPRESSIONS
 
 template <typename Lhs, typename... Rhs>
@@ -1188,7 +1202,6 @@ CL_FORCE_INLINE bool IsAnyOf(Lhs const& lhs, Rhs1&& rhs1, Rhs&&... rhs) {
 }
 
 #endif
-#endif // 0
 
 inline bool StartsWith(string_view str, string_view prefix) {
     return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
@@ -1245,34 +1258,12 @@ struct ParseValue {
 template <>
 struct ParseValue<bool> {
     bool operator()(ParseContext const& ctx, bool& value) const {
-        if (ctx.arg.empty() ||
-            ctx.arg == "1" ||
-            ctx.arg == "y" ||
-            ctx.arg == "yes" ||
-            ctx.arg == "Yes" ||
-            ctx.arg == "on" ||
-            ctx.arg == "On" ||
-            ctx.arg == "true" ||
-            ctx.arg == "True")
-        {
+        if (cl::impl::IsAnyOf(ctx.arg, string_view{}, "1", "y", "yes", "Yes", "on", "On", "true", "True"))
             value = true;
-        }
-        else if (
-            ctx.arg == "0" ||
-            ctx.arg == "n" ||
-            ctx.arg == "no" ||
-            ctx.arg == "No" ||
-            ctx.arg == "off" ||
-            ctx.arg == "Off" ||
-            ctx.arg == "false" ||
-            ctx.arg == "False")
-        {
+        else if (cl::impl::IsAnyOf(ctx.arg, "0", "n", "no", "No", "off", "Off", "false", "False"))
             value = false;
-        }
         else
-        {
             return false;
-        }
 
         return true;
     }
