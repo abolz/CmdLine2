@@ -60,13 +60,23 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_HAS_DEDUCTION_GUIDES 1
 #endif
 
-#ifndef CL_ASSERT
-#define CL_ASSERT(X) assert(X)
+#if __cpp_fold_expressions >= 201603
+#define CL_HAS_FOLD_EXPRESSIONS 1
 #endif
 
-#if _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4459) // declaration of 'identifier' hides global declaration
+#if defined(__GNUC__) || defined(__clang__)
+#define CL_FORCE_INLINE __attribute__((always_inline)) inline
+#define CL_NEVER_INLINE __attribute__((noinline)) inline
+#elif defined(_MSC_VER)
+#define CL_FORCE_INLINE __forceinline
+#define CL_NEVER_INLINE __declspec(noinline) inline
+#else
+#define CL_FORCE_INLINE inline
+#define CL_NEVER_INLINE inline
+#endif
+
+#ifndef CL_ASSERT
+#define CL_ASSERT(X) assert(X)
 #endif
 
 namespace cl {
@@ -130,7 +140,7 @@ public:
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
         CL_ASSERT(c_str != nullptr
-                  && "Constructing a string_view from a nullptr is incompatible with the std version");
+            && "Constructing a string_view from a nullptr is incompatible with the std version");
     }
 
     template <
@@ -151,8 +161,7 @@ public:
         typename T,
         typename = std::enable_if_t< std::is_constructible<T, const_iterator, const_iterator>::value >
     >
-    explicit operator T() const
-    {
+    explicit operator T() const {
         return T(begin(), end());
     }
 
@@ -204,13 +213,11 @@ public:
 
     // Search for the first character ch in the sub-string [from, end)
     size_t find(char ch, size_t from = 0) const noexcept {
-        if (from >= size()) {
+        if (from >= size())
             return npos;
-        }
 
-        if (auto I = Find(data() + from, size() - from, ch)) {
+        if (auto I = Find(data() + from, size() - from, ch))
             return static_cast<size_t>(I - data());
-        }
 
         return npos;
     }
@@ -218,20 +225,17 @@ public:
     // Search for the last character in the sub-string [0, from)
     // which matches any of the characters in chars.
     size_t find_last_of(string_view chars, size_t from = npos) const noexcept {
-        if (chars.empty()) {
+        if (chars.empty())
             return npos;
-        }
 
-        if (from < size()) {
+        if (from < size())
             ++from;
-        } else {
+        else
             from = size();
-        }
 
         for (auto I = from; I != 0; --I) {
-            if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr) {
+            if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr)
                 return I - 1;
-            }
         }
 
         return npos;
@@ -444,9 +448,10 @@ private:
 template <typename ParserT>
 class Option final : public OptionBase {
 #if CL_HAS_STD_INVOCABLE
-    static_assert(std::is_invocable_r<bool, ParserT, ParseContext&>::value || std::is_invocable_r<void, ParserT, ParseContext&>::value,
-                  "The parser must be invocable with an argument of type 'ParseContext&' "
-                  "and the return type must be 'bool' or 'void'");
+    static_assert(std::is_invocable_r<bool, ParserT, ParseContext&>::value ||
+                  std::is_invocable_r<void, ParserT, ParseContext&>::value,
+        "The parser must be invocable with an argument of type 'ParseContext&' "
+        "and the return type must be 'bool' or 'void'");
 #endif
 
     ParserT /*const*/ parser_;
@@ -704,11 +709,10 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
     // NB:
     // The conditional here will likely be optimized out in the loop below.
 
-    if (state != kUTF8Accept) {
+    if (state != kUTF8Accept)
         U = (U << 6) | (byte & 0x3Fu);
-    } else {
+    else
         U = byte & (0xFFu >> type);
-    }
 
     state = kUTF8Decoder[256 + state * 16 + type];
     return state;
@@ -776,9 +780,8 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t U = 0;
         next = cl::impl::DecodeUTF8Sequence(next, last, U);
-        if (!put(U)) {
+        if (!put(U))
             return false;
-        }
     }
 
     return true;
@@ -839,9 +842,8 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t U = 0;
         next = cl::impl::DecodeUTF16Sequence(next, last, U);
-        if (!put(U)) {
+        if (!put(U))
             return false;
-        }
     }
 
     return true;
@@ -852,9 +854,8 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t const U = static_cast<char32_t>(*next);
         ++next;
-        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint)) {
+        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint))
             return false;
-        }
     }
 
     return true;
@@ -873,9 +874,8 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
     std::string s;
 
     ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint) {
+        if (U == kInvalidCodepoint)
             U = 0xFFFD;
-        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -894,11 +894,10 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
         char32_t U = 0;
         auto const I = cl::impl::DecodeUTF8Sequence(next, last, U);
 
-        if (U == kInvalidCodepoint) {
+        if (U == kInvalidCodepoint)
             s.append("\xEF\xBF\xBD", 3);
-        } else {
+        else
             s.append(next, I);
-        }
 
         next = I;
     }
@@ -919,9 +918,8 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t 
     std::string s;
 
     ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint) {
+        if (U == kInvalidCodepoint)
             U = 0xFFFD;
-        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -935,9 +933,8 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t 
     std::string s;
 
     ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint) {
+        if (U == kInvalidCodepoint)
             U = 0xFFFD;
-        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -1023,16 +1020,14 @@ struct ByLines {
             ++p;
         }
 
-        if (p == last) {
+        if (p == last)
             return {string_view::npos, 0};
-        }
 
         auto const index = static_cast<size_t>(p - first);
 
         // If this is CRLF, skip the other half.
-        if (*p == '\r' && ++p != last && *p == '\n') {
+        if (*p == '\r' && ++p != last && *p == '\n')
             return {index, 2};
-        }
 
         return {index, 1};
     }
@@ -1052,23 +1047,16 @@ struct ByWords {
 
     DelimiterResult operator()(string_view str) const {
         // If the string fits into the current line, just return this last line.
-        if (str.size() <= length) {
+        if (str.size() <= length)
             return {string_view::npos, 0};
-        }
 
         // Otherwise, search for the first space preceding the line length.
         auto const last_ws = str.find_last_of(" \t", length);
 
         if (last_ws != string_view::npos) {
-#if 0
-            size_t last_non_ws = last_ws;
-            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t')) {
-                --last_non_ws;
-            }
-            return {last_non_ws, last_ws - last_non_ws + 1};
-#else
+            // TODO:
+            // Further remove trailing whitespace?!
             return {last_ws, 1};
-#endif
         }
 
         return {length, 0}; // No space in current line, break at length.
@@ -1115,19 +1103,16 @@ bool Split(string_view str, Splitter&& split, Function&& fn) {
     curr.last = false;
 
     for (;;) {
-        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str))) {
+        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
             return true;
-        }
 
         CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
         CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
 
-        if (!fn(curr.tok)) {
+        if (!fn(curr.tok))
             return false;
-        }
-        if (curr.last) {
+        if (curr.last)
             return true;
-        }
     }
 }
 
@@ -1195,7 +1180,6 @@ struct IsContainer<std::basic_string<Elem, Traits, Alloc>>
 template <typename T>
 using IsContainer_t = typename IsContainer<std::decay_t<T>>::type;
 
-#if 0
 #if CL_HAS_FOLD_EXPRESSIONS
 
 template <typename Lhs, typename... Rhs>
@@ -1218,7 +1202,6 @@ CL_FORCE_INLINE bool IsAnyOf(Lhs const& lhs, Rhs1&& rhs1, Rhs&&... rhs) {
 }
 
 #endif
-#endif // 0
 
 inline bool StartsWith(string_view str, string_view prefix) {
     return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
@@ -1241,7 +1224,7 @@ namespace impl {
 template <typename T = void, typename /*Enable*/ = void>
 struct ParseValue {
     static_assert(cl::impl::IsStreamExtractable<T>::value,
-                  "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
+        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
 
     template <typename Stream = std::istringstream>
     bool operator()(ParseContext const& ctx, T& value) const {
@@ -1250,12 +1233,10 @@ struct ParseValue {
         Stream stream{std::string(ctx.arg)};
         stream >> value;
 
-        if (stream.fail()) { // tests badbit | failbit
+        if (stream.fail()) // tests badbit | failbit
             return false;
-        }
-        if (stream.eof()) {
+        if (stream.eof())
             return true;
-        }
 
         CL_ASSERT(stream.good());
 
@@ -1277,34 +1258,12 @@ struct ParseValue {
 template <>
 struct ParseValue<bool> {
     bool operator()(ParseContext const& ctx, bool& value) const {
-        if (ctx.arg.empty() ||
-            ctx.arg == "1" ||
-            ctx.arg == "y" ||
-            ctx.arg == "yes" ||
-            ctx.arg == "Yes" ||
-            ctx.arg == "on" ||
-            ctx.arg == "On" ||
-            ctx.arg == "true" ||
-            ctx.arg == "True")
-        {
+        if (cl::impl::IsAnyOf(ctx.arg, string_view{}, "1", "y", "yes", "Yes", "on", "On", "true", "True"))
             value = true;
-        }
-        else if (
-            ctx.arg == "0" ||
-            ctx.arg == "n" ||
-            ctx.arg == "no" ||
-            ctx.arg == "No" ||
-            ctx.arg == "off" ||
-            ctx.arg == "Off" ||
-            ctx.arg == "false" ||
-            ctx.arg == "False")
-        {
+        else if (cl::impl::IsAnyOf(ctx.arg, "0", "n", "no", "No", "off", "Off", "false", "False"))
             value = false;
-        }
         else
-        {
             return false;
-        }
 
         return true;
     }
@@ -1312,9 +1271,8 @@ struct ParseValue<bool> {
 
 template <typename T, typename Fn>
 bool StrToX(string_view sv, T& value, Fn fn) {
-    if (sv.empty()) {
+    if (sv.empty())
         return false;
-    }
 
     std::string str(sv);
 
@@ -1328,12 +1286,10 @@ bool StrToX(string_view sv, T& value, Fn fn) {
     auto const val = fn(next, &end);
     auto const ec1 = std::exchange(ec, ec0);
 
-    if (ec1 == ERANGE) {
+    if (ec1 == ERANGE)
         return false;
-    }
-    if (end != last) {
+    if (end != last)
         return false; // not all characters extracted
-    }
 
     value = val;
     return true;
@@ -1553,11 +1509,11 @@ bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs) {
 template <typename T, typename... Predicates>
 auto Assign(T& target, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-                  "Assign() requires mutable lvalue-references");
+        "Assign() requires mutable lvalue-references");
     static_assert(std::is_default_constructible<T>::value,
-                  "Assign() requires default-constructible types");
+        "Assign() requires default-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-                  "Assign() requires move-assignable types");
+        "Assign() requires move-assignable types");
 
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
@@ -1577,11 +1533,11 @@ auto Assign(T& target, Predicates&&... preds) {
 template <typename T, typename... Predicates>
 auto PushBack(T& container, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-                  "PushBack() requires mutable lvalue-references");
+        "PushBack() requires mutable lvalue-references");
     static_assert(cl::impl::IsContainer_t<T>::value,
-                  "PushBack() requires STL-style container types");
+        "PushBack() requires STL-style container types");
     static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
-                  "PushBack() requires default-constructible value_type's");
+        "PushBack() requires default-constructible value_type's");
 
     using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
 
@@ -1621,19 +1577,18 @@ auto Var(T& var, Predicates&&... preds) {
 template <typename T, typename... Predicates>
 auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-                  "Map() requires mutable lvalue-references");
+        "Map() requires mutable lvalue-references");
     static_assert(std::is_copy_constructible<T>::value,
-                  "Map() requires copy-constructible types");
+        "Map() requires copy-constructible types");
     static_assert(std::is_move_assignable<T>::value,
-                  "Map() requires move-assignable types");
+        "Map() requires move-assignable types");
 
     using MapType = std::vector<std::pair<string_view, T>>;
 
     return [=, &value, map = MapType(ilist.begin(), ilist.end())](ParseContext const& ctx) {
         for (auto const& p : map) {
-            if (p.first != ctx.arg) {
+            if (p.first != ctx.arg)
                 continue;
-            }
 
             // Parse into a local variable to allow the predicates to modify the value.
             T temp = p.second;
@@ -1646,8 +1601,9 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
         }
 
         ctx.cmdline->EmitDiag(Diagnostic::error, ctx.index, "invalid argument '", ctx.arg, "' for option '", ctx.name, "'");
-        for (auto const& p : map)
+        for (auto const& p : map) {
             ctx.cmdline->EmitDiag(Diagnostic::note, ctx.index, "could be '", p.first, "'");
+        }
 
         return false;
     };
@@ -1659,15 +1615,13 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 template <typename T>
 auto Flag(T& var, std::string const& inverse_prefix = "no-") {
     static_assert(!std::is_const<T>::value,
-                  "Flag() requires mutable lvalue-references");
+        "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
-        if (!cl::impl::ParseValue<>{}(ctx, var)) {
+        if (!cl::impl::ParseValue<>{}(ctx, var))
             return false;
-        }
-        if (cl::impl::StartsWith(ctx.name, inverse_prefix)) {
+        if (cl::impl::StartsWith(ctx.name, inverse_prefix))
             var = !var;
-        }
         return true;
     };
 }
@@ -1734,9 +1688,8 @@ It ParseProgramNameWindows(It next, It last, Fn fn) {
     if (next != last && !cl::impl::IsWhitespace(*next)) {
         bool const quoting = (*next == '"');
 
-        if (quoting) {
+        if (quoting)
             ++next;
-        }
 
         for (; next != last; ++next) {
             auto const ch = *next;
@@ -1828,9 +1781,8 @@ It ParseArgWindows(It next, It last, Fn fn) {
         }
     }
 
-    if (!arg.empty() || quoting || recently_closed) {
+    if (!arg.empty() || quoting || recently_closed)
         fn(std::move(arg));
-    }
 
     return next;
 }
@@ -1873,9 +1825,8 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     auto next = str.data();
     auto const last = str.data() + str.size();
 
-    if (parse_program_name == ParseProgramName::yes) {
+    if (parse_program_name == ParseProgramName::yes)
         next = cl::impl::ParseProgramNameWindows(next, last, push_back);
-    }
 
     while (next != last) {
         next = cl::impl::ParseArgWindows(next, last, push_back);
@@ -1917,17 +1868,15 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
 inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::optional)) {
+    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::optional))
         return Count() == 0;
-    }
 
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::one_or_more)) {
+    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::one_or_more))
         return Count() == 0;
-    }
 
     return false;
 }
@@ -1997,9 +1946,8 @@ inline OptionBase* Cmdline::Add(OptionBase* opt) {
 
         if (opt->HasFlag(MayJoin::yes)) {
             auto const n = static_cast<int>(name.size());
-            if (max_prefix_len_ < n) {
+            if (max_prefix_len_ < n)
                 max_prefix_len_ = n;
-            }
         }
 
         options_.emplace_back(name, opt);
@@ -2037,9 +1985,8 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::success:
             break;
         case Status::done:
-            if (curr != last) {
+            if (curr != last)
                 ++curr;
-            }
             break;
         case Status::error:
             return {curr, false};
@@ -2088,17 +2035,14 @@ inline bool Cmdline::AnyMissing() {
 #if CL_WINDOWS_CONSOLE_COLORS && _WIN32
 
 inline void Cmdline::PrintDiag() const {
-    if (diag_.empty()) {
+    if (diag_.empty())
         return;
-    }
 
     auto const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
-    if (stderr_handle == NULL) {
+    if (stderr_handle == NULL)
         return; // No console.
-    }
-    if (stderr_handle == INVALID_HANDLE_VALUE) {
+    if (stderr_handle == INVALID_HANDLE_VALUE)
         return; // Error (Print without colors?!)
-    }
 
     CONSOLE_SCREEN_BUFFER_INFO sbi;
     GetConsoleScreenBufferInfo(stderr_handle, &sbi);
@@ -2149,9 +2093,8 @@ inline void Cmdline::PrintDiag() const {
 
 inline void Cmdline::PrintDiag() const {
     for (auto const& d : diag_) {
-        if (!name_.empty()) {
+        if (!name_.empty())
             fprintf(stderr, "%.*s: ", static_cast<int>(name_.size()), name_.data());
-        }
 
         switch (d.type) {
         case Diagnostic::error:
@@ -2204,12 +2147,10 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
     cl::impl::Split(text, cl::impl::ByLines(), [&](string_view line) {
         // Find the position of the first tab-character in this line (if any).
         auto const tab_pos = line.find('\t');
-        CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos)
-                  && "Only a single tab-character per line is allowed");
+        CL_ASSERT((tab_pos == string_view::npos || line.find('\t', tab_pos + 1) == string_view::npos) && "Only a single tab-character per line is allowed");
 
         // Append the first (or only) part of this line.
-        auto const col = cl::impl::AppendSingleLine(
-            out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
+        auto const col = cl::impl::AppendSingleLine(out, line.substr(0, tab_pos), indent, column_width, /*col*/ indent, do_indent);
 
         // If there is a tab-character, print the second half of this line.
         if (tab_pos != string_view::npos) {
@@ -2219,8 +2160,7 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
             auto const new_indent = indent + block_col;
             auto const new_width  = column_width - block_col;
 
-            cl::impl::AppendSingleLine(
-                out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
+            cl::impl::AppendSingleLine(out, line.substr(tab_pos + 1), new_indent, new_width, /*col (ignored)*/ 0, /*do_indent*/ false);
         }
 
         do_indent = true;
@@ -2235,36 +2175,33 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     CL_ASSERT(col0 == 0 || out[col0 - 1] == '\n');
 
     // Append the name of the option along with a short description of its argument (if any)
-    // NOTE:
-    // Not wrapped.
+    // Note: not wrapped.
     out.append(indent, ' ');
-    if (!is_positional) {
+    if (!is_positional)
         out += '-';
-    }
     out.append(opt->Name().data(), opt->Name().size());
-    if (!opt->HasFlag(HasArg::no)) {
-        char const* const arg_name = opt->HasFlag(HasArg::optional)
-                                         ? "=<arg>"
-                                         : opt->HasFlag(MayJoin::no)
-                                               ? " <arg>"
-                                               : "<arg>";
+    if (opt->HasFlag(HasArg::yes) && opt->HasFlag(MayJoin::yes))
+        out += "<arg>";
+    else if (opt->HasFlag(HasArg::yes))
+        out += " <arg>";
+    else if (opt->HasFlag(HasArg::optional))
+        out += "=<arg>";
 
-        out += arg_name;
+    if (!opt->Descr().empty()) {
+        // Move to column 'descr_width'.
+        // Possibly on the next line.
+        auto const col     = out.size() - col0;
+        auto const wrap    = col >= descr_indent;
+        auto const nspaces = wrap ? descr_indent : descr_indent - col;
+        if (wrap)
+            out += '\n';
+        out.append(nspaces, ' ');
+
+        // Append the options description.
+        cl::impl::AppendLines(out, opt->Descr(), descr_indent, descr_width);
     }
 
-    // Append the options description.
-    auto const col = out.size() - col0;
-    auto const wrap = (col >= descr_indent);
-    auto const nspaces = wrap ? descr_indent : descr_indent - col;
-    if (wrap) {
-        out += '\n';
-    }
-    out.append(nspaces, ' ');
-    // Now at column descr_width.
-    // Finally append the options' description.
-    cl::impl::AppendLines(out, opt->Descr(), descr_indent, descr_width);
-
-    out += '\n'; // One option per line
+    out += '\n';
 }
 
 } // namespace impl
@@ -2286,9 +2223,8 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
 
     // Options
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
-        if (opt->HasFlag(Positional::yes)) {
+        if (opt->HasFlag(Positional::yes))
             return true;
-        }
 
         bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
         if (!is_optional) {
@@ -2300,26 +2236,22 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         return true;
     });
 
-    if (!sopt.empty()) {
+    if (!sopt.empty())
         res += " <options>";
-    }
 
     // Positional options
     ForEachUniqueOption([&](string_view /*name*/, OptionBase* opt) {
-        if (!opt->HasFlag(Positional::yes)) {
+        if (!opt->HasFlag(Positional::yes))
             return true;
-        }
 
         bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
 
         res += ' ';
-        if (is_optional) {
+        if (is_optional)
             res += '[';
-        }
         res.append(opt->Name().data(), opt->Name().size());
-        if (is_optional) {
+        if (is_optional)
             res += ']';
-        }
 
         cl::impl::AppendDescr(spos, opt, fmt.indent, fmt.descr_indent, descr_width);
         return true;
@@ -2360,13 +2292,11 @@ inline OptionBase* Cmdline::FindOption(string_view name) const {
         // And the command line should be considered invalid!!!
         //
 #if 0
-        if (p.option->HasFlag(Positional::yes)) {
+        if (p.option->HasFlag(Positional::yes))
             continue;
-        }
 #endif
-        if (p.name == name) {
+        if (p.name == name)
             return p.option;
-        }
     }
 
     return nullptr;
@@ -2378,9 +2308,8 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
 
     // This cannot happen if we're parsing the main's argv[] array, but it might
     // happen if we're parsing a user-supplied array of command line arguments.
-    if (optstr.empty()) {
+    if (optstr.empty())
         return Status::success;
-    }
 
     // Stop parsing if "--" has been found
     if (optstr == "--" && !dashdash_) {
@@ -2392,9 +2321,8 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
     // '-', if it is "-" itself, or if we have seen "--" already, or if the
     // argument doesn't look like a known option (see below).
     bool const is_positional = (optstr[0] != '-' || optstr == "-" || dashdash_);
-    if (is_positional) {
+    if (is_positional)
         return HandlePositional(optstr);
-    }
 
     auto const optstr_orig = optstr;
 
@@ -2404,35 +2332,30 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
     // If the name starts with a single dash, this is a short option and might
     // actually be an option group.
     bool const is_short = (optstr[0] != '-');
-    if (!is_short) {
+    if (!is_short)
         optstr.remove_prefix(1); // Remove the second dash.
-    }
 
     // 1. Try to handle options like "-f" and "-f file"
     Status res = HandleStandardOption(optstr, curr, last);
 
     // 2. Try to handle options like "-f=file"
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandleOption(optstr);
-    }
 
     // 3. Try to handle options like "-Idir"
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandlePrefix(optstr);
-    }
 
     // 4. Try to handle options like "-xvf=file" and "-xvf file"
-    if (res == Status::ignored && is_short) {
+    if (res == Status::ignored && is_short)
         res = HandleGroup(optstr, curr, last);
-    }
 
     // Otherwise this is an unknown option.
     //
     // 5. Try to handle this option as a positional option.
     //    If there are no more (hungry) positional options, this is an error.
-    if (res == Status::ignored) {
+    if (res == Status::ignored)
         res = HandlePositional(optstr_orig);
-    }
 
     return res;
 }
@@ -2445,12 +2368,10 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr) {
     for (; curr_positional_ != E; ++curr_positional_) { // find_if
         auto opt = options_[static_cast<size_t>(curr_positional_)].option;
 
-        if (!opt->HasFlag(Positional::yes)) {
+        if (!opt->HasFlag(Positional::yes))
             continue;
-        }
-        if (!opt->IsOccurrenceAllowed()) {
+        if (!opt->IsOccurrenceAllowed())
             continue;
-        }
 
         // The argument of a positional option is the value specified on the
         // command line.
@@ -2484,9 +2405,8 @@ inline Cmdline::Status Cmdline::HandleOption(string_view optstr) {
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->HasFlag(MayJoin::no)) {
+            if (opt->HasFlag(MayJoin::no))
                 ++arg_start;
-            }
 
             return HandleOccurrence(opt, name, optstr.substr(arg_start));
         }
@@ -2501,17 +2421,15 @@ inline Cmdline::Status Cmdline::HandlePrefix(string_view optstr) {
     // "-without".
 
     auto n = static_cast<size_t>(max_prefix_len_);
-    if (n > optstr.size()) {
+    if (n > optstr.size())
         n = optstr.size();
-    }
 
     for (; n != 0; --n) {
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt != nullptr && !opt->HasFlag(MayJoin::no)) {
+        if (opt != nullptr && !opt->HasFlag(MayJoin::no))
             return HandleOccurrence(opt, name, optstr.substr(n));
-        }
     }
 
     return Status::ignored;
@@ -2525,66 +2443,65 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
     //
     std::vector<OptionBase*> group;
 
-    // First determine if this is a valid option group.
+    // First determine the largest prefix which is a valid option group.
     for (size_t n = 0; n < optstr.size(); ++n) {
-        // An '=' is not a valid option.
-        // It automatically terminates the option group.
-        if (optstr[n] == '=') {
+        if (optstr[n] == '=')
             break;
-        }
 
         auto const name = optstr.substr(n, 1);
         auto const opt = FindOption(name);
 
-        if (opt == nullptr || opt->HasFlag(MayGroup::no)) {
+        if (opt == nullptr || opt->HasFlag(MayGroup::no))
             return Status::ignored;
-        }
 
-        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
-            group.push_back(opt);
-            continue;
-        }
+        group.push_back(opt);
 
-        // The option requires an argument. This terminates the option group.
-        // It is a valid option if the next character is an equal sign, or if
-        // the option may join its argument.
-        if (optstr[n + 1] == '=' || !opt->HasFlag(MayJoin::no)) {
-            group.push_back(opt);
+        if (!opt->HasFlag(HasArg::no)) {
+            // The option accepts an argument.
+            // This terminates the option group.
             break;
         }
-
-        // The option accepts an argument, but may not join its argument.
-        EmitDiag(Diagnostic::error, curr_index_, "option '", opt->Name(), "' must be the last in a group");
-        EmitDiag(Diagnostic::note, curr_index_, "in group '", optstr, "' at position ", std::to_string(n + 1), ": '",
-            opt->Name(), "' accepts an argument which may not join the option");
-
-        return Status::error;
     }
+
+    if (group.empty()) // "-=" is invalid
+        return Status::ignored;
 
     // Then process all options.
     for (size_t n = 0; n < group.size(); ++n) {
         auto const name = optstr.substr(n, 1);
         auto const opt = group[n];
 
-        if (!opt->HasFlag(HasArg::required) || n + 1 == optstr.size()) {
-            if (Status::success != HandleOccurrence(opt, name, curr, last)) {
+        CL_ASSERT(opt != nullptr);
+        CL_ASSERT(opt->HasFlag(MayGroup::yes));
+
+        if (n + 1 != group.size() || group.size() == optstr.size()) {
+            // This is either an option which does not allow an argument (which may
+            // or may not be the last option in the group), or it is the last option and
+            // an argument has not been provided.
+            // In case the option has the HasArg::required flag set, HandleOccurrence
+            // will try to get an argument from the command line.
+            if (Status::success != HandleOccurrence(opt, name, curr, last))
                 return Status::error;
+        } else {
+            // This is the last option in the group and the argument is the rest of optstr.
+            // In case an argument is not allowed, HandleOccurrence will emit an error.
+            size_t arg_start = n + 1;
+
+            if (opt->HasFlag(MayJoin::no)) {
+                // The option may not join its argument.
+                // If the next character is an '=', this is like "--f=filename",
+                // so discard the equals sign.
+                // Otherwise this is an error.
+                if (optstr[arg_start] != '=') {
+                    EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' must not join its argument");
+                    return Status::error;
+                }
+
+                ++arg_start;
             }
 
-            continue;
+            return HandleOccurrence(opt, name, optstr.substr(arg_start));
         }
-
-        // Almost done. Process the last option which accepts an argument.
-
-        size_t arg_start = n + 1;
-
-        // If the next character is '=' and the option may not join its
-        // argument, discard the equals sign.
-        if (optstr[arg_start] == '=' && opt->HasFlag(MayJoin::no)) {
-            ++arg_start;
-        }
-
-        return HandleOccurrence(opt, name, optstr.substr(arg_start));
     }
 
     return Status::success;
@@ -2597,9 +2514,8 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     // We get here if no argument was specified.
     // If an argument is required, try to steal one from the command line.
 
-    if (!opt->HasFlag(HasArg::required)) {
+    if (!opt->HasFlag(HasArg::required))
         return ParseOptionArgument(opt, name, {});
-    }
 
     // If the option requires an argument, steal one from the command line.
     ++curr;
@@ -2650,9 +2566,8 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
         if (!opt->Parse(ctx)) {
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
-            if (!diagnostic_emitted) {
+            if (!diagnostic_emitted)
                 EmitDiag(Diagnostic::error, curr_index_, "invalid argument '", arg1, "' for option '", name, "'");
-            }
 
             return Status::error;
         }
@@ -2678,9 +2593,8 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     if (res == Status::success) {
         // If the current option has the StopParsing flag set, we're done.
-        if (opt->HasFlag(StopParsing::yes)) {
+        if (opt->HasFlag(StopParsing::yes))
             res = Status::done;
-        }
     }
 
     return res;
@@ -2691,24 +2605,20 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const {
     auto I = options_.begin();
     auto const E = options_.end();
 
-    if (I == E) {
+    if (I == E)
         return true;
-    }
 
     for (;;) {
-        if (!fn(I->name, I->option)) {
+        if (!fn(I->name, I->option))
             return false;
-        }
 
         // Skip duplicate options.
         auto const curr_opt = I->option;
         for (;;) {
-            if (++I == E) {
+            if (++I == E)
                 return true;
-            }
-            if (I->option != curr_opt) {
+            if (I->option != curr_opt)
                 break;
-            }
         }
     }
 }
@@ -2722,12 +2632,10 @@ inline void Cmdline::EmitDiagImpl(Diagnostic::Type type, int index, string_view 
         CL_ASSERT(cl::impl::IsUTF8(s.begin(), s.end()));
         text.append(s.data(), s.size());
     }
+
+    //fprintf(stderr, "%s\n", text.c_str());
 }
 
 } // namespace cl
-
-#if _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif // CL_CMDLINE_H
