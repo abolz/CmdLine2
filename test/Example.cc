@@ -17,13 +17,7 @@ int main(int argc, char* argv[])
 {
     cl::Cmdline cli("Example");
 
-    // XXX:
-    //
-    // MayGroup::yes actually requires HasArg::no to be used like "-vvv"
-    // If used in an option group, assume an optional argument is *not* given in all but
-    // the last occurrence of the option?!?!
-
-#if 1 // !CL_HAS_DEDUCTION_GUIDES
+#if !CL_HAS_DEDUCTION_GUIDES
     cli.Add("v", "Increase output verbosity",
         cl::Var(verbose),
         cl::NumOpts::zero_or_more, cl::MayGroup::yes, cl::HasArg::optional);
