@@ -2230,36 +2230,36 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     CL_ASSERT(col0 == 0 || out[col0 - 1] == '\n');
 
     // Append the name of the option along with a short description of its argument (if any)
-    // NOTE:
-    // Not wrapped.
+    // Note: not wrapped.
     out.append(indent, ' ');
     if (!is_positional) {
         out += '-';
     }
     out.append(opt->Name().data(), opt->Name().size());
-    if (!opt->HasFlag(HasArg::no)) {
-        char const* const arg_name = opt->HasFlag(HasArg::optional)
-                                         ? "=<arg>"
-                                         : opt->HasFlag(MayJoin::no)
-                                               ? " <arg>"
-                                               : "<arg>";
-
-        out += arg_name;
+    if (opt->HasFlag(HasArg::yes) && opt->HasFlag(MayJoin::yes)) {
+        out += "<arg>";
+    } else if (opt->HasFlag(HasArg::yes)) {
+        out += " <arg>";
+    } else if (opt->HasFlag(HasArg::optional)) {
+        out += "=<arg>";
     }
 
-    // Append the options description.
-    auto const col = out.size() - col0;
-    auto const wrap = (col >= descr_indent);
-    auto const nspaces = wrap ? descr_indent : descr_indent - col;
-    if (wrap) {
-        out += '\n';
-    }
-    out.append(nspaces, ' ');
-    // Now at column descr_width.
-    // Finally append the options' description.
-    cl::impl::AppendLines(out, opt->Descr(), descr_indent, descr_width);
+    if (!opt->Descr().empty()) {
+        // Move to column 'descr_width'.
+        // Possibly on the next line.
+        auto const col     = out.size() - col0;
+        auto const wrap    = col >= descr_indent;
+        auto const nspaces = wrap ? descr_indent : descr_indent - col;
+        if (wrap) {
+            out += '\n';
+        }
+        out.append(nspaces, ' ');
 
-    out += '\n'; // One option per line
+        // Append the options description.
+        cl::impl::AppendLines(out, opt->Descr(), descr_indent, descr_width);
+    }
+
+    out += '\n';
 }
 
 } // namespace impl
