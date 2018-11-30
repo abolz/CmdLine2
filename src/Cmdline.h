@@ -1039,15 +1039,9 @@ struct ByWords {
         auto const last_ws = str.find_last_of(" \t", length);
 
         if (last_ws != string_view::npos) {
-#if 0
-            size_t last_non_ws = last_ws;
-            while (last_non_ws > 0 && (str[last_non_ws - 1] == ' ' || str[last_non_ws - 1] == '\t')) {
-                --last_non_ws;
-            }
-            return {last_non_ws, last_ws - last_non_ws + 1};
-#else
+            // TODO:
+            // Further remove trailing whitespace?!
             return {last_ws, 1};
-#endif
         }
 
         return {length, 0}; // No space in current line, break at length.
