@@ -281,32 +281,34 @@ inline bool operator>=(string_view s1, string_view s2) noexcept {
 //==================================================================================================
 
 // Controls how often an option may/must be specified.
-enum class NumOpts : uint8_t {
-    // The option may appear at most once.
-    // This is the default.
-    optional        = 0x00,
-    // The option must appear exactly once.
-    required        = 0x01,
-    // The option may appear multiple times.
-    zero_or_more    = 0x02 | 0x00,
-    // The option must appear at least once.
-    one_or_more     = 0x02 | 0x01,
-};
+//enum class NumOpts : uint8_t {
+//    // The option may appear at most once.
+//    // This is the default.
+//    optional,
+//    // The option must appear exactly once.
+//    required,
+//    // The option may appear multiple times.
+//    zero_or_more,
+//    // The option must appear at least once.
+//    one_or_more,
+//};
 
+// Controls whether an option must appear on the command line.
 enum class Required : uint8_t {
     // The option is not required to appear on the command line.
     // This is the default.
-    no              = 0x00,
+    no,
     // The option is required to appear on the command line.
-    yes             = 0x01,
+    yes,
 };
 
+// Determines whether an option may appear multiple times on the command line.
 enum class Multiple : uint8_t {
     // The option may appear (at most) once on the command line.
     // This is the default.
-    no              = 0x00,
+    no,
     // The option may appear multiple times on the command line.
-    yes             = 0x02,
+    yes,
 };
 
 // Controls the number of arguments the option accepts.
@@ -399,7 +401,8 @@ class OptionBase {
     // The description of this option
     string_view descr_;
     // Flags controlling how the option may/must be specified.
-    NumOpts num_opts_ = NumOpts::optional;
+    Required required_ = Required::no;
+    Multiple multiple_ = Multiple::no;
     Arg arg_ = Arg::no;
     MayJoin join_arg_ = MayJoin::no;
     MayGroup may_group_ = MayGroup::no;
@@ -414,9 +417,12 @@ private:
     void Apply(T) = delete; // For slightly more useful error messages...
 
     // clang-format off
-    void Apply(NumOpts        v) { num_opts_        = v; }
-    void Apply(Required       v) { num_opts_        = static_cast<NumOpts>((static_cast<uint8_t>(num_opts_) & ~0x01) | static_cast<uint8_t>(v)); }
-    void Apply(Multiple       v) { num_opts_        = static_cast<NumOpts>((static_cast<uint8_t>(num_opts_) & ~0x02) | static_cast<uint8_t>(v)); }
+    //void Apply(NumOpts v) {
+    //    required_ = (v == NumOpts::required || v == NumOpts::one_or_more) ? Required::yes : Required::no;
+    //    multiple_ = (v == NumOpts::zero_or_more || v == NumOpts::one_or_more) ? Multiple::yes : Multiple::no;
+    //}
+    void Apply(Required       v) { required_        = v; }
+    void Apply(Multiple       v) { multiple_        = v; }
     void Apply(Arg            v) { arg_             = v; }
     void Apply(MayJoin        v) { join_arg_        = v; }
     void Apply(MayGroup       v) { may_group_       = v; }
@@ -445,9 +451,21 @@ public:
 
     // Returns the flags controlling how the option may/must be specified.
     // clang-format off
-    bool HasFlag(NumOpts        f) const { return num_opts_        == f; }
-    bool HasFlag(Required       f) const { return (static_cast<uint8_t>(num_opts_) & 0x01) == static_cast<uint8_t>(f); }
-    bool HasFlag(Multiple       f) const { return (static_cast<uint8_t>(num_opts_) & 0x02) == static_cast<uint8_t>(f); }
+    //bool HasFlag(NumOpts f) {
+    //    switch (f) {
+    //    case NumOpts::optional:
+    //        return required_ == Required::no  && multiple_ == Multiple::no;
+    //    case NumOpts::required:
+    //        return required_ == Required::yes && multiple_ == Multiple::no;
+    //    case NumOpts::zero_or_more:
+    //        return required_ == Required::no  && multiple_ == Multiple::yes;
+    //    case NumOpts::one_or_more:
+    //        return required_ == Required::yes && multiple_ == Multiple::yes;
+    //    }
+    //    return false; // Fix warning
+    //}
+    bool HasFlag(Required       f) const { return required_        == f; }
+    bool HasFlag(Multiple       f) const { return multiple_        == f; }
     bool HasFlag(Arg            f) const { return arg_             == f; }
     bool HasFlag(MayJoin        f) const { return join_arg_        == f; }
     bool HasFlag(MayGroup       f) const { return may_group_       == f; }
