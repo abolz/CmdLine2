@@ -280,21 +280,26 @@ inline bool operator>=(string_view s1, string_view s2) noexcept {
 //
 //==================================================================================================
 
-// Controls how often an option may/must be specified.
-enum class NumOpts : uint8_t {
-    // The option may appear at most once.
+// Controls whether an option must appear on the command line.
+enum class Required : uint8_t {
+    // The option is not required to appear on the command line.
     // This is the default.
-    optional,
-    // The option must appear exactly once.
-    required,
-    // The option may appear multiple times.
-    zero_or_more,
-    // The option must appear at least once.
-    one_or_more,
+    no,
+    // The option is required to appear on the command line.
+    yes,
+};
+
+// Determines whether an option may appear multiple times on the command line.
+enum class Multiple : uint8_t {
+    // The option may appear (at most) once on the command line.
+    // This is the default.
+    no,
+    // The option may appear multiple times on the command line.
+    yes,
 };
 
 // Controls the number of arguments the option accepts.
-enum class HasArg : uint8_t {
+enum class Arg : uint8_t {
     // An argument is not allowed.
     // This is the default.
     no,
@@ -302,6 +307,9 @@ enum class HasArg : uint8_t {
     optional,
     // An argument is required.
     yes,
+    // An argument is not allowed.
+    // This is the default.
+    disallowed = no,
     // An argument is required.
     required = yes,
 };
@@ -380,9 +388,10 @@ class OptionBase {
     // The description of this option
     string_view descr_;
     // Flags controlling how the option may/must be specified.
-    NumOpts num_opts_ = NumOpts::optional;
-    HasArg has_arg_ = HasArg::no;
-    MayJoin join_arg_ = MayJoin::no;
+    Required required_ = Required::no;
+    Multiple multiple_ = Multiple::no;
+    Arg arg_ = Arg::no;
+    MayJoin may_join_ = MayJoin::no;
     MayGroup may_group_ = MayGroup::no;
     Positional positional_ = Positional::no;
     CommaSeparated comma_separated_ = CommaSeparated::no;
@@ -395,9 +404,10 @@ private:
     void Apply(T) = delete; // For slightly more useful error messages...
 
     // clang-format off
-    void Apply(NumOpts        v) { num_opts_        = v; }
-    void Apply(HasArg         v) { has_arg_         = v; }
-    void Apply(MayJoin        v) { join_arg_        = v; }
+    void Apply(Required       v) { required_        = v; }
+    void Apply(Multiple       v) { multiple_        = v; }
+    void Apply(Arg            v) { arg_             = v; }
+    void Apply(MayJoin        v) { may_join_        = v; }
     void Apply(MayGroup       v) { may_group_       = v; }
     void Apply(Positional     v) { positional_      = v; }
     void Apply(CommaSeparated v) { comma_separated_ = v; }
@@ -424,9 +434,10 @@ public:
 
     // Returns the flags controlling how the option may/must be specified.
     // clang-format off
-    bool HasFlag(NumOpts        f) const { return num_opts_        == f; }
-    bool HasFlag(HasArg         f) const { return has_arg_         == f; }
-    bool HasFlag(MayJoin        f) const { return join_arg_        == f; }
+    bool HasFlag(Required       f) const { return required_        == f; }
+    bool HasFlag(Multiple       f) const { return multiple_        == f; }
+    bool HasFlag(Arg            f) const { return arg_             == f; }
+    bool HasFlag(MayJoin        f) const { return may_join_        == f; }
     bool HasFlag(MayGroup       f) const { return may_group_       == f; }
     bool HasFlag(Positional     f) const { return positional_      == f; }
     bool HasFlag(CommaSeparated f) const { return comma_separated_ == f; }
@@ -1868,14 +1879,14 @@ inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... arg
 inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::optional))
+    if (HasFlag(Multiple::no))
         return Count() == 0;
 
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const {
-    if (HasFlag(NumOpts::required) || HasFlag(NumOpts::one_or_more))
+    if (HasFlag(Required::yes))
         return Count() == 0;
 
     return false;
@@ -2180,11 +2191,11 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
     if (!is_positional)
         out += '-';
     out.append(opt->Name().data(), opt->Name().size());
-    if (opt->HasFlag(HasArg::yes) && opt->HasFlag(MayJoin::yes))
+    if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes))
         out += "<arg>";
-    else if (opt->HasFlag(HasArg::yes))
+    else if (opt->HasFlag(Arg::required))
         out += " <arg>";
-    else if (opt->HasFlag(HasArg::optional))
+    else if (opt->HasFlag(Arg::optional))
         out += "=<arg>";
 
     if (!opt->Descr().empty()) {
@@ -2226,8 +2237,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         if (opt->HasFlag(Positional::yes))
             return true;
 
-        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
-        if (!is_optional) {
+        if (opt->HasFlag(Required::yes)) {
             res += ' ';
             res.append(opt->Name().data(), opt->Name().size());
         }
@@ -2244,13 +2254,11 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         if (!opt->HasFlag(Positional::yes))
             return true;
 
-        bool const is_optional = (opt->HasFlag(NumOpts::optional) || opt->HasFlag(NumOpts::zero_or_more));
-
         res += ' ';
-        if (is_optional)
+        if (opt->HasFlag(Required::no))
             res += '[';
         res.append(opt->Name().data(), opt->Name().size());
-        if (is_optional)
+        if (opt->HasFlag(Required::no))
             res += ']';
 
         cl::impl::AppendDescr(spos, opt, fmt.indent, fmt.descr_indent, descr_width);
@@ -2456,7 +2464,7 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
 
         group.push_back(opt);
 
-        if (!opt->HasFlag(HasArg::no)) {
+        if (!opt->HasFlag(Arg::no)) {
             // The option accepts an argument.
             // This terminates the option group.
             break;
@@ -2514,7 +2522,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     // We get here if no argument was specified.
     // If an argument is required, try to steal one from the command line.
 
-    if (!opt->HasFlag(HasArg::required))
+    if (!opt->HasFlag(Arg::required))
         return ParseOptionArgument(opt, name, {});
 
     // If the option requires an argument, steal one from the command line.
@@ -2522,7 +2530,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     ++curr_index_;
 
     if (curr != last) {
-        std::string const arg = cl::impl::ToUTF8(*curr);
+        auto const arg = cl::impl::ToUTF8(*curr);
         return ParseOptionArgument(opt, name, arg);
     }
 
@@ -2533,7 +2541,7 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
 inline Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, string_view arg) {
     // An argument was specified for OPT.
 
-    if (opt->HasFlag(Positional::no) && opt->HasFlag(HasArg::no)) {
+    if (opt->HasFlag(Positional::no) && opt->HasFlag(Arg::no)) {
         EmitDiag(Diagnostic::error, curr_index_, "option '", name, "' does not accept an argument");
         return Status::error;
     }
