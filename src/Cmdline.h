@@ -1244,9 +1244,9 @@ namespace impl {
 // Convert the string representation in CTX.ARG into an object of type T.
 // Possibly emits diagnostics on error.
 template <typename T = void, typename /*Enable*/ = void>
-struct ParseValue {
+struct ConvertTo {
     static_assert(cl::impl::IsStreamExtractable<T>::value,
-        "The default implementation of 'ParseValue<T>' requires the type 'T' is stream-extractable");
+        "The default implementation of 'ConvertTo<T>' requires the type 'T' is stream-extractable");
 
     template <typename Stream = std::istringstream>
     bool operator()(ParseContext const& ctx, T& value) const {
@@ -1278,7 +1278,7 @@ struct ParseValue {
 };
 
 template <>
-struct ParseValue<bool> {
+struct ConvertTo<bool> {
     bool operator()(ParseContext const& ctx, bool& value) const {
         if (cl::impl::IsAnyOf(ctx.arg, string_view{}, "1", "y", "yes", "Yes", "on", "On", "true", "True"))
             value = true;
@@ -1327,7 +1327,7 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
-struct ParseInt {
+struct ConvertToInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
         long long v = 0;
@@ -1339,7 +1339,7 @@ struct ParseInt {
     }
 };
 
-struct ParseUnsignedInt {
+struct ConvertToUnsignedInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
         unsigned long long v = 0;
@@ -1351,40 +1351,40 @@ struct ParseUnsignedInt {
     }
 };
 
-template <> struct ParseValue< signed char        > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed short       > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed int         > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed long        > : cl::impl::ParseInt {};
-template <> struct ParseValue< signed long long   > : cl::impl::ParseInt {};
-template <> struct ParseValue< unsigned char      > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned short     > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned int       > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long      > : cl::impl::ParseUnsignedInt {};
-template <> struct ParseValue< unsigned long long > : cl::impl::ParseUnsignedInt {};
+template <> struct ConvertTo< signed char        > : cl::impl::ConvertToInt {};
+template <> struct ConvertTo< signed short       > : cl::impl::ConvertToInt {};
+template <> struct ConvertTo< signed int         > : cl::impl::ConvertToInt {};
+template <> struct ConvertTo< signed long        > : cl::impl::ConvertToInt {};
+template <> struct ConvertTo< signed long long   > : cl::impl::ConvertToInt {};
+template <> struct ConvertTo< unsigned char      > : cl::impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned short     > : cl::impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned int       > : cl::impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned long      > : cl::impl::ConvertToUnsignedInt {};
+template <> struct ConvertTo< unsigned long long > : cl::impl::ConvertToUnsignedInt {};
 
 template <>
-struct ParseValue<float> {
+struct ConvertTo<float> {
     bool operator()(ParseContext const& ctx, float& value) const {
         return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
     }
 };
 
 template <>
-struct ParseValue<double> {
+struct ConvertTo<double> {
     bool operator()(ParseContext const& ctx, double& value) const {
         return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
     }
 };
 
 template <>
-struct ParseValue<long double> {
+struct ConvertTo<long double> {
     bool operator()(ParseContext const& ctx, long double& value) const {
         return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
     }
 };
 
 template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char, Traits, Alloc>> {
+struct ConvertTo<std::basic_string<char, Traits, Alloc>> {
     bool operator()(ParseContext const& ctx, std::basic_string<char, Traits, Alloc>& value) const {
         // We know that ctx.arg is well-formed UTF-8 already.
         // No need to re-check here.
@@ -1394,7 +1394,7 @@ struct ParseValue<std::basic_string<char, Traits, Alloc>> {
 };
 
 template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char16_t, Traits, Alloc>> {
+struct ConvertTo<std::basic_string<char16_t, Traits, Alloc>> {
     bool operator()(ParseContext const& ctx, std::basic_string<char16_t, Traits, Alloc>& value) const {
         value.clear();
 
@@ -1410,7 +1410,7 @@ struct ParseValue<std::basic_string<char16_t, Traits, Alloc>> {
 };
 
 template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<char32_t, Traits, Alloc>> {
+struct ConvertTo<std::basic_string<char32_t, Traits, Alloc>> {
     bool operator()(ParseContext const& ctx, std::basic_string<char32_t, Traits, Alloc>& value) const {
         value.clear();
 
@@ -1426,7 +1426,7 @@ struct ParseValue<std::basic_string<char32_t, Traits, Alloc>> {
 };
 
 template <typename Traits, typename Alloc>
-struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>> {
+struct ConvertTo<std::basic_string<wchar_t, Traits, Alloc>> {
     bool operator()(ParseContext const& ctx, std::basic_string<wchar_t, Traits, Alloc>& value) const {
         value.clear();
 
@@ -1446,10 +1446,10 @@ struct ParseValue<std::basic_string<wchar_t, Traits, Alloc>> {
 };
 
 template <>
-struct ParseValue<void> {
+struct ConvertTo<void> {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
-        return ParseValue<T>{}(ctx, value);
+        return ConvertTo<T>{}(ctx, value);
     }
 };
 
@@ -1538,7 +1538,7 @@ auto Assign(T& target, Predicates&&... preds) {
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ConvertTo<>{}, preds...)) {
             target = std::move(temp);
             return true;
         }
@@ -1563,7 +1563,7 @@ auto PushBack(T& container, Predicates&&... preds) {
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
-        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ParseValue<>{}, preds...)) {
+        if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ConvertTo<>{}, preds...)) {
             container.insert(container.end(), std::move(temp));
             return true;
         }
@@ -1638,7 +1638,7 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-") {
         "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
-        if (!cl::impl::ParseValue<>{}(ctx, var))
+        if (!cl::impl::ConvertTo<>{}(ctx, var))
             return false;
         if (cl::impl::StartsWith(ctx.name, inverse_prefix))
             var = !var;
