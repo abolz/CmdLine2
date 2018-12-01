@@ -1507,6 +1507,7 @@ auto LessEqual(T upper) {
 //
 //--------------------------------------------------------------------------------------------------
 
+#if !CL_HAS_FOLD_EXPRESSIONS
 namespace impl {
 
 // Calls f(CTX, VALUE) for all f in FUNCS (in order) until the first f returns false.
@@ -1523,6 +1524,7 @@ bool ApplyFuncs(ParseContext const& ctx_, T& value_, Funcs&&... funcs) {
 }
 
 } // namespace impl
+#endif
 
 // Default parser for scalar types.
 // Uses an instance of Parser<> to convert the string.
@@ -1538,7 +1540,11 @@ auto Assign(T& target, Predicates&&... preds) {
     return [=, &target](ParseContext const& ctx) {
         // Parse into a local variable so that target is not assigned if any of the predicates returns false.
         T temp;
+#if CL_HAS_FOLD_EXPRESSIONS
+        if ((cl::impl::ConvertTo<>{}(ctx, temp) && ... && preds(ctx, temp))) {
+#else
         if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ConvertTo<>{}, preds...)) {
+#endif
             target = std::move(temp);
             return true;
         }
@@ -1563,7 +1569,11 @@ auto PushBack(T& container, Predicates&&... preds) {
 
     return [=, &container](ParseContext const& ctx) {
         V temp;
+#if CL_HAS_FOLD_EXPRESSIONS
+        if ((cl::impl::ConvertTo<>{}(ctx, temp) && ... && preds(ctx, temp))) {
+#else
         if (cl::impl::ApplyFuncs(ctx, temp, cl::impl::ConvertTo<>{}, preds...)) {
+#endif
             container.insert(container.end(), std::move(temp));
             return true;
         }
@@ -1612,7 +1622,11 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
             // Parse into a local variable to allow the predicates to modify the value.
             T temp = p.second;
+#if CL_HAS_FOLD_EXPRESSIONS
+            if ((true && ... && preds(ctx, temp))) {
+#else
             if (cl::impl::ApplyFuncs(ctx, temp, preds...)) {
+#endif
                 value = std::move(temp);
                 return true;
             }
