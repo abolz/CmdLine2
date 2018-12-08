@@ -31,9 +31,9 @@ static ParseResult ParseMakeCommand(ArgIterator next, ArgIterator last)
 {
     cl::Cmdline cli("finder make", "Make a new finder");
 
-    cli.Add("wordfile", "", cl::Var(input), cl::Positional::yes | cl::Arg::required | cl::Required::yes | cl::Multiple::yes);
-    cli.Add("dict", "", cl::Var(dict), cl::Arg::required | cl::Required::yes);
-    cli.Add("progress", "show progress", cl::Var(progr));
+    cli.Add("wordfile", "", cl::Positional::yes | cl::Arg::required | cl::Required::yes | cl::Multiple::yes, cl::Var(input));
+    cli.Add("dict", "", cl::Arg::required | cl::Required::yes, cl::Var(dict));
+    cli.Add("progress", "show progress", cl::Flags{}, cl::Var(progr));
 
     return Parse(cli, next, last);
 }
@@ -42,10 +42,10 @@ static ParseResult ParseFindCommand(ArgIterator next, ArgIterator last)
 {
     cl::Cmdline cli("finder find", "Find an existing finder");
 
-    cli.Add("infile", "", cl::Var(input), cl::Required::yes | cl::Multiple::yes | cl::Arg::required | cl::Positional::yes);
-    cli.Add("dict", "", cl::Var(dict), cl::Arg::required | cl::Required::yes);
-    cli.Add("o", "write to file instead of stdout", cl::Var(out), cl::Arg::required);
-    cli.Add("split|nosplit", "(do not) split output", cl::Flag(split, /*inverse_prefix*/ "no"));
+    cli.Add("infile", "", cl::Required::yes | cl::Multiple::yes | cl::Arg::required | cl::Positional::yes, cl::Var(input));
+    cli.Add("dict", "", cl::Arg::required | cl::Required::yes, cl::Var(dict));
+    cli.Add("o", "write to file instead of stdout", cl::Arg::required, cl::Var(out));
+    cli.Add("split|nosplit", "(do not) split output", cl::Flags{}, cl::Flag(split, /*inverse_prefix*/ "no"));
 
     return Parse(cli, next, last);
 }
@@ -54,16 +54,16 @@ static bool ParseCommandLine(ArgIterator next, ArgIterator last)
 {
     cl::Cmdline cli("finder", "");
 
-    cli.Add("v|version", "show version", [](cl::ParseContext const& /*ctx*/) { printf("version 1.0\n"); }, cl::Arg::no);
+    cli.Add("v|version", "show version", cl::Arg::no, [](cl::ParseContext const& /*ctx*/) { printf("version 1.0\n"); });
     cli.Add("mode",
         "Can be make|find|help\n"
         "  <make>  \tMake a new finder?!\n"
         "  <find>  \tFind an existing finder.\n"
         "  <help>  \tShow help menu",
+        cl::Required::yes | cl::Positional::yes | cl::StopParsing::yes,
         cl::Map(selected, { {"make", mode::make},
                             {"find", mode::find},
-                            {"help", mode::help} }),
-        cl::Required::yes | cl::Positional::yes | cl::StopParsing::yes);
+                            {"help", mode::help} }));
 
     if (auto const res = Parse(cli, next, last))
     {

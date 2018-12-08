@@ -484,7 +484,7 @@ class Option final : public OptionBase {
 
 public:
     template <typename ParserInit>
-    Option(char const* name, char const* descr, ParserInit&& parser, Flags flags = {});
+    Option(char const* name, char const* descr, Flags flags, ParserInit&& parser);
 
     ParserT const& Parser() const { return parser_; }
     ParserT& Parser() { return parser_; }
@@ -504,7 +504,7 @@ private:
 
 #if CL_HAS_DEDUCTION_GUIDES
 template <typename ParserInit>
-Option(char const*, char const*, ParserInit&&, Flags)
+Option(char const*, char const*, Flags, ParserInit&&)
     -> Option<std::decay_t<ParserInit>>;
 #endif
 
@@ -591,7 +591,7 @@ public:
     // Returns a pointer to the newly created option.
     // The Cmdline object owns this option.
     template <typename ParserInit>
-    Option<std::decay_t<ParserInit>>* Add(char const* name, char const* descr, ParserInit&& parser, Flags flags = {});
+    Option<std::decay_t<ParserInit>>* Add(char const* name, char const* descr, Flags flags, ParserInit&& parser);
 
     // Add an option to the commond line.
     // The Cmdline object takes ownership.
@@ -1930,7 +1930,7 @@ inline bool OptionBase::IsOccurrenceRequired() const {
 
 template <typename ParserT>
 template <typename ParserInit>
-inline Option<ParserT>::Option(char const* name, char const* descr, ParserInit&& parser, Flags flags)
+inline Option<ParserT>::Option(char const* name, char const* descr, Flags flags, ParserInit&& parser)
     : OptionBase(name, descr, flags)
     , parser_(std::forward<ParserInit>(parser))
 {
@@ -1963,9 +1963,9 @@ CL_FORCE_INLINE void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&.
 }
 
 template <typename ParserInit>
-Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Flags flags) {
+Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, Flags flags, ParserInit&& parser) {
     auto opt = std::make_unique<Option<std::decay_t<ParserInit>>>(
-        name, descr, std::forward<ParserInit>(parser), flags);
+        name, descr, flags, std::forward<ParserInit>(parser));
 
     auto const p = opt.get();
     Add(std::move(opt));

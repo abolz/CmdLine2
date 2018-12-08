@@ -94,7 +94,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a)); // 'NumOpts::optional' is the default
+        cl.Add("a", "", cl::Flags{}, cl::Var(a)); // 'Required::no' is the default
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -110,7 +110,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Required::yes);
+        cl.Add("a", "", cl::Required::yes, cl::Var(a));
 
         CHECK(false == ParseArgs(cl, {}));
         cl.Reset();
@@ -125,7 +125,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes);
+        cl.Add("a", "", cl::Multiple::yes, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -143,10 +143,10 @@ TEST_CASE("Opt")
 
         cl::Cmdline cl("test", "test");
 #if CL_HAS_DEDUCTION_GUIDES
-        cl::Option opt_a("a", "", cl::Var(a), cl::Required::yes | cl::Multiple::yes);
+        cl::Option opt_a("a", "", cl::Required::yes | cl::Multiple::yes, cl::Var(a));
         cl.Add(&opt_a);
 #else
-        cl.Add("a", "", cl::Var(a), cl::Required::yes | cl::Multiple::yes);
+        cl.Add("a", "", cl::Required::yes | cl::Multiple::yes, cl::Var(a));
 #endif
 
         CHECK(false == ParseArgs(cl, {}));
@@ -166,7 +166,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes); // 'arg_disallowed' is the default
+        cl.Add("a", "", cl::Multiple::yes, cl::Var(a)); // 'Arg::no' is the default
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -181,7 +181,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::optional);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::optional, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -214,7 +214,7 @@ TEST_CASE("Arg")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::yes);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::yes, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
@@ -273,9 +273,9 @@ TEST_CASE("MayGroup")
 
     cl::Cmdline cl("test", "test");
 
-    cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::no);
-    cl.Add("b", "", cl::Var(b), cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::no);
-    cl.Add("c", "", cl::Var(c), cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::required);
+    cl.Add("a", "", cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::no,       cl::Var(a));
+    cl.Add("b", "", cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::no,       cl::Var(b));
+    cl.Add("c", "", cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::required, cl::Var(c));
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(true == ParseArgs(cl, {"-a", "-b", "-c=true"}));
@@ -321,7 +321,7 @@ TEST_CASE("MayGroup")
     CHECK(b == true);
     CHECK(c == false);
 
-    cl.Add("ab", "", cl::Var(ab), cl::Multiple::yes | cl::Arg::no);
+    cl.Add("ab", "", cl::Multiple::yes | cl::Arg::no, cl::Var(ab));
 
     a = false;
     b = false;
@@ -331,7 +331,7 @@ TEST_CASE("MayGroup")
     CHECK(ab == true);
     ab = false;
 
-    cl.Add("ac", "", cl::Var(ac), cl::Multiple::yes | cl::Arg::required);
+    cl.Add("ac", "", cl::Multiple::yes | cl::Arg::required, cl::Var(ac));
 
     CHECK(true == ParseArgs(cl, {"-ac=true"}));
     CHECK(a == false);
@@ -339,7 +339,7 @@ TEST_CASE("MayGroup")
     CHECK(ac == true);
     ac = false;
 
-    cl.Add("abc", "", cl::Var(abc), cl::Multiple::yes | cl::Arg::required);
+    cl.Add("abc", "", cl::Multiple::yes | cl::Arg::required, cl::Var(abc));
 
     CHECK(true == ParseArgs(cl, {"-abc=true"}));
     CHECK(a == false);
@@ -370,7 +370,7 @@ TEST_CASE("Positional")
         std::vector<std::string> strings;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(strings), cl::Positional::yes | cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Positional::yes | cl::Multiple::yes | cl::Arg::required, cl::Var(strings));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(strings.empty());
@@ -389,7 +389,7 @@ TEST_CASE("Positional")
         std::vector<int> ints;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(ints), cl::Positional::yes | cl::Required::yes | cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Positional::yes | cl::Required::yes | cl::Multiple::yes | cl::Arg::required, cl::Var(ints));
 
         CHECK(true == ParseArgs(cl, {"1"}));
         CHECK(true == ParseArgs(cl, {})); // succeeds because the count member is not automatically reset!
@@ -408,7 +408,7 @@ TEST_CASE("CommaSeparatedArg")
     std::vector<int> ints;
 
     cl::Cmdline cl("test", "test");
-    cl.Add("a", "", cl::Var(ints), cl::Multiple::yes | cl::Arg::required | cl::CommaSeparated::yes);
+    cl.Add("a", "", cl::Multiple::yes | cl::Arg::required | cl::CommaSeparated::yes, cl::Var(ints));
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(ints.empty());
@@ -437,8 +437,8 @@ TEST_CASE("StopParsing")
     int a = 0;
 
     cl::Cmdline cli("test", "test");
-    cli.Add("a", "", cl::Var(a), cl::Arg::optional);
-    cli.Add("command", "", cl::Var(command), cl::Positional::yes | cl::Arg::yes | cl::StopParsing::yes | cl::Required::yes);
+    cli.Add("a", "", cl::Arg::optional, cl::Var(a));
+    cli.Add("command", "", cl::Positional::yes | cl::Arg::yes | cl::StopParsing::yes | cl::Required::yes, cl::Var(command));
 
     SECTION("1")
     {
@@ -478,7 +478,7 @@ TEST_CASE("Strings")
     std::string str;
 
     cl::Cmdline cl("test", "test");
-    cl.Add("s", "", cl::Var(str), cl::Multiple::yes | cl::Arg::required);
+    cl.Add("s", "", cl::Multiple::yes | cl::Arg::required, cl::Var(str));
 
     CHECK(true == ParseArgs(cl, {"-s=hello hello hello hello hello hello hello hello hello hello hello hello",
                                  "-s=world world world world world world world world world world world world"}));
@@ -494,7 +494,7 @@ TEST_CASE("Ints")
         int8_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {"-a", "0"}));
         CHECK(a == 0);
@@ -511,7 +511,7 @@ TEST_CASE("Ints")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == 0);
@@ -539,7 +539,7 @@ TEST_CASE("Ints")
         int64_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {"-a", "9223372036854775807"}));
         CHECK(a == INT64_MAX);
@@ -561,7 +561,7 @@ TEST_CASE("Ints")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == 0);
@@ -584,7 +584,7 @@ TEST_CASE("Ints")
         int8_t a = -1;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
         CHECK(true == ParseArgs(cl, {"-a", "0"}));
         CHECK(a == 0);
@@ -636,13 +636,13 @@ TEST_CASE("Map")
 
     cl::Cmdline cl("test", "test");
     cl.Add("simpson", "<descr>",
+        cl::Multiple::yes | cl::Arg::required,
         cl::Map(simpson, {{ "Homer",    Simpson::Homer  },
                           { "Marge",    Simpson::Marge  },
                           { "Bart",     Simpson::Bart   },
                           { "El Barto", Simpson::Bart   },
                           { "Lisa",     Simpson::Lisa   },
-                          { "Maggie",   Simpson::Maggie }}),
-        cl::Multiple::yes | cl::Arg::required);
+                          { "Maggie",   Simpson::Maggie }}));
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(simpson == Simpson::Maggie); // unchanged!
@@ -674,8 +674,8 @@ TEST_CASE("Checks")
         int32_t b = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a, cl::check::InRange(-3, 3)), cl::Multiple::yes | cl::Arg::required);
-        cl.Add("b", "", cl::Var(b, cl::check::InRange(INT32_MIN, INT32_MAX)), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a, cl::check::InRange(-3, 3)));
+        cl.Add("b", "", cl::Multiple::yes | cl::Arg::required, cl::Var(b, cl::check::InRange(INT32_MIN, INT32_MAX)));
 
         CHECK(true == ParseArgs(cl, {"-a=0"}));
         CHECK(a == 0);
@@ -699,7 +699,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a, cl::check::GreaterThan(-3)), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a, cl::check::GreaterThan(-3)));
 
         CHECK(true == ParseArgs(cl, {"-a=0"}));
         CHECK(a == 0);
@@ -716,7 +716,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a, cl::check::GreaterEqual(7)), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a, cl::check::GreaterEqual(7)));
 
         CHECK(true == ParseArgs(cl, {"-a=7"}));
         CHECK(a == 7);
@@ -730,7 +730,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a, cl::check::LessThan(-3)), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a, cl::check::LessThan(-3)));
 
         CHECK(true == ParseArgs(cl, {"-a=-4"}));
         CHECK(a == -4);
@@ -745,7 +745,7 @@ TEST_CASE("Checks")
         int32_t a = 0;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Var(a, cl::check::LessEqual(INT32_MIN)), cl::Multiple::yes | cl::Arg::required);
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a, cl::check::LessEqual(INT32_MIN)));
 
         CHECK(true == ParseArgs(cl, {"-a=-2147483648"}));
         CHECK(a == INT32_MIN);
@@ -759,7 +759,7 @@ TEST_CASE("Unicode")
     std::string str;
 
     cl::Cmdline cl("test", "test");
-    cl.Add(u8"😃-😜", "", cl::Var(str), cl::Multiple::yes | cl::Arg::required);
+    cl.Add(u8"😃-😜", "", cl::Multiple::yes | cl::Arg::required, cl::Var(str));
 
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
     CHECK(str == u8"hello😍😎world");
@@ -770,7 +770,7 @@ TEST_CASE("Wide strings")
     std::wstring str;
 
     cl::Cmdline cl("test", "test");
-    cl.Add(u8"😃-😜", "", cl::Var(str), cl::Multiple::yes | cl::Arg::required);
+    cl.Add(u8"😃-😜", "", cl::Multiple::yes | cl::Arg::required, cl::Var(str));
 
     CHECK(true == ParseArgs(cl, {u8"-😃-😜=hello😍😎world"}));
     CHECK(str == L"hello😍😎world");
@@ -796,7 +796,7 @@ TEST_CASE("Unicode up-down")
     bool value;
 
     cl::Cmdline cli("test", "test");
-    cli.Add("b", "up-down", up_down_bool_parser(value), cl::Multiple::yes | cl::Arg::optional);
+    cli.Add("b", "up-down", cl::Multiple::yes | cl::Arg::optional, up_down_bool_parser(value));
 
     CHECK(true == ParseArgs(cli, {u8"-b"}));
     CHECK(true == value);
@@ -947,9 +947,9 @@ TEST_CASE("Tokenize Windows 2")
     bool c = false;
 
     cl::Cmdline cl("test", "test");
-    cl.Add("a", "<descr>", cl::Var(a), cl::Multiple::yes | cl::Arg::no |       cl::MayGroup::yes);
-    cl.Add("b", "<descr>", cl::Var(b), cl::Multiple::yes | cl::Arg::optional | cl::MayGroup::yes);
-    cl.Add("c", "<descr>", cl::Var(c), cl::Multiple::yes | cl::Arg::required | cl::MayGroup::yes);
+    cl.Add("a", "<descr>", cl::Multiple::yes | cl::Arg::no |       cl::MayGroup::yes, cl::Var(a));
+    cl.Add("b", "<descr>", cl::Multiple::yes | cl::Arg::optional | cl::MayGroup::yes, cl::Var(b));
+    cl.Add("c", "<descr>", cl::Multiple::yes | cl::Arg::required | cl::MayGroup::yes, cl::Var(c));
 
     char const* command_line
         = "-a --b -b -b=true -b=0 -b=on -c          false -c=0 -c=1 -c=true -c=false -c=on --c=off -c=yes --c=no -ac true -ab -ab=true";
@@ -975,8 +975,8 @@ TEST_CASE("Invertible flag")
     bool b = false;
 
     cl::Cmdline cl("test", "test");
-    cl.Add("a|no-a", "bool", Flag(a), cl::Multiple::yes | cl::Arg::no);
-    cl.Add("b|no-b", "bool", Flag(b), cl::Multiple::yes | cl::Arg::no);
+    cl.Add("a|no-a", "bool", cl::Multiple::yes | cl::Arg::no, Flag(a));
+    cl.Add("b|no-b", "bool", cl::Multiple::yes | cl::Arg::no, Flag(b));
 
     CHECK(true == ParseArgs(cl, {}));
     CHECK(a == false);
@@ -999,22 +999,21 @@ TEST_CASE("Ex 1")
 
     OptimizationLevel optlevel = OptimizationLevel::O0;
 
-    cl::Cmdline cl("test", "test");
+    cl::Cmdline cl("compiler", "test");
     cl.Add(
         "O0|O1|O2|O3|Os",
-"Optimization level\r\n"
-"  -O0  No optimization (the default); generates unoptimized code but has the fastest compilation time.\r\n"
-"  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\r\n"
-"  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\r\n"
-"  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\r\n"
-"  -Os  \tOptimize space usage (code and data) of resulting program.",
+        "Optimization level\r\n"
+        "  -O0  No optimization (the default); generates unoptimized code but has the fastest compilation time.\r\n"
+        "  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\r\n"
+        "  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\r\n"
+        "  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\r\n"
+        "  -Os  \tOptimize space usage (code and data) of resulting program.",
+        cl::Arg::no | cl::Required::yes,
         cl::Map(optlevel, {{"O0", OptimizationLevel::O0},
                            {"O1", OptimizationLevel::O1},
                            {"O2", OptimizationLevel::O2},
                            {"O3", OptimizationLevel::O3},
-                           {"Os", OptimizationLevel::Os}}),
-        cl::Arg::no |
-        cl::Required::yes
+                           {"Os", OptimizationLevel::Os}})
         );
 
     CHECK(false == ParseArgs(cl, {}));
@@ -1025,7 +1024,7 @@ TEST_CASE("Ex 1")
     fmt.descr_indent = 8;
     fmt.line_length = 56;
 
-    cl.PrintHelp("compiler", fmt);
+    cl.PrintHelp(fmt);
 }
 
 TEST_CASE("Ex 2")
@@ -1038,39 +1037,37 @@ TEST_CASE("Ex 2")
     OptimizationLevel optlevel = OptimizationLevel::O0;
     std::string input = "-";
 
-    cl::Cmdline cl("test", "test");
+    cl::Cmdline cl("compiler", "test");
     cl.Add(
         "O",
-"Optimization level\n"
-" -OptimzationLevel0000000\tNo optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
-"\t  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
-"  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\n"
-"  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
-"  -Os  \tOptimize space usage (code and data) of resulting program.",
+        "Optimization level\n"
+        " -OptimzationLevel0000000\tNo optimization (the default); generates unoptimized code but has the fastest compilation time.\n"
+        "\t  -O1  Moderate optimization; optimizes reasonably well but does not degrade compilation time significantly.\n"
+        "  -O2  \tFull optimization; generates highly optimized code and has the slowest compilation time.\n"
+        "  -O3  \tFull optimization as in -O2; also uses more aggressive automatic inlining of subprograms within a unit (Inlining of Subprograms) and attempts to vectorize loops.\n"
+        "  -Os  \tOptimize space usage (code and data) of resulting program.",
+        cl::MayJoin::yes | cl::Arg::yes | cl::Required::yes,
         [&](cl::ParseContext const& ctx) {
-            if (ctx.arg == "0")
+            if (ctx.arg == "0") {
                 optlevel = OptimizationLevel::O0;
-            else if (ctx.arg == "1")
+            } else if (ctx.arg == "1") {
                 optlevel = OptimizationLevel::O1;
-            else if (ctx.arg == "2")
+            } else if (ctx.arg == "2") {
                 optlevel = OptimizationLevel::O2;
-            else if (ctx.arg == "3")
+            } else if (ctx.arg == "3") {
                 optlevel = OptimizationLevel::O3;
-            else if (ctx.arg == "s")
+            } else if (ctx.arg == "s") {
                 optlevel = OptimizationLevel::Os;
-            else {
-                ctx.cmdline->FormatDiag(cl::Diagnostic::error, ctx.index, "invalid argument '%.*s' for option -O<optlevel>", static_cast<int>(ctx.arg.size()), ctx.arg.data());
-                ctx.cmdline->FormatDiag(cl::Diagnostic::note, ctx.index, "%s", "<optlevel> must be 0,1,2,3, or s");
+            } else {
+                ctx.cmdline->EmitDiag(cl::Diagnostic::error, ctx.index, "invalid argument '", ctx.arg, "' for option -O<optlevel>");
+                ctx.cmdline->EmitDiag(cl::Diagnostic::note, ctx.index, "<optlevel> must be 0,1,2,3, or s");
                 return false;
             }
 
             return true;
-        },
-        cl::MayJoin::yes |
-        cl::Arg::yes |
-        cl::Required::yes
+        }
         );
-    cl.Add("input", "input file", cl::Var(input), cl::Required::no, cl::Positional::yes);
+    cl.Add("input", "input file", cl::Required::no | cl::Positional::yes, cl::Var(input));
 
     CHECK(false == ParseArgs(cl, {"-Oinf"}));
     cl.PrintDiag();
@@ -1085,7 +1082,7 @@ TEST_CASE("Ex 2")
     fmt.descr_indent = 8;
     fmt.line_length = 20;
 
-    cl.PrintHelp("compiler", fmt);
+    cl.PrintHelp(fmt);
 }
 #endif
 
@@ -1097,17 +1094,17 @@ TEST_CASE("custom check")
     {
         using namespace cl;
 
-        return [=](ParseContext const& ctx, auto& value) {
+        return [=](cl::ParseContext const& ctx, auto& value) {
             if (value < lower)
             {
-                ctx.cmdline->EmitDiag(Diagnostic::warning, ctx.index,
-                    "argument '" + std::to_string(value) + "' is out of range. using lower bound '" + std::to_string(lower) + "'");
+                ctx.cmdline->EmitDiag(cl::Diagnostic::warning, ctx.index,
+                    "argument '", std::to_string(value), "' is out of range. using lower bound '", std::to_string(lower), "'");
                 value = lower;
             }
             else if (upper < value)
             {
-                ctx.cmdline->EmitDiag(Diagnostic::warning, ctx.index,
-                    "argument '" + std::to_string(value) + "' is out of range. using upper bound '" + std::to_string(upper) + "'");
+                ctx.cmdline->EmitDiag(cl::Diagnostic::warning, ctx.index,
+                    "argument '", std::to_string(value), "' is out of range. using upper bound '", std::to_string(upper), "'");
                 value = upper;
             }
             return true;
@@ -1116,8 +1113,8 @@ TEST_CASE("custom check")
 
     int i = 0;
 
-    cl::Cmdline cli;
-    cli.Add("i", "int", cl::Var(i, Clamp(-3,3)), cl::Required::yes | cl::Arg::yes);
+    cl::Cmdline cli("test", "test");
+    cli.Add("i", "int", cl::Required::yes | cl::Arg::yes, cl::Var(i, Clamp(-3,3)));
 
     cli.Reset();
     CHECK(true == ParseArgs(cli, {"-i", "1"}));
@@ -1126,19 +1123,19 @@ TEST_CASE("custom check")
     cli.Reset();
     CHECK(true == ParseArgs(cli, {"-i", "1000"}));
     CHECK(i == 3);
-    CHECK(!cli.diag().empty());
+    CHECK(!cli.Diag().empty());
     cli.PrintDiag();
 
     cli.Reset();
     CHECK(true == ParseArgs(cli, {"-i", "-1000"}));
     CHECK(i == -3);
-    CHECK(!cli.diag().empty());
+    CHECK(!cli.Diag().empty());
     cli.PrintDiag();
 
     cli.Reset();
     CHECK(true == ParseArgs(cli, {"-i", "3"}));
     CHECK(i == 3);
-    CHECK(cli.diag().empty());
+    CHECK(cli.Diag().empty());
 }
 #endif
 
@@ -1412,7 +1409,7 @@ TEST_CASE("std::path 1")
     std::filesystem::path p;
 
     cl::Cmdline cli("test", "test");
-    cli.Add("p", "path", cl::Var(p), cl::Multiple::yes | cl::Arg::required);
+    cli.Add("p", "path", cl::Multiple::yes | cl::Arg::required, cl::Var(p));
 
     p = "";
     CHECK(true == ParseArgs(cli, {"-p", "path_without_spaces"}));
@@ -1437,7 +1434,8 @@ TEST_CASE("std::path 2")
     std::filesystem::path p;
 
     cl::Cmdline cli("test", "test");
-    cli.Add("p", "path", [&](cl::ParseContext const& ctx) { p.assign(ctx.arg.begin(), ctx.arg.end()); }, cl::Multiple::yes | cl::Arg::required);
+    cli.Add("p", "path", cl::Multiple::yes | cl::Arg::required,
+        [&](cl::ParseContext const& ctx) { p.assign(ctx.arg.begin(), ctx.arg.end()); });
 
     p = "";
     CHECK(true == ParseArgs(cli, {"-p", "path_without_spaces"}));
@@ -1463,8 +1461,8 @@ TEST_CASE("MayJoin")
     std::string value;
 
     cl::Cmdline cli("test", "test");
-    cli.Add("n", "", cl::Var(value), cl::Multiple::yes | cl::Arg::required | cl::MayJoin::no);
-    cli.Add("y", "", cl::Var(value), cl::Multiple::yes | cl::Arg::required | cl::MayJoin::yes);
+    cli.Add("n", "", cl::Multiple::yes | cl::Arg::required | cl::MayJoin::no, cl::Var(value));
+    cli.Add("y", "", cl::Multiple::yes | cl::Arg::required | cl::MayJoin::yes, cl::Var(value));
 
     value = "?";
     CHECK(false == ParseArgs(cli, {"-n"}));
