@@ -34,56 +34,61 @@ int main(int argc, char* argv[])
     bool debug = false;
 
     cli.Add(
-        // The first three parameters are mandatory.
-
         // 1)
         //
         // The 1st parameter is the name of the option. Multiple option names
         // may be separated by `|`. So the `debug` option might be specified as
         // `-d` or `--debug`.
+        //
         "d|debug",
 
         // 2)
         //
         // The 2nd parameter provides a short description of the option which
         // will be displayed in the automatically generated help message.
+        //
         "Enable debug output",
 
         // 3)
         //
-        // The 3rd parameter is the actual option parser which effectively takes
-        // the string representation of the command line argument and is used to
-        // convert the option (or the options' argument - if present) into the
-        // target object.
-        // For now it should be sufficient to note that Var(T& target) is a
-        // convenience function which converts the string as given on the
-        // command line into an object of type `T` and assigns the result to the
-        // given target variable.
-        // More advanced usages of the parser will be described later.
-        cl::Var(debug),
-
-        // 4)
+        // The 3rd parameter is a combination of flags, which specify ow and how
+        // often the option might be specified on the command line and whether
+        // the option takes an argument or not.
         //
-        // The following parameter is optional and specifies how and how often
-        // the option might be specified on the command line and whether the
-        // option takes an argument or not.
-
         // The `Multiple` flag can be used to tell the parser that an option
         // may appear multiple times on the command line.
         // The default value for `Multiple` is `no`, i.e. the option may
         // appear at most once on the command line.
+        //
         cl::Multiple::yes
-
+        //
         // The `Arg` flag can be used to tell the parser whether the option
         // accepts an argument. The `optional` value means that an argument is
         // optional, i.e. both `--debug` and `--debug=on` or `--debug=false` are
         // valid.
         // The default value is `Arg::no`, i.e. an argument is not allowed.
+        //
         | cl::Arg::optional
-
+        //
         // There are more options which can be used to customize the syntax for
         // options. These are described later.
-        );
+        //
+
+        // 4)
+        //
+        // The 4th parameter is the actual option parser which effectively takes
+        // the string representation of the command line argument and is used to
+        // convert the option (or the options' argument - if present) into the
+        // target object.
+        //
+        // For now it should be sufficient to note that Var(T& target) is a
+        // convenience function which converts the string as given on the
+        // command line into an object of type `T` and assigns the result to the
+        // given target variable.
+        // More advanced usages of the parser will be described later.
+        //
+        cl::Var(debug)
+    );
 
     // The next command adds an option which may be specified multiple times and
     // the argument of each occurence will be added to the `include_directories`
@@ -95,18 +100,13 @@ int main(int argc, char* argv[])
 
     cli.Add("I", "Include directories",
 
-        // `Var` works with STL containers, too.
-        cl::Var(include_directories),
-
-        // A value of `yes` allows to specify the option multiple times
-        // on the command line. Each occurrence will add a string to the
-        // `include_directories` array.
-        cl::Multiple::yes
-
         // The `Arg::required` flag tells the parser that an "-I" must have an
         // argument specified. Either using the "-I=dir" syntax or as an
         // additional argument like "-I dir".
-        | cl::Arg::required
+        cl::Multiple::yes | cl::Arg::required,
+
+        // `Var` works with STL containers, too.
+        cl::Var(include_directories)
         );
 
     // The `cli` object now knows everything it needs to know to parse the
