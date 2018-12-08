@@ -33,7 +33,7 @@ static ParseResult ParseMakeCommand(ArgIterator next, ArgIterator last)
 
     cli.Add("wordfile", "", cl::Positional::yes | cl::Arg::required | cl::Required::yes | cl::Multiple::yes, cl::Var(input));
     cli.Add("dict", "", cl::Arg::required | cl::Required::yes, cl::Var(dict));
-    cli.Add("progress", "show progress", cl::Flags{}, cl::Var(progr));
+    cli.Add("progress", "show progress", {}, cl::Var(progr));
 
     return Parse(cli, next, last);
 }
@@ -45,7 +45,7 @@ static ParseResult ParseFindCommand(ArgIterator next, ArgIterator last)
     cli.Add("infile", "", cl::Required::yes | cl::Multiple::yes | cl::Arg::required | cl::Positional::yes, cl::Var(input));
     cli.Add("dict", "", cl::Arg::required | cl::Required::yes, cl::Var(dict));
     cli.Add("o", "write to file instead of stdout", cl::Arg::required, cl::Var(out));
-    cli.Add("split|nosplit", "(do not) split output", cl::Flags{}, cl::Flag(split, /*inverse_prefix*/ "no"));
+    cli.Add("split|nosplit", "(do not) split output", {}, cl::Flag(split, /*inverse_prefix*/ "no"));
 
     return Parse(cli, next, last);
 }

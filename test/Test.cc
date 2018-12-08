@@ -94,7 +94,7 @@ TEST_CASE("Opt")
         bool a = false;
 
         cl::Cmdline cl("test", "test");
-        cl.Add("a", "", cl::Flags{}, cl::Var(a)); // 'Required::no' is the default
+        cl.Add("a", "", {}, cl::Var(a)); // 'Required::no' is the default
 
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == false);
