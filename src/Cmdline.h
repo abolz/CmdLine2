@@ -401,14 +401,14 @@ struct OptionFlags {
 // XXX:
 // operator| is not commutative here...
 
-constexpr OptionFlags operator|(OptionFlags f, Required       v) { f.required        = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, Multiple       v) { f.multiple        = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, Arg            v) { f.arg             = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, MayJoin        v) { f.may_join        = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, MayGroup       v) { f.may_group       = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, Positional     v) { f.positional      = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, CommaSeparated v) { f.comma_separated = v; return f; }
-constexpr OptionFlags operator|(OptionFlags f, StopParsing    v) { f.stop_parsing    = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Required       v) { f.required        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Multiple       v) { f.multiple        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Arg            v) { f.arg             = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, MayJoin        v) { f.may_join        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, MayGroup       v) { f.may_group       = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Positional     v) { f.positional      = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, CommaSeparated v) { f.comma_separated = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, StopParsing    v) { f.stop_parsing    = v; return f; }
 
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
