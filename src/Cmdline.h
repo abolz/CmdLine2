@@ -377,6 +377,39 @@ enum class StopParsing : uint8_t {
     yes,
 };
 
+struct OptionFlags {
+    Required       required        = Required::no;
+    Multiple       multiple        = Multiple::no;
+    Arg            arg             = Arg::no;
+    MayJoin        may_join        = MayJoin::no;
+    MayGroup       may_group       = MayGroup::no;
+    Positional     positional      = Positional::no;
+    CommaSeparated comma_separated = CommaSeparated::no;
+    StopParsing    stop_parsing    = StopParsing::no;
+
+    constexpr /*implicit*/ OptionFlags() = default;
+    constexpr /*implicit*/ OptionFlags(Required       v) : required(v) {}
+    constexpr /*implicit*/ OptionFlags(Multiple       v) : multiple(v) {}
+    constexpr /*implicit*/ OptionFlags(Arg            v) : arg(v) {}
+    constexpr /*implicit*/ OptionFlags(MayJoin        v) : may_join(v) {}
+    constexpr /*implicit*/ OptionFlags(MayGroup       v) : may_group(v) {}
+    constexpr /*implicit*/ OptionFlags(Positional     v) : positional(v) {}
+    constexpr /*implicit*/ OptionFlags(CommaSeparated v) : comma_separated(v) {}
+    constexpr /*implicit*/ OptionFlags(StopParsing    v) : stop_parsing(v) {}
+};
+
+// XXX:
+// operator| is not commutative here...
+
+constexpr OptionFlags operator|(OptionFlags f, Required       v) { f.required        = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, Multiple       v) { f.multiple        = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, Arg            v) { f.arg             = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, MayJoin        v) { f.may_join        = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, MayGroup       v) { f.may_group       = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, Positional     v) { f.positional      = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, CommaSeparated v) { f.comma_separated = v; return f; }
+constexpr OptionFlags operator|(OptionFlags f, StopParsing    v) { f.stop_parsing    = v; return f; }
+
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
 // The members are only valid inside the callback (parser).
@@ -395,33 +428,12 @@ class OptionBase {
     // The description of this option
     string_view descr_;
     // Flags controlling how the option may/must be specified.
-    Required required_ = Required::no;
-    Multiple multiple_ = Multiple::no;
-    Arg arg_ = Arg::no;
-    MayJoin may_join_ = MayJoin::no;
-    MayGroup may_group_ = MayGroup::no;
-    Positional positional_ = Positional::no;
-    CommaSeparated comma_separated_ = CommaSeparated::no;
-    StopParsing stop_parsing_ = StopParsing::no;
+    OptionFlags flags_;
     // The number of times this option was specified on the command line
     int count_ = 0;
 
-private:
-    template <typename T>
-    void Apply(T) = delete; // For slightly more useful error messages...
-
-    void Apply(Required       v) { required_        = v; }
-    void Apply(Multiple       v) { multiple_        = v; }
-    void Apply(Arg            v) { arg_             = v; }
-    void Apply(MayJoin        v) { may_join_        = v; }
-    void Apply(MayGroup       v) { may_group_       = v; }
-    void Apply(Positional     v) { positional_      = v; }
-    void Apply(CommaSeparated v) { comma_separated_ = v; }
-    void Apply(StopParsing    v) { stop_parsing_    = v; }
-
 protected:
-    template <typename... Args>
-    explicit OptionBase(char const* name, char const* descr, Args&&... args);
+    explicit OptionBase(char const* name, char const* descr, OptionFlags flags);
 
 public:
     OptionBase(OptionBase const&) = default;
@@ -438,14 +450,14 @@ public:
     string_view Descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
-    bool HasFlag(Required       f) const { return required_        == f; }
-    bool HasFlag(Multiple       f) const { return multiple_        == f; }
-    bool HasFlag(Arg            f) const { return arg_             == f; }
-    bool HasFlag(MayJoin        f) const { return may_join_        == f; }
-    bool HasFlag(MayGroup       f) const { return may_group_       == f; }
-    bool HasFlag(Positional     f) const { return positional_      == f; }
-    bool HasFlag(CommaSeparated f) const { return comma_separated_ == f; }
-    bool HasFlag(StopParsing    f) const { return stop_parsing_    == f; }
+    bool HasFlag(Required       f) const { return flags_.required        == f; }
+    bool HasFlag(Multiple       f) const { return flags_.multiple        == f; }
+    bool HasFlag(Arg            f) const { return flags_.arg             == f; }
+    bool HasFlag(MayJoin        f) const { return flags_.may_join        == f; }
+    bool HasFlag(MayGroup       f) const { return flags_.may_group       == f; }
+    bool HasFlag(Positional     f) const { return flags_.positional      == f; }
+    bool HasFlag(CommaSeparated f) const { return flags_.comma_separated == f; }
+    bool HasFlag(StopParsing    f) const { return flags_.stop_parsing    == f; }
 
     // Returns the number of times this option was specified on the command line
     int Count() const { return count_; }
@@ -471,8 +483,8 @@ class Option final : public OptionBase {
     ParserT /*const*/ parser_;
 
 public:
-    template <typename ParserInit, typename... Args>
-    Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args);
+    template <typename ParserInit>
+    Option(char const* name, char const* descr, OptionFlags flags, ParserInit&& parser);
 
     ParserT const& Parser() const { return parser_; }
     ParserT& Parser() { return parser_; }
@@ -491,8 +503,8 @@ private:
 };
 
 #if CL_HAS_DEDUCTION_GUIDES
-template <typename ParserInit, typename... Args>
-Option(char const*, char const*, ParserInit&&, Args&&...)
+template <typename ParserInit>
+Option(char const*, char const*, OptionFlags, ParserInit&&)
     -> Option<std::decay_t<ParserInit>>;
 #endif
 
@@ -578,8 +590,8 @@ public:
     // Add an option to the command line.
     // Returns a pointer to the newly created option.
     // The Cmdline object owns this option.
-    template <typename ParserInit, typename... Args>
-    Option<std::decay_t<ParserInit>>* Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args);
+    template <typename ParserInit>
+    Option<std::decay_t<ParserInit>>* Add(char const* name, char const* descr, OptionFlags flags, ParserInit&& parser);
 
     // Add an option to the commond line.
     // The Cmdline object takes ownership.
@@ -1887,14 +1899,11 @@ inline std::vector<std::string> TokenizeWindows(wchar_t const* wstr, size_t wlen
 //
 //==================================================================================================
 
-template <typename... Args>
-inline OptionBase::OptionBase(char const* name, char const* descr, Args&&... args)
+inline OptionBase::OptionBase(char const* name, char const* descr, OptionFlags flags)
     : name_(name)
     , descr_(descr)
+    , flags_(flags)
 {
-    int const unused[] = {(Apply(args), 0)..., 0};
-    static_cast<void>(unused);
-
     CL_ASSERT(cl::impl::IsUTF8(name_.begin(), name_.end()));
     CL_ASSERT(cl::impl::IsUTF8(descr_.begin(), descr_.end()));
 }
@@ -1920,9 +1929,9 @@ inline bool OptionBase::IsOccurrenceRequired() const {
 //--------------------------------------------------------------------------------------------------
 
 template <typename ParserT>
-template <typename ParserInit, typename... Args>
-inline Option<ParserT>::Option(char const* name, char const* descr, ParserInit&& parser, Args&&... args)
-    : OptionBase(name, descr, std::forward<Args>(args)...)
+template <typename ParserInit>
+inline Option<ParserT>::Option(char const* name, char const* descr, OptionFlags flags, ParserInit&& parser)
+    : OptionBase(name, descr, flags)
     , parser_(std::forward<ParserInit>(parser))
 {
 }
@@ -1953,10 +1962,10 @@ CL_FORCE_INLINE void Cmdline::EmitDiag(Diagnostic::Type type, int index, Args&&.
     EmitDiagImpl(type, index, strings, sizeof...(Args));
 }
 
-template <typename ParserInit, typename... Args>
-Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, ParserInit&& parser, Args&&... args) {
+template <typename ParserInit>
+Option<std::decay_t<ParserInit>>* Cmdline::Add(char const* name, char const* descr, OptionFlags flags, ParserInit&& parser) {
     auto opt = std::make_unique<Option<std::decay_t<ParserInit>>>(
-        name, descr, std::forward<ParserInit>(parser), std::forward<Args>(args)...);
+        name, descr, flags, std::forward<ParserInit>(parser));
 
     auto const p = opt.get();
     Add(std::move(opt));

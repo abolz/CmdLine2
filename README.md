@@ -64,23 +64,22 @@ int main(int argc, char* argv[])
 
         // 4)
         //
-        // The following parameters are optional and specifiy how and how often
+        // The following parameter is optional and specifies how and how often
         // the option might be specified on the command line and whether the
-        // option takes an argument or not. These flags might be specified in
-        // any order.
+        // option takes an argument or not.
 
         // The `Multiple` flag can be used to tell the parser that an option
         // may appear multiple times on the command line.
         // The default value for `Multiple` is `no`, i.e. the option may
         // appear at most once on the command line.
-        cl::Multiple::yes,
+        cl::Multiple::yes
 
         // The `Arg` flag can be used to tell the parser whether the option
         // accepts an argument. The `optional` value means that an argument is
         // optional, i.e. both `--debug` and `--debug=on` or `--debug=false` are
         // valid.
         // The default value is `Arg::no`, i.e. an argument is not allowed.
-        cl::Arg::optional
+        | cl::Arg::optional
 
         // There are more options which can be used to customize the syntax for
         // options. These are described later.
@@ -102,12 +101,12 @@ int main(int argc, char* argv[])
         // A value of `yes` allows to specify the option multiple times
         // on the command line. Each occurrence will add a string to the
         // `include_directories` array.
-        cl::Multiple::yes,
+        cl::Multiple::yes
 
         // The `Arg::required` flag tells the parser that an "-I" must have an
         // argument specified. Either using the "-I=dir" syntax or as an
         // additional argument like "-I dir".
-        cl::Arg::required
+        | cl::Arg::required
         );
 
     // The `cli` object now knows everything it needs to know to parse the
