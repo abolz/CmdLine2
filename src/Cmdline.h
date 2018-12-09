@@ -1350,11 +1350,8 @@ inline uint8_t HexDigitValue(char ch)
     return kMap[static_cast<uint8_t>(ch)];
 }
 
-inline ParseIntegerResult ParseU64(char const* next, char const* last, uint64_t& value)
-{
+inline bool ParseU64(char const* next, char const* last, uint64_t& value) {
     CL_ASSERT(next != last);
-
-    constexpr uint64_t const Max = UINT64_MAX;
 
     uint64_t max_pre_multiply;
     uint32_t base;
@@ -1364,20 +1361,20 @@ inline ParseIntegerResult ParseU64(char const* next, char const* last, uint64_t&
         ++next;
         if (next == last) { // literal "0"
             value = 0;
-            return {next, ParseIntegerStatus::success};
+            return true;
         }
 
         switch (*next) {
         case 'x':
         case 'X':
             ++next;
-            max_pre_multiply = Max / 16;
+            max_pre_multiply = UINT64_MAX / 16;
             base = 16;
             break;
         case 'b':
         case 'B':
             ++next;
-            max_pre_multiply = Max / 2;
+            max_pre_multiply = UINT64_MAX / 2;
             base = 2;
             break;
         case 'o':
@@ -1385,29 +1382,32 @@ inline ParseIntegerResult ParseU64(char const* next, char const* last, uint64_t&
             ++next;
             // fall through
         default:
-            max_pre_multiply = Max / 8;
+            max_pre_multiply = UINT64_MAX / 8;
             base = 8;
             break;
         }
     }
     else
     {
-        max_pre_multiply = Max / 10;
+        max_pre_multiply = UINT64_MAX / 10;
         base = 10;
     }
 
     uint64_t v = 0;
-    for ( ; next != last; ++next) {
+    for (;;) {
+        if (next == last)
+            break;
         uint32_t const d = HexDigitValue(*next);
         if (d >= base)
-            break;
-        if (v > max_pre_multiply || d > Max - base * v)
-            return {next, ParseIntegerStatus::overflow};
+            return false; // invalid digit
+        if (v > max_pre_multiply || d > UINT64_MAX - base * v)
+            return false; // overflow
         v = base * v + d;
+        ++next;
     }
 
     value = v;
-    return {next, ParseIntegerStatus::success};
+    return true;
 }
 
 inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
@@ -1428,16 +1428,7 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
             return false; // syntax error
     }
 
-    uint64_t v;
-    auto const res = ParseU64(next, last, v);
-
-    if (res.ec != ParseIntegerStatus::success)
-        return false;
-    if (res.ptr != last)
-        return false; // not all characters extracted
-
-    value = v;
-    return true;
+    return ParseU64(next, last, value);
 }
 
 inline bool StrToLongLong(string_view str, long long& value) {
@@ -1458,20 +1449,9 @@ inline bool StrToLongLong(string_view str, long long& value) {
             return false; // syntax error
     }
 
-    //
-    // XXX:
-    //
-    // For signed integers, do *not* allow other bases than 10?!?!
-    // E.g.: -0x8000 is kind of ambiguous: -INT16_MIN or -(int32_t)0x8000
-    //
-
     uint64_t v;
-    auto const res = ParseU64(next, last, v);
-
-    if (res.ec != ParseIntegerStatus::success)
+    if (!ParseU64(next, last, v))
         return false;
-    if (res.ptr != last)
-        return false; // not all characters extracted
 
     // The number fits into an uint64_t. Check if it fits into an int64_t, too.
     // Assuming 2's complement.
