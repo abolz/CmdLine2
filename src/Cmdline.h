@@ -1245,6 +1245,15 @@ inline bool IsWhitespace(char ch) {
     return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\v' || ch == '\f' || ch == '\r';
 }
 
+template <typename It>
+It SkipWhitespace(It next, It last) {
+    while (next != last && IsWhitespace(*next)) {
+        ++next;
+    }
+
+    return next;
+}
+
 } // namespace impl
 
 //==================================================================================================
@@ -1329,6 +1338,186 @@ bool StrToX(string_view sv, T& value, Fn fn) {
     return true;
 }
 
+#if 1
+
+enum class ParseIntegerStatus {
+    success,
+    syntax_error,
+    overflow,
+};
+
+struct ParseIntegerResult {
+    char const* ptr;
+    ParseIntegerStatus ec;
+};
+
+// Returns the decimal value for the given hexadecimal character.
+// Returns UINT8_MAX, if the given character is not a hexadecimal character.
+inline uint8_t HexDigitValue(char ch)
+{
+    enum : uint8_t { N = UINT8_MAX };
+    static constexpr uint8_t kMap[256] = {
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, N, N, N, N, N, N,
+        N, 10,11,12,13,14,15,N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, 10,11,12,13,14,15,N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+        N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N,
+    };
+
+    return kMap[static_cast<uint8_t>(ch)];
+}
+
+inline ParseIntegerResult ParseU64(char const* next, char const* last, uint64_t& value)
+{
+    CL_ASSERT(next != last);
+
+    constexpr uint64_t const Max = UINT64_MAX;
+
+    uint64_t max_pre_multiply;
+    uint32_t base;
+
+    // Determine base and optionally skip prefix.
+    if (*next == '0') {
+        ++next;
+        if (next == last) { // literal "0"
+            value = 0;
+            return {next, ParseIntegerStatus::success};
+        }
+
+        switch (*next) {
+        case 'x':
+        case 'X':
+            ++next;
+            max_pre_multiply = Max / 16;
+            base = 16;
+            break;
+        case 'b':
+        case 'B':
+            ++next;
+            max_pre_multiply = Max / 2;
+            base = 2;
+            break;
+        case 'o':
+        case 'O':
+            ++next;
+            // fall through
+        default:
+            max_pre_multiply = Max / 8;
+            base = 8;
+            break;
+        }
+    }
+    else
+    {
+        max_pre_multiply = Max / 10;
+        base = 10;
+    }
+
+    uint64_t v = 0;
+    for ( ; next != last; ++next) {
+        uint32_t const d = HexDigitValue(*next);
+        if (d >= base)
+            break;
+        if (v > max_pre_multiply || d > Max - base * v)
+            return {next, ParseIntegerStatus::overflow};
+        v = base * v + d;
+    }
+
+    value = v;
+    return {next, ParseIntegerStatus::success};
+}
+
+inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
+    auto next = str.data();
+    auto const last = str.data() + str.size();
+
+    next = SkipWhitespace(next, last);
+
+    if (next == last)
+        return false; // syntax error
+
+    // Skip optional '+' sign.
+    // A leading minus sign is considered invalid while parsing *unsigned* integers
+    // and will result in a syntax_error in ParseU64.
+    if (*next == '+') {
+        ++next;
+        if (next == last)
+            return false; // syntax error
+    }
+
+    uint64_t v;
+    auto const res = ParseU64(next, last, v);
+
+    if (res.ec != ParseIntegerStatus::success)
+        return false;
+    if (res.ptr != last)
+        return false; // not all characters extracted
+
+    value = v;
+    return true;
+}
+
+inline bool StrToLongLong(string_view str, long long& value) {
+    auto next = str.data();
+    auto const last = str.data() + str.size();
+
+    next = SkipWhitespace(next, last);
+
+    if (next == last)
+        return false; // syntax error
+
+    bool const is_negative = (*next == '-');
+
+    // Skip optional '+' or '-' sign.
+    if (is_negative || *next == '+') {
+        ++next;
+        if (next == last)
+            return false; // syntax error
+    }
+
+    //
+    // XXX:
+    //
+    // For signed integers, do *not* allow other bases than 10?!?!
+    // E.g.: -0x8000 is kind of ambiguous: -INT16_MIN or -(int32_t)0x8000
+    //
+
+    uint64_t v;
+    auto const res = ParseU64(next, last, v);
+
+    if (res.ec != ParseIntegerStatus::success)
+        return false;
+    if (res.ptr != last)
+        return false; // not all characters extracted
+
+    // The number fits into an uint64_t. Check if it fits into an int64_t, too.
+    // Assuming 2's complement.
+
+    constexpr uint64_t const Limit = 9223372036854775808ull; // -INT64_MIN
+
+    if (is_negative && v == Limit)
+        value = INT64_MIN;
+    else if (v >= Limit)
+        return false; // overflow
+    else
+        value = is_negative ? -static_cast<int64_t>(v) : static_cast<int64_t>(v);
+
+    return true;
+}
+
+#else
+
 // Note: Wrap into local function, to avoid instantiating StrToX with different
 // lambdas which actually all do the same thing: call strtol.
 inline bool StrToLongLong(string_view str, long long& value) {
@@ -1350,6 +1539,8 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
 
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
+
+#endif
 
 struct ConvertToInt {
     template <typename T>
@@ -1689,15 +1880,6 @@ auto Flag(T& var, std::string const& inverse_prefix = "no-") {
 //==================================================================================================
 
 namespace impl {
-
-template <typename It>
-It SkipWhitespace(It next, It last) {
-    while (next != last && IsWhitespace(*next)) {
-        ++next;
-    }
-
-    return next;
-}
 
 template <typename It, typename Fn>
 It ParseArgUnix(It next, It last, Fn fn) {
