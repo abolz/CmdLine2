@@ -1428,7 +1428,12 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
             return false; // syntax error
     }
 
-    return ParseU64(next, last, value);
+    uint64_t v;
+    if (!ParseU64(next, last, v))
+        return false;
+
+    value = v;
+    return true;
 }
 
 inline bool StrToLongLong(string_view str, long long& value) {
