@@ -581,6 +581,8 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "+2147483648"})); // overflow
         CHECK(false == ParseArgs(cl, {"-a", "true"})); // invalid argument
         CHECK(false == ParseArgs(cl, {"-a", "hello"})); // invalid argument
+        CHECK(false == ParseArgs(cl, {"-a", "214748364F"})); //invalid digit
+        CHECK(false == ParseArgs(cl, {"-a", "F147483647"})); //invalid digit
     }
 
     SECTION("decimal unsigned 32-bit")
@@ -719,6 +721,8 @@ TEST_CASE("Ints")
         CHECK(a == INT32_MAX);
         CHECK(false == ParseArgs(cl, {"-a", "-0x80000001"})); // overflow
         CHECK(false == ParseArgs(cl, {"-a", "0x80000000"})); // overflow
+        CHECK(false == ParseArgs(cl, {"-a", "+0x7FFFFFFZ"})); // invalid digit
+        CHECK(false == ParseArgs(cl, {"-a", "+0x7ZFFFFFF"})); // invalid digit
     }
 
     SECTION("octal signed 8-bit")
@@ -744,6 +748,8 @@ TEST_CASE("Ints")
         CHECK(a == -0200);
         CHECK(false == ParseArgs(cl, {"-a", "-0201"})); // overflow
         CHECK(false == ParseArgs(cl, {"-a", "0200"})); // overflow
+        CHECK(false == ParseArgs(cl, {"-a", "0178"})); // invalid digit
+        CHECK(false == ParseArgs(cl, {"-a", "0877"})); // invalid digit
     }
 }
 
