@@ -685,9 +685,9 @@ TEST_CASE("Ints")
         CHECK(a == INT64_MAX);
         CHECK(false == ParseArgs(cl, {"-a", "-9223372036854775809"}));
         CHECK(true == ParseArgs(cl, {"-a", "9223372036854775808"}));
-        CHECK(a == 9223372036854775808);
+        CHECK(a == 9223372036854775808ull);
         CHECK(true == ParseArgs(cl, {"-a", "18446744073709551615"}));
-        CHECK(a == 18446744073709551615);
+        CHECK(a == 18446744073709551615ull);
         a = 0;
         CHECK(false == ParseArgs(cl, {"-a", "18446744073709551616"})); // overflow
         CHECK(a == 0);
