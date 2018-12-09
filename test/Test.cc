@@ -506,6 +506,33 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "-129"})); // overflow
     }
 
+    SECTION("decimal unsigned 8-bit")
+    {
+        uint8_t a = 0;
+
+        cl::Cmdline cl("test", "test");
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
+
+        CHECK(true == ParseArgs(cl, {"-a", "0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "127"}));
+        CHECK(a == 127);
+        CHECK(false == ParseArgs(cl, {"-a", "-127"}));
+        CHECK(a == 127);
+        CHECK(false == ParseArgs(cl, {"-a", "-128"}));
+        CHECK(a == 127);
+        CHECK(false == ParseArgs(cl, {"-a", "-255"}));
+        CHECK(a == 127);
+        a = 0;
+        CHECK(true == ParseArgs(cl, {"-a", "128"}));
+        CHECK(a == 128);
+        CHECK(true == ParseArgs(cl, {"-a", "255"}));
+        CHECK(a == 255);
+        a = 0;
+        CHECK(false == ParseArgs(cl, {"-a", "256"}));
+        CHECK(a == 0);
+    }
+
     SECTION("decimal signed 32-bit")
     {
         int32_t a = 0;
@@ -516,6 +543,28 @@ TEST_CASE("Ints")
         CHECK(true == ParseArgs(cl, {}));
         CHECK(a == 0);
         CHECK(true == ParseArgs(cl, {"-a", "0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    +0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    -0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +  0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -  0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +   "}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -   "}));
         CHECK(a == 0);
         CHECK(true == ParseArgs(cl, {"-a", "123"}));
         CHECK(a == 123);
@@ -534,6 +583,61 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "hello"})); // invalid argument
     }
 
+    SECTION("decimal unsigned 32-bit")
+    {
+        uint32_t a = 0;
+
+        cl::Cmdline cl("test", "test");
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
+
+        CHECK(true == ParseArgs(cl, {}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    +0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "    -0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +  0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -  0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +   "}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  -   "}));
+        CHECK(a == 0);
+        //CHECK(true == ParseArgs(cl, {"-a", "123   "}));
+        //CHECK(a == 123);
+        //CHECK(true == ParseArgs(cl, {"-a", "321 "}));
+        //CHECK(a == 321);
+        a = 0;
+        CHECK(false == ParseArgs(cl, {"-a", "-123"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "2147483647"}));
+        CHECK(a == INT32_MAX);
+        CHECK(false == ParseArgs(cl, {"-a", "          -2147483648"}));
+        CHECK(a == INT32_MAX);
+        CHECK(true == ParseArgs(cl, {"-a", "          +2147483647"}));
+        CHECK(a == INT32_MAX);
+        CHECK(true == ParseArgs(cl, {"-a", "2147483648"}));
+        CHECK(a == 2147483648);
+        a = 0;
+        CHECK(true == ParseArgs(cl, {"-a", "+2147483648"}));
+        CHECK(a == 2147483648);
+        CHECK(true == ParseArgs(cl, {"-a", "+4294967295"}));
+        CHECK(a == 4294967295);
+        CHECK(false == ParseArgs(cl, {"-a", "4294967296"})); // overflow
+        CHECK(a == 4294967295);
+        CHECK(false == ParseArgs(cl, {"-a", "true"})); // invalid argument
+        CHECK(false == ParseArgs(cl, {"-a", "hello"})); // invalid argument
+    }
+
     SECTION("decimal signed 64-bit")
     {
         int64_t a = 0;
@@ -541,6 +645,20 @@ TEST_CASE("Ints")
         cl::Cmdline cl("test", "test");
         cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
 
+        CHECK(true == ParseArgs(cl, {}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    0"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "    +0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +  0"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +"}));
+        CHECK(a == 0);
+        CHECK(false == ParseArgs(cl, {"-a", "  +   "}));
+        CHECK(a == 0);
         CHECK(true == ParseArgs(cl, {"-a", "9223372036854775807"}));
         CHECK(a == INT64_MAX);
         CHECK(true == ParseArgs(cl, {"-a", "-9223372036854775808"}));
@@ -549,6 +667,30 @@ TEST_CASE("Ints")
         CHECK(a == INT64_MAX);
         CHECK(false == ParseArgs(cl, {"-a", "-9223372036854775809"})); // overflow
         CHECK(false == ParseArgs(cl, {"-a", "9223372036854775808"})); // overflow
+    }
+
+    SECTION("decimal unsigned 64-bit")
+    {
+        uint64_t a = 0;
+
+        cl::Cmdline cl("test", "test");
+        cl.Add("a", "", cl::Multiple::yes | cl::Arg::required, cl::Var(a));
+
+        CHECK(true == ParseArgs(cl, {"-a", "9223372036854775807"}));
+        CHECK(a == INT64_MAX);
+        a = 0;
+        CHECK(false == ParseArgs(cl, {"-a", "-9223372036854775808"}));
+        CHECK(a == 0);
+        CHECK(true == ParseArgs(cl, {"-a", "+9223372036854775807"}));
+        CHECK(a == INT64_MAX);
+        CHECK(false == ParseArgs(cl, {"-a", "-9223372036854775809"}));
+        CHECK(true == ParseArgs(cl, {"-a", "9223372036854775808"}));
+        CHECK(a == 9223372036854775808);
+        CHECK(true == ParseArgs(cl, {"-a", "18446744073709551615"}));
+        CHECK(a == 18446744073709551615);
+        a = 0;
+        CHECK(false == ParseArgs(cl, {"-a", "18446744073709551616"})); // overflow
+        CHECK(a == 0);
     }
 
     //

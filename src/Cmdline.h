@@ -1336,6 +1336,18 @@ inline bool StrToLongLong(string_view str, long long& value) {
 }
 
 inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
+    // Ok... strtoull happily accepts a leading "-" while parsing *unsigned* integers.
+    // We do not.
+    // A "-" at any position in the input string is actually invalid.
+    // If it's a leading minus sign, it is considered invalid (though strtoull
+    // accepts it). If it is somewhere in the middle of the input string,
+    // strtoull will stop parsing and there are remaining characters, which is
+    // considered invalid, too.
+    // So use a simple 'find' instead of skipping whitespace and checking for
+    // a minus sign.
+    if (str.find('-') != string_view::npos)
+        return false;
+
     return StrToX(str, value, [](char const* p, char** end) { return std::strtoull(p, end, 0); });
 }
 
