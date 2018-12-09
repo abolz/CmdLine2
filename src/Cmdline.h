@@ -1312,32 +1312,6 @@ struct ConvertTo<bool> {
     }
 };
 
-template <typename T, typename Fn>
-bool StrToX(string_view sv, T& value, Fn fn) {
-    if (sv.empty())
-        return false;
-
-    std::string str(sv);
-
-    auto const next = str.c_str();
-    auto const last = next + str.size();
-    char* end = nullptr;
-
-    int& ec = errno;
-
-    auto const ec0 = std::exchange(ec, 0);
-    auto const val = fn(next, &end);
-    auto const ec1 = std::exchange(ec, ec0);
-
-    if (ec1 == ERANGE)
-        return false;
-    if (end != last)
-        return false; // not all characters extracted
-
-    value = val;
-    return true;
-}
-
 enum class ParseIntegerStatus {
     success,
     syntax_error,
@@ -1548,6 +1522,32 @@ template <> struct ConvertTo< unsigned short     > : cl::impl::ConvertToUnsigned
 template <> struct ConvertTo< unsigned int       > : cl::impl::ConvertToUnsignedInt {};
 template <> struct ConvertTo< unsigned long      > : cl::impl::ConvertToUnsignedInt {};
 template <> struct ConvertTo< unsigned long long > : cl::impl::ConvertToUnsignedInt {};
+
+template <typename T, typename Fn>
+bool StrToX(string_view sv, T& value, Fn fn) {
+    if (sv.empty())
+        return false;
+
+    std::string str(sv);
+
+    auto const next = str.c_str();
+    auto const last = next + str.size();
+    char* end = nullptr;
+
+    int& ec = errno;
+
+    auto const ec0 = std::exchange(ec, 0);
+    auto const val = fn(next, &end);
+    auto const ec1 = std::exchange(ec, ec0);
+
+    if (ec1 == ERANGE)
+        return false;
+    if (end != last)
+        return false; // not all characters extracted
+
+    value = val;
+    return true;
+}
 
 template <>
 struct ConvertTo<float> {
