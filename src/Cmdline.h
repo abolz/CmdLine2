@@ -2456,7 +2456,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
     });
 
     if (has_opt)
-        out += " <OPTIONS>";
+        out += " [OPTIONS]";
     out += '\n';
     if (has_arg)
         out += arg_descr;
