@@ -2426,11 +2426,11 @@ inline void AppendUsage(std::string& out, OptionBase* opt, size_t indent) {
         out += "--";
         out.append(opt->Name().data(), opt->Name().size());
         if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes)) {
-            out += "<ARG>";
+            out += "<arg>";
         } else if (opt->HasFlag(Arg::required)) {
-            out += " <ARG>";
+            out += " <arg>";
         } else if (opt->HasFlag(Arg::optional)) {
-            out += "=<ARG>";
+            out += "=<arg>";
         }
     }
 }
@@ -2509,7 +2509,7 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
     });
 
     if (has_opt) {
-        out += " [OPTIONS]";
+        out += " [options]";
     }
     out += '\n';
     if (has_arg) {
