@@ -2365,14 +2365,22 @@ inline void AppendLines(std::string& out, string_view text, size_t indent, size_
 // Note: not wrapped.
 inline void AppendUsage(std::string& out, OptionBase* opt, size_t indent) {
     out.append(indent, ' ');
-    out += '-';
-    out.append(opt->Name().data(), opt->Name().size());
-    if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes))
-        out += "<arg>";
-    else if (opt->HasFlag(Arg::required))
-        out += " <arg>";
-    else if (opt->HasFlag(Arg::optional))
-        out += "=<arg>";
+    if (opt->HasFlag(Positional::yes)) {
+        out += '<';
+        out.append(opt->Name().data(), opt->Name().size());
+        out += '>';
+        if (opt->HasFlag(Multiple::yes))
+            out += "...";
+    } else {
+        out += "--";
+        out.append(opt->Name().data(), opt->Name().size());
+        if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes))
+            out += "<ARG>";
+        else if (opt->HasFlag(Arg::required))
+            out += " <ARG>";
+        else if (opt->HasFlag(Arg::optional))
+            out += "=<ARG>";
+    }
 }
 
 inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t descr_indent, size_t descr_width) {
@@ -2419,44 +2427,39 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
     out.append(fmt.indent, ' ');
     out.append(Name().data(), Name().size());
 
+    std::string arg_descr = "\nArguments:\n";
     std::string opt_descr = "\nOptions:\n";
     std::string pos_descr = "\nPositional options:\n";
-    std::string pos_usage;
 
     bool has_pos = false;
+    bool has_arg = false;
     bool has_opt = false;
     ForEachUniqueOption([&](OptionBase* opt) {
-        bool const is_positional = opt->HasFlag(Positional::yes);
-        bool const is_optional = opt->HasFlag(Required::no);
+        std::string* descr;
 
-        if (is_positional) {
-            // Display all positional options in the usage line.
-            // However, wrap non-required options in brackets.
-            has_pos = true;
+        if (!opt->HasFlag(Required::no)) { // Required option, aka 'argument'.
+            has_arg = true;
+            descr = &arg_descr;
 
-            pos_usage += ' ';
-            if (is_optional)
-                pos_usage += '[';
-            pos_usage.append(opt->Name().data(), opt->Name().size());
-            if (is_optional)
-                pos_usage += ']';
-        } else {
-            // Display only required options in the usage line.
-            // All other options will be displayed in the <options> group.
+            // Append this argument to the usage line.
+            cl::impl::AppendUsage(out, opt, 1);
+        } else if (!opt->HasFlag(Positional::yes)) {
             has_opt = true;
-
-            if (!is_optional)
-                cl::impl::AppendUsage(out, opt, 1);
+            descr = &opt_descr;
+        } else {
+            has_pos = true;
+            descr = &pos_descr;
         }
 
-        cl::impl::AppendDescr(is_positional ? pos_descr : opt_descr, opt, fmt.indent, fmt.descr_indent, descr_width);
+        cl::impl::AppendDescr(*descr, opt, fmt.indent, fmt.descr_indent, descr_width);
         return true;
     });
 
     if (has_opt)
-        out += " <options>";
-    out += pos_usage;
+        out += " <OPTIONS>";
     out += '\n';
+    if (has_arg)
+        out += arg_descr;
     if (has_opt)
         out += opt_descr;
     if (has_pos)
