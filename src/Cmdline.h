@@ -142,7 +142,7 @@ public:
         CL_ASSERT(size_ == 0 || data_ != nullptr);
     }
 
-    string_view(const_pointer c_str) noexcept
+    /*implicit*/ string_view(const_pointer c_str) noexcept
         : data_(c_str)
         , size_(c_str != nullptr ? ::strlen(c_str) : 0u)
     {
@@ -157,7 +157,7 @@ public:
             std::is_convertible<decltype(std::declval<String const&>().size()), size_t>::value
         >
     >
-    string_view(String const& str) noexcept
+    /*implicit*/ string_view(String const& str) noexcept
         : data_(str.data())
         , size_(str.size())
     {
@@ -220,11 +220,13 @@ public:
 
     // Search for the first character ch in the sub-string [from, end)
     size_t find(char ch, size_t from = 0) const noexcept {
-        if (from >= size())
+        if (from >= size()) {
             return npos;
+        }
 
-        if (auto I = Find(data() + from, size() - from, ch))
+        if (auto I = Find(data() + from, size() - from, ch)) {
             return static_cast<size_t>(I - data());
+        }
 
         return npos;
     }
@@ -232,17 +234,20 @@ public:
     // Search for the last character in the sub-string [0, from)
     // which matches any of the characters in chars.
     size_t find_last_of(string_view chars, size_t from = npos) const noexcept {
-        if (chars.empty())
+        if (chars.empty()) {
             return npos;
+        }
 
-        if (from < size())
+        if (from < size()) {
             ++from;
-        else
+        } else {
             from = size();
+        }
 
         for (auto I = from; I != 0; --I) {
-            if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr)
+            if (Find(chars.data(), chars.size(), data()[I - 1]) != nullptr) {
                 return I - 1;
+            }
         }
 
         return npos;
@@ -743,10 +748,11 @@ inline uint32_t DecodeUTF8Step(uint32_t state, uint8_t byte, char32_t& U) {
     // NB:
     // The conditional here will likely be optimized out in the loop below.
 
-    if (state != kUTF8Accept)
+    if (state != kUTF8Accept) {
         U = (U << 6) | (byte & 0x3Fu);
-    else
+    } else {
         U = byte & (0xFFu >> type);
+    }
 
     state = kUTF8Decoder[256 + state * 16 + type];
     return state;
@@ -814,8 +820,9 @@ bool ForEachUTF8EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t U = 0;
         next = cl::impl::DecodeUTF8Sequence(next, last, U);
-        if (!put(U))
+        if (!put(U)) {
             return false;
+        }
     }
 
     return true;
@@ -876,8 +883,9 @@ bool ForEachUTF16EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t U = 0;
         next = cl::impl::DecodeUTF16Sequence(next, last, U);
-        if (!put(U))
+        if (!put(U)) {
             return false;
+        }
     }
 
     return true;
@@ -888,8 +896,9 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put) {
     while (next != last) {
         char32_t const U = static_cast<char32_t>(*next);
         ++next;
-        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint))
+        if (!put(IsValidCodepoint(U) ? U : kInvalidCodepoint)) {
             return false;
+        }
     }
 
     return true;
@@ -908,8 +917,9 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
     std::string s;
 
     ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
+        if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
+        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -928,10 +938,11 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
         char32_t U = 0;
         auto const I = cl::impl::DecodeUTF8Sequence(next, last, U);
 
-        if (U == kInvalidCodepoint)
+        if (U == kInvalidCodepoint) {
             s.append("\xEF\xBF\xBD", 3);
-        else
+        } else {
             s.append(next, I);
+        }
 
         next = I;
     }
@@ -952,8 +963,9 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t 
     std::string s;
 
     ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
+        if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
+        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -967,8 +979,9 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t 
     std::string s;
 
     ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
-        if (U == kInvalidCodepoint)
+        if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
+        }
 
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
@@ -1054,14 +1067,16 @@ struct ByLines {
             ++p;
         }
 
-        if (p == last)
+        if (p == last) {
             return {string_view::npos, 0};
+        }
 
         auto const index = static_cast<size_t>(p - first);
 
         // If this is CRLF, skip the other half.
-        if (*p == '\r' && ++p != last && *p == '\n')
+        if (*p == '\r' && ++p != last && *p == '\n') {
             return {index, 2};
+        }
 
         return {index, 1};
     }
@@ -1081,8 +1096,9 @@ struct ByWords {
 
     DelimiterResult operator()(string_view str) const {
         // If the string fits into the current line, just return this last line.
-        if (str.size() <= length)
+        if (str.size() <= length) {
             return {string_view::npos, 0};
+        }
 
         // Otherwise, search for the first space preceding the line length.
         auto const last_ws = str.find_last_of(" \t", length);
@@ -1137,16 +1153,19 @@ bool Split(string_view str, Splitter&& split, Function&& fn) {
     curr.last = false;
 
     for (;;) {
-        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str)))
+        if (!cl::impl::DoSplit(curr, curr.str, split(curr.str))) {
             return true;
+        }
 
         CL_ASSERT(cl::impl::IsUTF8(curr.tok.begin(), curr.tok.end()));
         CL_ASSERT(cl::impl::IsUTF8(curr.str.begin(), curr.str.end()));
 
-        if (!fn(curr.tok))
+        if (!fn(curr.tok)) {
             return false;
-        if (curr.last)
+        }
+        if (curr.last) {
             return true;
+        }
     }
 }
 
@@ -1276,10 +1295,12 @@ struct ConvertTo {
         Stream stream{std::string(ctx.arg)};
         stream >> value;
 
-        if (stream.fail()) // tests badbit | failbit
+        if (stream.fail()) { // tests badbit | failbit
             return false;
-        if (stream.eof())
+        }
+        if (stream.eof()) {
             return true;
+        }
 
         CL_ASSERT(stream.good());
 
@@ -1301,12 +1322,13 @@ struct ConvertTo {
 template <>
 struct ConvertTo<bool> {
     bool operator()(ParseContext const& ctx, bool& value) const {
-        if (cl::impl::IsAnyOf(ctx.arg, string_view{}, "1", "y", "yes", "Yes", "on", "On", "true", "True"))
+        if (cl::impl::IsAnyOf(ctx.arg, string_view{}, "1", "y", "yes", "Yes", "on", "On", "true", "True")) {
             value = true;
-        else if (cl::impl::IsAnyOf(ctx.arg, "0", "n", "no", "No", "off", "Off", "false", "False"))
+        } else if (cl::impl::IsAnyOf(ctx.arg, "0", "n", "no", "No", "off", "Off", "false", "False")) {
             value = false;
-        else
+        } else {
             return false;
+        }
 
         return true;
     }
@@ -1395,13 +1417,16 @@ inline bool ParseU64(char const* next, char const* last, uint64_t& value) {
 
     uint64_t v = 0;
     for (;;) {
-        if (next == last)
+        if (next == last) {
             break;
+        }
         uint32_t const d = HexDigitValue(*next);
-        if (d >= base)
+        if (d >= base) {
             return false; // invalid digit
-        if (v > max_pre_multiply || d > UINT64_MAX - base * v)
+        }
+        if (v > max_pre_multiply || d > UINT64_MAX - base * v) {
             return false; // overflow
+        }
         v = base * v + d;
         ++next;
     }
@@ -1416,21 +1441,24 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
 
     next = SkipWhitespace(next, last);
 
-    if (next == last)
+    if (next == last) {
         return false; // syntax error
+    }
 
     // Skip optional '+' sign.
     // A leading minus sign is considered invalid while parsing *unsigned* integers
     // and will result in a syntax_error in ParseU64.
     if (*next == '+') {
         ++next;
-        if (next == last)
+        if (next == last) {
             return false; // syntax error
+        }
     }
 
     uint64_t v;
-    if (!ParseU64(next, last, v))
+    if (!ParseU64(next, last, v)) {
         return false;
+    }
 
     value = v;
     return true;
@@ -1442,33 +1470,37 @@ inline bool StrToLongLong(string_view str, long long& value) {
 
     next = SkipWhitespace(next, last);
 
-    if (next == last)
+    if (next == last) {
         return false; // syntax error
+    }
 
     bool const is_negative = (*next == '-');
 
     // Skip optional '+' or '-' sign.
     if (is_negative || *next == '+') {
         ++next;
-        if (next == last)
+        if (next == last) {
             return false; // syntax error
+        }
     }
 
     uint64_t v;
-    if (!ParseU64(next, last, v))
+    if (!ParseU64(next, last, v)) {
         return false;
+    }
 
     // The number fits into an uint64_t. Check if it fits into an int64_t, too.
     // Assuming 2's complement.
 
     constexpr uint64_t const Limit = 9223372036854775808ull; // -INT64_MIN
 
-    if (is_negative && v == Limit)
+    if (is_negative && v == Limit) {
         value = INT64_MIN;
-    else if (v >= Limit)
+    } else if (v >= Limit) {
         return false; // overflow
-    else
+    } else {
         value = is_negative ? -static_cast<int64_t>(v) : static_cast<int64_t>(v);
+    }
 
     return true;
 }
@@ -1510,8 +1542,9 @@ template <> struct ConvertTo< unsigned long long > : cl::impl::ConvertToUnsigned
 
 template <typename T, typename Fn>
 bool StrToX(string_view sv, T& value, Fn fn) {
-    if (sv.empty())
+    if (sv.empty()) {
         return false;
+    }
 
     std::string str(sv);
 
@@ -1525,10 +1558,12 @@ bool StrToX(string_view sv, T& value, Fn fn) {
     auto const val = fn(next, &end);
     auto const ec1 = std::exchange(ec, ec0);
 
-    if (ec1 == ERANGE)
+    if (ec1 == ERANGE) {
         return false;
-    if (end != last)
+    }
+    if (end != last) {
         return false; // not all characters extracted
+    }
 
     value = val;
     return true;
@@ -1789,8 +1824,9 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 
     return [=, &value, map = MapType(ilist.begin(), ilist.end())](ParseContext const& ctx) {
         for (auto const& p : map) {
-            if (p.first != ctx.arg)
+            if (p.first != ctx.arg) {
                 continue;
+            }
 
             // Parse into a local variable to allow the predicates to modify the value.
             T temp = p.second;
@@ -1824,10 +1860,12 @@ auto Flag(T& var, char const* inverse_prefix = "no-") {
         "Flag() requires mutable lvalue-references");
 
     return [=, &var](ParseContext const& ctx) {
-        if (!cl::impl::ConvertTo<>{}(ctx, var))
+        if (!cl::impl::ConvertTo<>{}(ctx, var)) {
             return false;
-        if (cl::impl::StartsWith(ctx.name, inverse_prefix))
+        }
+        if (cl::impl::StartsWith(ctx.name, inverse_prefix)) {
             var = !var;
+        }
         return true;
     };
 }
@@ -1885,8 +1923,9 @@ It ParseProgramNameWindows(It next, It last, Fn fn) {
     if (next != last && !cl::impl::IsWhitespace(*next)) {
         bool const quoting = (*next == '"');
 
-        if (quoting)
+        if (quoting) {
             ++next;
+        }
 
         for (; next != last; ++next) {
             auto const ch = *next;
@@ -1978,8 +2017,9 @@ It ParseArgWindows(It next, It last, Fn fn) {
         }
     }
 
-    if (!arg.empty() || quoting || recently_closed)
+    if (!arg.empty() || quoting || recently_closed) {
         fn(std::move(arg));
+    }
 
     return next;
 }
@@ -2022,8 +2062,9 @@ inline std::vector<std::string> TokenizeWindows(string_view str, ParseProgramNam
     auto next = str.data();
     auto const last = str.data() + str.size();
 
-    if (parse_program_name == ParseProgramName::yes)
+    if (parse_program_name == ParseProgramName::yes) {
         next = cl::impl::ParseProgramNameWindows(next, last, push_back);
+    }
 
     while (next != last) {
         next = cl::impl::ParseArgWindows(next, last, push_back);
@@ -2062,15 +2103,17 @@ inline OptionBase::OptionBase(char const* name, char const* descr, OptionFlags f
 inline OptionBase::~OptionBase() = default;
 
 inline bool OptionBase::IsOccurrenceAllowed() const {
-    if (HasFlag(Multiple::no))
+    if (HasFlag(Multiple::no)) {
         return Count() == 0;
+    }
 
     return true;
 }
 
 inline bool OptionBase::IsOccurrenceRequired() const {
-    if (HasFlag(Required::yes))
+    if (HasFlag(Required::yes)) {
         return Count() == 0;
+    }
 
     return false;
 }
@@ -2142,8 +2185,9 @@ inline OptionBase* Cmdline::Add(OptionBase* opt) {
 
         if (opt->HasFlag(MayJoin::yes)) {
             auto const n = static_cast<int>(name.size());
-            if (max_prefix_len_ < n)
+            if (max_prefix_len_ < n) {
                 max_prefix_len_ = n;
+            }
         }
 
         options_.emplace_back(name, opt);
@@ -2181,8 +2225,9 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
         case Status::success:
             break;
         case Status::done:
-            if (curr != last)
+            if (curr != last) {
                 ++curr;
+            }
             break;
         case Status::error:
             return {curr, false};
@@ -2193,8 +2238,9 @@ Cmdline::ParseResult<It> Cmdline::Parse(It curr, EndIt last, CheckMissingOptions
 
         // Handle1 might have changed CURR.
         // Need to recheck if we're done.
-        if (res == Status::done || curr == last)
+        if (res == Status::done || curr == last) {
             break;
+        }
 
         ++curr;
         ++curr_index_;
@@ -2231,14 +2277,18 @@ inline bool Cmdline::AnyMissing() {
 #if CL_WINDOWS_CONSOLE_COLORS && _WIN32
 
 inline void Cmdline::PrintDiag() const {
-    if (diag_.empty())
+    if (diag_.empty()) {
         return;
+    }
 
     auto const stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
-    if (stderr_handle == NULL)
+    if (stderr_handle == NULL) {
         return; // No console.
-    if (stderr_handle == INVALID_HANDLE_VALUE)
+    }
+
+    if (stderr_handle == INVALID_HANDLE_VALUE) {
         return; // Error (Print without colors?!)
+    }
 
     CONSOLE_SCREEN_BUFFER_INFO sbi;
     GetConsoleScreenBufferInfo(stderr_handle, &sbi);
@@ -2369,17 +2419,19 @@ inline void AppendUsage(std::string& out, OptionBase* opt, size_t indent) {
         out += '<';
         out.append(opt->Name().data(), opt->Name().size());
         out += '>';
-        if (opt->HasFlag(Multiple::yes))
+        if (opt->HasFlag(Multiple::yes)) {
             out += "...";
+        }
     } else {
         out += "--";
         out.append(opt->Name().data(), opt->Name().size());
-        if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes))
+        if (opt->HasFlag(Arg::required) && opt->HasFlag(MayJoin::yes)) {
             out += "<ARG>";
-        else if (opt->HasFlag(Arg::required))
+        } else if (opt->HasFlag(Arg::required)) {
             out += " <ARG>";
-        else if (opt->HasFlag(Arg::optional))
+        } else if (opt->HasFlag(Arg::optional)) {
             out += "=<ARG>";
+        }
     }
 }
 
@@ -2397,8 +2449,9 @@ inline void AppendDescr(std::string& out, OptionBase* opt, size_t indent, size_t
         auto const col     = out.size() - col0;
         auto const wrap    = col >= descr_indent;
         auto const nspaces = wrap ? descr_indent : descr_indent - col;
-        if (wrap)
+        if (wrap) {
             out += '\n';
+        }
         out.append(nspaces, ' ');
 
         // Append the options description.
@@ -2455,15 +2508,19 @@ inline std::string Cmdline::FormatHelp(HelpFormat const& fmt) const {
         return true;
     });
 
-    if (has_opt)
+    if (has_opt) {
         out += " [OPTIONS]";
+    }
     out += '\n';
-    if (has_arg)
+    if (has_arg) {
         out += arg_descr;
-    if (has_opt)
+    }
+    if (has_opt) {
         out += opt_descr;
-    if (has_pos)
+    }
+    if (has_pos) {
         out += pos_descr;
+    }
 
     CL_ASSERT(cl::impl::IsUTF8(out.begin(), out.end()));
     return out;
@@ -2488,11 +2545,13 @@ inline OptionBase* Cmdline::FindOption(string_view name) const {
         // And the command line should be considered invalid!!!
         //
 #if 0
-        if (p.option->HasFlag(Positional::yes))
+        if (p.option->HasFlag(Positional::yes)) {
             continue;
+        }
 #endif
-        if (p.name == name)
+        if (p.name == name) {
             return p.option;
+        }
     }
 
     return nullptr;
@@ -2504,8 +2563,9 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
 
     // This cannot happen if we're parsing the main's argv[] array, but it might
     // happen if we're parsing a user-supplied array of command line arguments.
-    if (optstr.empty())
+    if (optstr.empty()) {
         return Status::success;
+    }
 
     // Stop parsing if "--" has been found
     if (optstr == "--" && !dashdash_) {
@@ -2517,8 +2577,9 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
     // '-', if it is "-" itself, or if we have seen "--" already, or if the
     // argument doesn't look like a known option (see below).
     bool const is_positional = (optstr[0] != '-' || optstr == "-" || dashdash_);
-    if (is_positional)
+    if (is_positional) {
         return HandlePositional(optstr);
+    }
 
     auto const optstr_orig = optstr;
 
@@ -2528,30 +2589,35 @@ Cmdline::Status Cmdline::Handle1(string_view optstr, It& curr, EndIt last) {
     // If the name starts with a single dash, this is a short option and might
     // actually be an option group.
     bool const is_short = (optstr[0] != '-');
-    if (!is_short)
+    if (!is_short) {
         optstr.remove_prefix(1); // Remove the second dash.
+    }
 
     // 1. Try to handle options like "-f" and "-f file"
     Status res = HandleStandardOption(optstr, curr, last);
 
     // 2. Try to handle options like "-f=file"
-    if (res == Status::ignored)
+    if (res == Status::ignored) {
         res = HandleOption(optstr);
+    }
 
     // 3. Try to handle options like "-Idir"
-    if (res == Status::ignored)
+    if (res == Status::ignored) {
         res = HandlePrefix(optstr);
+    }
 
     // 4. Try to handle options like "-xvf=file" and "-xvf file"
-    if (res == Status::ignored && is_short)
+    if (res == Status::ignored && is_short) {
         res = HandleGroup(optstr, curr, last);
+    }
 
     // Otherwise this is an unknown option.
     //
     // 5. Try to handle this option as a positional option.
     //    If there are no more (hungry) positional options, this is an error.
-    if (res == Status::ignored)
+    if (res == Status::ignored) {
         res = HandlePositional(optstr_orig);
+    }
 
     return res;
 }
@@ -2564,10 +2630,12 @@ inline Cmdline::Status Cmdline::HandlePositional(string_view optstr) {
     for (; curr_positional_ != E; ++curr_positional_) { // find_if
         auto opt = options_[static_cast<size_t>(curr_positional_)].option;
 
-        if (!opt->HasFlag(Positional::yes))
+        if (!opt->HasFlag(Positional::yes)) {
             continue;
-        if (!opt->IsOccurrenceAllowed())
+        }
+        if (!opt->IsOccurrenceAllowed()) {
             continue;
+        }
 
         // The argument of a positional option is the value specified on the
         // command line.
@@ -2601,8 +2669,9 @@ inline Cmdline::Status Cmdline::HandleOption(string_view optstr) {
             // Ok, something like "-f=file".
 
             // Discard the equals sign if this option may NOT join its value.
-            if (opt->HasFlag(MayJoin::no))
+            if (opt->HasFlag(MayJoin::no)) {
                 ++arg_start;
+            }
 
             return HandleOccurrence(opt, name, optstr.substr(arg_start));
         }
@@ -2617,15 +2686,17 @@ inline Cmdline::Status Cmdline::HandlePrefix(string_view optstr) {
     // "-without".
 
     auto n = static_cast<size_t>(max_prefix_len_);
-    if (n > optstr.size())
+    if (n > optstr.size()) {
         n = optstr.size();
+    }
 
     for (; n != 0; --n) {
         auto const name = optstr.substr(0, n);
         auto const opt = FindOption(name);
 
-        if (opt != nullptr && !opt->HasFlag(MayJoin::no))
+        if (opt != nullptr && !opt->HasFlag(MayJoin::no)) {
             return HandleOccurrence(opt, name, optstr.substr(n));
+        }
     }
 
     return Status::ignored;
@@ -2641,14 +2712,16 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
 
     // First determine the largest prefix which is a valid option group.
     for (size_t n = 0; n < optstr.size(); ++n) {
-        if (optstr[n] == '=')
+        if (optstr[n] == '=') {
             break;
+        }
 
         auto const name = optstr.substr(n, 1);
         auto const opt = FindOption(name);
 
-        if (opt == nullptr || opt->HasFlag(MayGroup::no))
+        if (opt == nullptr || opt->HasFlag(MayGroup::no)) {
             return Status::ignored;
+        }
 
         group.push_back(opt);
 
@@ -2659,8 +2732,9 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
         }
     }
 
-    if (group.empty()) // "-=" is invalid
+    if (group.empty()) { // "-=" is invalid
         return Status::ignored;
+    }
 
     // Then process all options.
     for (size_t n = 0; n < group.size(); ++n) {
@@ -2676,8 +2750,9 @@ Cmdline::Status Cmdline::HandleGroup(string_view optstr, It& curr, EndIt last) {
             // an argument has not been provided.
             // In case the option has the HasArg::required flag set, HandleOccurrence
             // will try to get an argument from the command line.
-            if (Status::success != HandleOccurrence(opt, name, curr, last))
+            if (Status::success != HandleOccurrence(opt, name, curr, last)) {
                 return Status::error;
+            }
         } else {
             // This is the last option in the group and the argument is the rest of optstr.
             // In case an argument is not allowed, HandleOccurrence will emit an error.
@@ -2710,8 +2785,9 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
     // We get here if no argument was specified.
     // If an argument is required, try to steal one from the command line.
 
-    if (!opt->HasFlag(Arg::required))
+    if (!opt->HasFlag(Arg::required)) {
         return ParseOptionArgument(opt, name, {});
+    }
 
     // If the option requires an argument, steal one from the command line.
     ++curr;
@@ -2726,8 +2802,9 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
         if (arg.size() >= 2 && arg[0] == '-') {
             auto n = string_view(arg);
             n.remove_prefix(1);
-            if (n[0] == '-')
+            if (n[0] == '-') {
                 n.remove_prefix(1);
+            }
             n = n.substr(0, n.find('='));
 
             if (FindOption(n) != nullptr) {
@@ -2780,8 +2857,9 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
         if (!opt->Parse(ctx)) {
             bool const diagnostic_emitted = diag_.size() > num_diagnostics;
-            if (!diagnostic_emitted)
+            if (!diagnostic_emitted) {
                 EmitDiag(Diagnostic::error, curr_index_, "invalid argument '", arg1, "' for option '", name, "'");
+            }
 
             return Status::error;
         }
@@ -2807,8 +2885,9 @@ inline Cmdline::Status Cmdline::ParseOptionArgument(OptionBase* opt, string_view
 
     if (res == Status::success) {
         // If the current option has the StopParsing flag set, we're done.
-        if (opt->HasFlag(StopParsing::yes))
+        if (opt->HasFlag(StopParsing::yes)) {
             res = Status::done;
+        }
     }
 
     return res;
@@ -2819,20 +2898,24 @@ bool Cmdline::ForEachUniqueOption(Fn fn) const {
     auto I = options_.begin();
     auto const E = options_.end();
 
-    if (I == E)
+    if (I == E) {
         return true;
+    }
 
     for (;;) {
-        if (!fn(I->option))
+        if (!fn(I->option)) {
             return false;
+        }
 
         // Skip duplicate options.
         auto const curr_opt = I->option;
         for (;;) {
-            if (++I == E)
+            if (++I == E) {
                 return true;
-            if (I->option != curr_opt)
+            }
+            if (I->option != curr_opt) {
                 break;
+            }
         }
     }
 }

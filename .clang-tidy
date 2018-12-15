@@ -127,7 +127,7 @@ CheckOptions:
   - key:             google-global-names-in-headers.HeaderFileExtensions
     value:           ',h,hh,hpp,hxx'
   - key:             google-readability-braces-around-statements.ShortStatementLines
-    value:           '2'
+    value:           '1'
   - key:             google-readability-function-size.BranchThreshold
     value:           '4294967295'
   - key:             google-readability-function-size.LineThreshold
@@ -153,7 +153,7 @@ CheckOptions:
   - key:             google-runtime-references.WhiteListTypes
     value:           ''
   - key:             hicpp-braces-around-statements.ShortStatementLines
-    value:           '2'
+    value:           '1'
   - key:             hicpp-function-size.BranchThreshold
     value:           '4294967295'
   - key:             hicpp-function-size.LineThreshold
@@ -303,7 +303,7 @@ CheckOptions:
   - key:             portability-simd-intrinsics.Suggest
     value:           '0'
   - key:             readability-braces-around-statements.ShortStatementLines
-    value:           '2'
+    value:           '1'
   - key:             readability-function-size.BranchThreshold
     value:           '4294967295'
   - key:             readability-function-size.LineThreshold
