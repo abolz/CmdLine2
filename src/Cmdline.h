@@ -2719,6 +2719,24 @@ Cmdline::Status Cmdline::HandleOccurrence(OptionBase* opt, string_view name, It&
 
     if (curr != last) {
         auto const arg = cl::impl::ToUTF8(*curr);
+
+#if 1
+        // If the string is of the form "--K=V" and "K" is the name of
+        // an option, emit a warning.
+        if (arg.size() >= 2 && arg[0] == '-') {
+            auto n = string_view(arg);
+            n.remove_prefix(1);
+            if (n[0] == '-')
+                n.remove_prefix(1);
+            n = n.substr(0, n.find('='));
+
+            if (FindOption(n) != nullptr) {
+                EmitDiag(Diagnostic::warning, curr_index_, "option '", n, "' is used as an argument for option '", name, "'");
+                EmitDiag(Diagnostic::note, curr_index_, "use '--", name, opt->HasFlag(MayJoin::yes) ? "" : "=", arg, "' to suppress this warning");
+            }
+        }
+#endif
+
         return ParseOptionArgument(opt, name, arg);
     }
 
