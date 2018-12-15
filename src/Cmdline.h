@@ -1729,13 +1729,13 @@ auto Assign(T& target, Predicates&&... preds) {
 // converted value into the container.
 // Predicates apply to the currently parsed value, not the whole list.
 template <typename T, typename... Predicates>
-auto PushBack(T& container, Predicates&&... preds) {
+auto Append(T& container, Predicates&&... preds) {
     static_assert(!std::is_const<T>::value,
-        "PushBack() requires mutable lvalue-references");
+        "Append() requires mutable lvalue-references");
     static_assert(cl::impl::IsContainer_t<T>::value,
-        "PushBack() requires STL-style container types");
+        "Append() requires STL-style container types");
     static_assert(std::is_default_constructible<cl::impl::RemoveCVRec_t<typename T::value_type>>::value,
-        "PushBack() requires default-constructible value_type's");
+        "Append() requires default-constructible value_type's");
 
     using V = cl::impl::RemoveCVRec_t<typename T::value_type>;
 
@@ -1762,7 +1762,7 @@ auto Var(std::false_type /*IsContainer*/, T& var, Predicates&&... preds) {
 
 template <typename T, typename... Predicates>
 auto Var(std::true_type /*IsContainer*/, T& var, Predicates&&... preds) {
-    return cl::PushBack(var, std::forward<Predicates>(preds)...);
+    return cl::Append(var, std::forward<Predicates>(preds)...);
 }
 
 } // namespace impl
