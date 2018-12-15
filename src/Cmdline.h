@@ -1819,7 +1819,7 @@ auto Map(T& value, std::initializer_list<std::pair<char const*, T>> ilist, Predi
 // Parses the options' argument and stores the result in 'var'.
 // If the options' name starts with 'inverse_prefix', inverts the parsed value, using operator!.
 template <typename T>
-auto Flag(T& var, std::string const& inverse_prefix = "no-") {
+auto Flag(T& var, char const* inverse_prefix = "no-") {
     static_assert(!std::is_const<T>::value,
         "Flag() requires mutable lvalue-references");
 
