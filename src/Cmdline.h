@@ -1489,6 +1489,75 @@ inline ParseNumberResult StrToI64(char const* next, char const* last, int64_t& v
     return res;
 }
 
+inline ParseNumberResult StrToSize(char const* next, char const* last, uint64_t& value) {
+    static constexpr uint64_t kKilo = 1024;
+    static constexpr uint64_t kMega = 1024 * kKilo;
+    static constexpr uint64_t kGiga = 1024 * kMega;
+    static constexpr uint64_t kTera = 1024 * kGiga;
+    static constexpr uint64_t kPeta = 1024 * kTera;
+    static constexpr uint64_t kExa  = 1024 * kPeta;
+
+    uint64_t v = 0;
+    auto const res = cl::impl::StrToU64(next, last, v);
+    next = res.ptr;
+
+    if (!res || next == last)
+        return res;
+
+    switch (*next) {
+    case 'E': // exa
+        if (v > UINT64_MAX / kExa) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kExa;
+        ++next;
+        break;
+    case 'P': // peta
+        if (v > UINT64_MAX / kPeta) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kPeta;
+        ++next;
+        break;
+    case 'T': // tera
+        if (v > UINT64_MAX / kTera) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kTera;
+        ++next;
+        break;
+    case 'G': // giga
+        if (v > UINT64_MAX / kGiga) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kGiga;
+        ++next;
+        break;
+    case 'M': // mega
+        if (v > UINT64_MAX / kMega) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kMega;
+        ++next;
+        break;
+    case 'K': // kilo
+    case 'k': // kilo
+        if (v > UINT64_MAX / kKilo) {
+            return {next, ParseNumberStatus::overflow};
+        }
+        v = v * kKilo;
+        ++next;
+        break;
+    }
+
+    if (next != last && *next == 'B') {
+        ++next;
+    }
+
+    value = v;
+    return {next, ParseNumberStatus::success};
+}
+
 struct ConvertToInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
@@ -1863,6 +1932,40 @@ auto Flag(T& var, char const* inverse_prefix = "no-") {
             var = !var;
         }
         return true;
+    };
+}
+
+template <typename T>
+auto Size(T& var) {
+    static_assert(!std::is_const<T>::value,
+        "Size() requires mutable lvalue-references");
+    static_assert(std::is_default_constructible<T>::value,
+        "Size() requires default-constructible types");
+    static_assert(std::is_move_assignable<T>::value,
+        "Size() requires move-assignable types");
+    static_assert(std::is_integral<T>::value,
+        "Size() requires integral types");
+
+    //
+    // XXX:
+    //
+    // Should this allow values like "1.5MB"?
+    // But disallow values like "1.555555555KB"!
+    //
+
+    return [&var](ParseContext const& ctx) {
+        auto const next = ctx.arg.data();
+        auto const last = ctx.arg.data() + ctx.arg.size();
+
+        uint64_t v = 0;
+        auto const res = cl::impl::StrToSize(next, last, v);
+
+        if (res && res.ptr == last && v <= (std::numeric_limits<T>::max)()) {
+            var = v;
+            return true;
+        }
+
+        return false;
     };
 }
 
