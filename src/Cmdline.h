@@ -1329,15 +1329,20 @@ struct ConvertTo<bool> {
     }
 };
 
-enum class ParseIntegerStatus {
+enum class ParseNumberStatus {
     success,
     syntax_error,
     overflow,
 };
 
-struct ParseIntegerResult {
+struct ParseNumberResult {
     char const* ptr;
-    ParseIntegerStatus ec;
+    ParseNumberStatus ec;
+
+    // Test for successful conversion.
+    explicit operator bool() const {
+        return ec == ParseNumberStatus::success;
+    }
 };
 
 // Returns the decimal value for the given hexadecimal character.
@@ -1367,7 +1372,7 @@ inline uint8_t HexDigitValue(char ch)
     return kMap[static_cast<uint8_t>(ch)];
 }
 
-inline bool ParseU64(char const* next, char const* last, uint64_t& value) {
+inline ParseNumberResult ParseU64(char const* next, char const* last, uint64_t& value) {
     CL_ASSERT(next != last);
 
     uint64_t max_pre_multiply;
@@ -1378,7 +1383,7 @@ inline bool ParseU64(char const* next, char const* last, uint64_t& value) {
         ++next;
         if (next == last) { // literal "0"
             value = 0;
-            return true;
+            return {next, ParseNumberStatus::success};
         }
 
         switch (*next) {
@@ -1412,32 +1417,26 @@ inline bool ParseU64(char const* next, char const* last, uint64_t& value) {
 
     uint64_t v = 0;
     for (;;) {
-        if (next == last) {
-            break;
-        }
         uint32_t const d = HexDigitValue(*next);
         if (d >= base) {
-            return false; // invalid digit
+            break;
         }
         if (v > max_pre_multiply || d > UINT64_MAX - base * v) {
-            return false; // overflow
+            return {next, ParseNumberStatus::overflow};
         }
         v = base * v + d;
         ++next;
     }
 
     value = v;
-    return true;
+    return {next, ParseNumberStatus::success};
 }
 
-inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
-    auto next = str.data();
-    auto const last = str.data() + str.size();
-
+inline ParseNumberResult StrToU64(char const* next, char const* last, uint64_t& value) {
     next = SkipWhitespace(next, last);
 
     if (next == last) {
-        return false; // syntax error
+        return {next, ParseNumberStatus::syntax_error};
     }
 
     // Skip optional '+' sign.
@@ -1446,27 +1445,18 @@ inline bool StrToUnsignedLongLong(string_view str, unsigned long long& value) {
     if (*next == '+') {
         ++next;
         if (next == last) {
-            return false; // syntax error
+            return {next, ParseNumberStatus::syntax_error};
         }
     }
 
-    uint64_t v;
-    if (!ParseU64(next, last, v)) {
-        return false;
-    }
-
-    value = v;
-    return true;
+    return ParseU64(next, last, value);
 }
 
-inline bool StrToLongLong(string_view str, long long& value) {
-    auto next = str.data();
-    auto const last = str.data() + str.size();
-
+inline ParseNumberResult StrToI64(char const* next, char const* last, int64_t& value) {
     next = SkipWhitespace(next, last);
 
     if (next == last) {
-        return false; // syntax error
+        return {next, ParseNumberStatus::syntax_error};
     }
 
     bool const is_negative = (*next == '-');
@@ -1475,39 +1465,44 @@ inline bool StrToLongLong(string_view str, long long& value) {
     if (is_negative || *next == '+') {
         ++next;
         if (next == last) {
-            return false; // syntax error
+            return {next, ParseNumberStatus::syntax_error};
         }
     }
 
     uint64_t v;
-    if (!ParseU64(next, last, v)) {
-        return false;
+    auto const res = ParseU64(next, last, v);
+    if (res) {
+        // The number fits into an uint64_t. Check if it fits into an int64_t, too.
+        // Assuming 2's complement.
+
+        constexpr uint64_t const Limit = 9223372036854775808ull; // -INT64_MIN
+
+        if (is_negative && v == Limit) {
+            value = INT64_MIN;
+        } else if (v >= Limit) {
+            return {next, ParseNumberStatus::overflow};
+        } else {
+            value = is_negative ? -static_cast<int64_t>(v) : static_cast<int64_t>(v);
+        }
     }
 
-    // The number fits into an uint64_t. Check if it fits into an int64_t, too.
-    // Assuming 2's complement.
-
-    constexpr uint64_t const Limit = 9223372036854775808ull; // -INT64_MIN
-
-    if (is_negative && v == Limit) {
-        value = INT64_MIN;
-    } else if (v >= Limit) {
-        return false; // overflow
-    } else {
-        value = is_negative ? -static_cast<int64_t>(v) : static_cast<int64_t>(v);
-    }
-
-    return true;
+    return res;
 }
 
 struct ConvertToInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
-        long long v = 0;
-        if (StrToLongLong(ctx.arg, v) && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)()) {
+        auto const next = ctx.arg.data();
+        auto const last = ctx.arg.data() + ctx.arg.size();
+
+        int64_t v = 0;
+        auto const res = StrToI64(next, last, v);
+
+        if (res && res.ptr == last && v >= (std::numeric_limits<T>::min)() && v <= (std::numeric_limits<T>::max)()) {
             value = static_cast<T>(v);
             return true;
         }
+
         return false;
     }
 };
@@ -1515,11 +1510,17 @@ struct ConvertToInt {
 struct ConvertToUnsignedInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
-        unsigned long long v = 0;
-        if (StrToUnsignedLongLong(ctx.arg, v) && v <= (std::numeric_limits<T>::max)()) {
+        auto const next = ctx.arg.data();
+        auto const last = ctx.arg.data() + ctx.arg.size();
+
+        uint64_t v = 0;
+        auto const res = StrToU64(next, last, v);
+
+        if (res && res.ptr == last && v <= (std::numeric_limits<T>::max)()) {
             value = static_cast<T>(v);
             return true;
         }
+
         return false;
     }
 };
