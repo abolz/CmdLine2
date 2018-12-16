@@ -28,9 +28,10 @@ int main(int argc, char* argv[])
         cl::Var(input_files));
 
     auto const res = cli.Parse(argv + 1, argv + argc);
+    cli.PrintDiag(); // Print error and/or warning messages to stderr.
+
     if (!res)
     {
-        cli.PrintDiag(); // Print error messages to stderr.
         cli.PrintHelp(); // Print help message to stderr.
         return -1;
     }

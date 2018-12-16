@@ -908,19 +908,18 @@ bool ForEachUTF32EncodedCodepoint(It next, It last, PutChar32 put) {
 // The internal encoding used by the library is UTF-8.
 
 template <typename It>
-inline /*__forceinline*/ bool IsUTF8(It next, It last) {
+bool IsUTF8(It next, It last) {
     return cl::impl::ForEachUTF8EncodedCodepoint(next, last, [](char32_t U) { return U != cl::impl::kInvalidCodepoint; });
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::input_iterator_tag /*cat*/) {
+std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::input_iterator_tag /*cat*/) {
     std::string s;
 
     ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
@@ -928,9 +927,8 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
     return s;
 }
 
-#if 1
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::forward_iterator_tag /*cat*/) {
+std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::forward_iterator_tag /*cat*/) {
     std::string s;
 //  s.reserve(std::distance(next, last));
 
@@ -949,24 +947,22 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char cons
 
     return s;
 }
-#endif
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char const* tag) {
+std::string ToUTF8_dispatch(It next, It last, char const* tag) {
     using Cat = typename std::iterator_traits<It>::iterator_category;
 
     return cl::impl::ToUTF8_dispatch(next, last, tag, Cat{});
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/) {
+std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/) {
     std::string s;
 
     ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
@@ -975,14 +971,13 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char16_t 
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/) {
+std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/) {
     std::string s;
 
     ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-
         EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
@@ -991,7 +986,7 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, char32_t 
 }
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/) {
+CL_FORCE_INLINE std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/) {
 #if _WIN32
     return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
 #else
@@ -1000,22 +995,22 @@ inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, wchar_t c
 }
 
 template <typename It, typename T>
-inline /*__forceinline*/ std::string ToUTF8_dispatch(It next, It last, T const* /*tag*/) = delete;
+std::string ToUTF8_dispatch(It next, It last, T const* /*tag*/) = delete;
 
 template <typename It>
-inline /*__forceinline*/ std::string ToUTF8(It next, It last) {
+CL_FORCE_INLINE std::string ToUTF8(It next, It last) {
     using CharT = std::remove_reference_t<decltype(*next)>;
 
     return cl::impl::ToUTF8_dispatch(next, last, static_cast<CharT const*>(nullptr));
 }
 
 template <typename StringT>
-inline /*__forceinline*/ std::string ToUTF8(StringT const& str) {
+CL_FORCE_INLINE std::string ToUTF8(StringT const& str) {
     return cl::impl::ToUTF8(str.begin(), str.end());
 }
 
 template <typename ElemT>
-inline /*__forceinline*/ std::string ToUTF8(ElemT* const& c_str) {
+CL_FORCE_INLINE std::string ToUTF8(ElemT* const& c_str) {
     using CharT = std::remove_const_t<ElemT>;
 
     auto const len = (c_str != nullptr)
@@ -2537,18 +2532,9 @@ inline void Cmdline::DebugCheck() const
 
 inline OptionBase* Cmdline::FindOption(string_view name) const {
     for (auto&& p : options_) {
-        // Don't skip positional options.
-        // This should allow one to resolve possible ambiguities.
-        //
-        // XXX:
-        // These ambiguities should be diagnosed!!!
-        // And the command line should be considered invalid!!!
-        //
-#if 0
-        if (p.option->HasFlag(Positional::yes)) {
-            continue;
-        }
-#endif
+        // NB: Don't skip positional options.
+        // Positional options have a name and might still be provided
+        // in the form "--name=value".
         if (p.name == name) {
             return p.option;
         }
