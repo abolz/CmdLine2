@@ -20,8 +20,8 @@ using ParseResult = cl::Cmdline::ParseResult<ArgIterator>;
 static ParseResult Parse(cl::Cmdline& cli, ArgIterator next, ArgIterator last)
 {
     auto const res = cli.Parse(next, last);
+    cli.PrintDiag();
     if (!res) {
-        cli.PrintDiag();
         cli.PrintHelp();
     }
     return res;

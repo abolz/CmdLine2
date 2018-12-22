@@ -29,9 +29,7 @@ int main(int argc, char* argv[])
 
     auto const res = cli.Parse(argv + 1, argv + argc);
     cli.PrintDiag(); // Print error and/or warning messages to stderr.
-
-    if (!res)
-    {
+    if (!res) {
         cli.PrintHelp(); // Print help message to stderr.
         return -1;
     }
