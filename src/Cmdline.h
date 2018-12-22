@@ -1417,6 +1417,9 @@ inline ParseNumberResult ParseU64(char const* next, char const* last, uint64_t& 
 
     uint64_t v = 0;
     for (;;) {
+        if (next == last) {
+            break;
+        }
         uint32_t const d = HexDigitValue(*next);
         if (d >= base) {
             break;

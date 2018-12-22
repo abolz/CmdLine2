@@ -1805,3 +1805,21 @@ TEST_CASE("Size")
     CHECK(false == ParseArgs(cli, {"-s", "16EB"}));
     CHECK(s == 15*kExa);
 }
+
+TEST_CASE("StrTo int")
+{
+    auto Test = [](cl::string_view str, uint64_t expected) {
+        auto const next = str.data();
+        auto const last = str.data() + str.size();
+
+        uint64_t v = 0;
+        auto const r = cl::impl::StrToU64(next, last, v);
+
+        CHECK(r.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(r.ptr == last);
+        CHECK(v == expected);
+    };
+
+    Test(cl::string_view("1234", 2), 12);
+    Test(cl::string_view("12xx", 2), 12);
+}
