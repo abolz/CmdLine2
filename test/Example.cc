@@ -11,16 +11,20 @@ int main(int argc, char* argv[])
 {
     cl::Cmdline cli("Example", "Does nothing useful");
 
-    cli.Add("v", "Increase output verbosity", cl::Multiple | cl::MayGroup | cl::Arg::optional,
+    cli.Add("v", "Increase output verbosity",
+        cl::Multiple::yes | cl::MayGroup::yes | cl::Arg::optional,
         cl::Var(verbose));
 
-    cli.Add("i|ints", "Some ints in the range [0,6]", cl::Multiple | cl::Arg::required | cl::CommaSeparated,
+    cli.Add("i|ints", "Some ints in the range [0,6]",
+        cl::Multiple::yes | cl::Arg::required | cl::CommaSeparated::yes,
         cl::Var(i, cl::check::InRange(0, 6)));
 
-    cli.Add("std", "C++ standard version", cl::Arg::required,
+    cli.Add("std", "C++ standard version",
+        cl::Arg::required,
         cl::Map(standard, {{"c++11", Standard::cxx11}, {"c++14", Standard::cxx14}, {"c++17", Standard::cxx17}}));
 
-    cli.Add("input-files", "List of input files", cl::Required | cl::Multiple | cl::Positional,
+    cli.Add("input-files", "List of input files",
+        cl::Required::yes | cl::Multiple::yes | cl::Positional::yes,
         cl::Var(input_files));
 
     auto const res = cli.Parse(argv + 1, argv + argc);
