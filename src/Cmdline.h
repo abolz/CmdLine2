@@ -1504,47 +1504,60 @@ inline ParseNumberResult StrToSize(char const* next, char const* last, uint64_t&
     auto const res = cl::impl::StrToU64(next, last, v);
     next = res.ptr;
 
-    if (!res || next == last)
+    if (!res || next == last) {
         return res;
+    }
+
+    if (*next == ' ' || *next == '_') {
+        ++next;
+        if (next == last) {
+            return {next, ParseNumberStatus::syntax_error};
+        }
+    }
 
     switch (*next) {
-    case 'E': // exa
+    case 'E':
+    case 'e':
         if (v > UINT64_MAX / kExa) {
             return {next, ParseNumberStatus::overflow};
         }
         v = v * kExa;
         ++next;
         break;
-    case 'P': // peta
+    case 'P':
+    case 'p':
         if (v > UINT64_MAX / kPeta) {
             return {next, ParseNumberStatus::overflow};
         }
         v = v * kPeta;
         ++next;
         break;
-    case 'T': // tera
+    case 'T':
+    case 't':
         if (v > UINT64_MAX / kTera) {
             return {next, ParseNumberStatus::overflow};
         }
         v = v * kTera;
         ++next;
         break;
-    case 'G': // giga
+    case 'G':
+    case 'g':
         if (v > UINT64_MAX / kGiga) {
             return {next, ParseNumberStatus::overflow};
         }
         v = v * kGiga;
         ++next;
         break;
-    case 'M': // mega
+    case 'M':
+    case 'm':
         if (v > UINT64_MAX / kMega) {
             return {next, ParseNumberStatus::overflow};
         }
         v = v * kMega;
         ++next;
         break;
-    case 'K': // kilo
-    case 'k': // kilo
+    case 'K':
+    case 'k':
         if (v > UINT64_MAX / kKilo) {
             return {next, ParseNumberStatus::overflow};
         }
@@ -1553,7 +1566,7 @@ inline ParseNumberResult StrToSize(char const* next, char const* last, uint64_t&
         break;
     }
 
-    if (next != last && *next == 'B') {
+    if (next != last && (*next == 'B' || *next == 'b')) {
         ++next;
     }
 

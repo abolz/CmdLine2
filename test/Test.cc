@@ -1752,6 +1752,12 @@ TEST_CASE("Size")
     CHECK(s == 0);
     CHECK(true == ParseArgs(cli, {"-s", "1B"}));
     CHECK(s == 1);
+    CHECK(false == ParseArgs(cli, {"-s", "1BB"}));
+    CHECK(s == 1);
+    CHECK(false == ParseArgs(cli, {"-s", "1BB "}));
+    CHECK(s == 1);
+    CHECK(false == ParseArgs(cli, {"-s", "1 BB"}));
+    CHECK(s == 1);
     CHECK(false == ParseArgs(cli, {"-s", "9z"}));
     CHECK(s == 1);
     CHECK(false == ParseArgs(cli, {"-s", "9 "}));
@@ -1759,10 +1765,28 @@ TEST_CASE("Size")
 
     CHECK(true == ParseArgs(cli, {"-s", "1K"}));
     CHECK(s == 1*kKilo);
-    CHECK(true == ParseArgs(cli, {"-s", "2KB"}));
+    CHECK(true == ParseArgs(cli, {"-s", "2kb"}));
+    CHECK(s == 2*kKilo);
+    CHECK(true == ParseArgs(cli, {"-s", "2 KB"}));
+    CHECK(s == 2*kKilo);
+    CHECK(false == ParseArgs(cli, {"-s", "2BK"}));
+    CHECK(s == 2*kKilo);
+    CHECK(false == ParseArgs(cli, {"-s", "2 BK"}));
     CHECK(s == 2*kKilo);
     CHECK(true == ParseArgs(cli, {"-s", "3kB"}));
     CHECK(s == 3*kKilo);
+    CHECK(true == ParseArgs(cli, {"-s", "4 KB"}));
+    CHECK(s == 4*kKilo);
+    CHECK(false == ParseArgs(cli, {"-s", "4 KB "}));
+    CHECK(s == 4*kKilo);
+    CHECK(true == ParseArgs(cli, {"-s", "5_kb"}));
+    CHECK(s == 5*kKilo);
+    CHECK(false == ParseArgs(cli, {"-s", "5_"}));
+    CHECK(s == 5*kKilo);
+    CHECK(false == ParseArgs(cli, {"-s", "5_ "}));
+    CHECK(s == 5*kKilo);
+    CHECK(true == ParseArgs(cli, {"-s", "6_k"}));
+    CHECK(s == 6*kKilo);
     CHECK(true == ParseArgs(cli, {"-s", "18014398509481983kB"}));
     CHECK(s == 18014398509481983*kKilo);
     CHECK(false == ParseArgs(cli, {"-s", "18014398509481984kB"}));
@@ -1770,8 +1794,8 @@ TEST_CASE("Size")
 
     CHECK(true == ParseArgs(cli, {"-s", "1M"}));
     CHECK(s == 1*kMega);
-    CHECK(false == ParseArgs(cli, {"-s", "1m"}));
-    CHECK(s == 1*kMega);
+    CHECK(true == ParseArgs(cli, {"-s", "2m"}));
+    CHECK(s == 2*kMega);
     CHECK(true == ParseArgs(cli, {"-s", "17592186044415M"}));
     CHECK(s == 17592186044415*kMega);
     CHECK(false == ParseArgs(cli, {"-s", "17592186044416M"}));
