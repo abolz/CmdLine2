@@ -1492,86 +1492,63 @@ inline ParseNumberResult StrToI64(char const* next, char const* last, int64_t& v
     return res;
 }
 
-inline ParseNumberResult StrToSize(char const* next, char const* last, uint64_t& value) {
-    static constexpr uint64_t kKilo = 1024;
-    static constexpr uint64_t kMega = 1024 * kKilo;
-    static constexpr uint64_t kGiga = 1024 * kMega;
-    static constexpr uint64_t kTera = 1024 * kGiga;
-    static constexpr uint64_t kPeta = 1024 * kTera;
-    static constexpr uint64_t kExa  = 1024 * kPeta;
+struct ParseSISuffixResult {
+    char const* next;
+    int exp;
+};
 
-    uint64_t v = 0;
-    auto const res = cl::impl::StrToU64(next, last, v);
-    next = res.ptr;
-
-    if (!res || next == last) {
-        return res;
+inline ParseSISuffixResult ParseSISuffix(char const* next, char const* last) {
+    if (next == last) {
+        return {next, 0}; // Ok. No SI-suffix.
     }
 
     if (*next == ' ' || *next == '_') {
         ++next;
         if (next == last) {
-            return {next, ParseNumberStatus::syntax_error};
+            return {next, INT_MIN}; // syntax error.
         }
     }
 
+    int exp;
     switch (*next) {
     case 'E':
     case 'e':
-        if (v > UINT64_MAX / kExa) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kExa;
-        ++next;
+        exp = 6;
         break;
     case 'P':
     case 'p':
-        if (v > UINT64_MAX / kPeta) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kPeta;
-        ++next;
+        exp = 5;
         break;
     case 'T':
     case 't':
-        if (v > UINT64_MAX / kTera) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kTera;
-        ++next;
+        exp = 4;
         break;
     case 'G':
     case 'g':
-        if (v > UINT64_MAX / kGiga) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kGiga;
-        ++next;
+        exp = 3;
         break;
     case 'M':
     case 'm':
-        if (v > UINT64_MAX / kMega) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kMega;
-        ++next;
+        exp = 2;
         break;
     case 'K':
     case 'k':
-        if (v > UINT64_MAX / kKilo) {
-            return {next, ParseNumberStatus::overflow};
-        }
-        v = v * kKilo;
-        ++next;
+        exp = 1;
         break;
+    case 'B':
+    case 'b':
+        exp = 0;
+        break;
+    default:
+        return {next, INT_MIN}; // syntax error
     }
 
-    if (next != last && (*next == 'B' || *next == 'b')) {
+    if (exp != 0)
         ++next;
-    }
+    if (next != last && (*next == 'B' || *next == 'b'))
+        ++next;
 
-    value = v;
-    return {next, ParseNumberStatus::success};
+    return {next, exp};
 }
 
 struct ConvertToInt {
@@ -1951,17 +1928,7 @@ auto Flag(T& var, char const* inverse_prefix = "no-") {
     };
 }
 
-template <typename T>
-auto Size(T& var) {
-    static_assert(!std::is_const<T>::value,
-        "Size() requires mutable lvalue-references");
-    static_assert(std::is_default_constructible<T>::value,
-        "Size() requires default-constructible types");
-    static_assert(std::is_move_assignable<T>::value,
-        "Size() requires move-assignable types");
-    static_assert(std::is_integral<T>::value,
-        "Size() requires integral types");
-
+inline auto Size(uint64_t& var) {
     //
     // XXX:
     //
@@ -1970,13 +1937,37 @@ auto Size(T& var) {
     //
 
     return [&var](ParseContext const& ctx) {
-        auto const next = ctx.arg.data();
-        auto const last = ctx.arg.data() + ctx.arg.size();
+        auto next = ctx.arg.data();
+        auto const last = next + ctx.arg.size();
 
         uint64_t v = 0;
-        auto const res = cl::impl::StrToSize(next, last, v);
 
-        if (res && res.ptr == last && v <= (std::numeric_limits<T>::max)()) {
+        // Parse an unsigned integer.
+        auto const r1 = cl::impl::StrToU64(next, last, v);
+        next = r1.ptr;
+
+        if (r1.ec != cl::impl::ParseNumberStatus::success) {
+            return false;
+        }
+
+        // Optionally parse the SI-suffix.
+        if (next != last) {
+            auto const r2 = cl::impl::ParseSISuffix(next, last);
+            next = r2.next;
+
+            if (r2.exp == INT_MIN) {
+                return false;
+            }
+
+            // Binary exponent: v *= 2^(10 * n)
+            int const exp = 10 * r2.exp;
+            if (v > (UINT64_MAX >> exp)) {
+                return false;
+            }
+            v <<= exp;
+        }
+
+        if (next == last) {
             var = v;
             return true;
         }
