@@ -376,37 +376,37 @@ enum class StopParsing : uint8_t {
 };
 
 struct OptionFlags {
-    Required       required        = Required::no;
-    Multiple       multiple        = Multiple::no;
-    Arg            arg             = Arg::no;
-    MayJoin        may_join        = MayJoin::no;
-    MayGroup       may_group       = MayGroup::no;
-    Positional     positional      = Positional::no;
-    CommaSeparated comma_separated = CommaSeparated::no;
-    StopParsing    stop_parsing    = StopParsing::no;
+    enum Required       required        = Required::no;
+    enum Multiple       multiple        = Multiple::no;
+    enum Arg            arg             = Arg::no;
+    enum MayJoin        may_join        = MayJoin::no;
+    enum MayGroup       may_group       = MayGroup::no;
+    enum Positional     positional      = Positional::no;
+    enum CommaSeparated comma_separated = CommaSeparated::no;
+    enum StopParsing    stop_parsing    = StopParsing::no;
 
     constexpr /*implicit*/ OptionFlags() = default;
-    constexpr /*implicit*/ OptionFlags(Required       v) : required(v) {}
-    constexpr /*implicit*/ OptionFlags(Multiple       v) : multiple(v) {}
-    constexpr /*implicit*/ OptionFlags(Arg            v) : arg(v) {}
-    constexpr /*implicit*/ OptionFlags(MayJoin        v) : may_join(v) {}
-    constexpr /*implicit*/ OptionFlags(MayGroup       v) : may_group(v) {}
-    constexpr /*implicit*/ OptionFlags(Positional     v) : positional(v) {}
-    constexpr /*implicit*/ OptionFlags(CommaSeparated v) : comma_separated(v) {}
-    constexpr /*implicit*/ OptionFlags(StopParsing    v) : stop_parsing(v) {}
+    constexpr /*implicit*/ OptionFlags(enum Required       v) : required(v) {}
+    constexpr /*implicit*/ OptionFlags(enum Multiple       v) : multiple(v) {}
+    constexpr /*implicit*/ OptionFlags(enum Arg            v) : arg(v) {}
+    constexpr /*implicit*/ OptionFlags(enum MayJoin        v) : may_join(v) {}
+    constexpr /*implicit*/ OptionFlags(enum MayGroup       v) : may_group(v) {}
+    constexpr /*implicit*/ OptionFlags(enum Positional     v) : positional(v) {}
+    constexpr /*implicit*/ OptionFlags(enum CommaSeparated v) : comma_separated(v) {}
+    constexpr /*implicit*/ OptionFlags(enum StopParsing    v) : stop_parsing(v) {}
 };
 
 // XXX:
 // operator| is not commutative here...
 
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Required       v) { f.required        = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Multiple       v) { f.multiple        = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Arg            v) { f.arg             = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, MayJoin        v) { f.may_join        = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, MayGroup       v) { f.may_group       = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, Positional     v) { f.positional      = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, CommaSeparated v) { f.comma_separated = v; return f; }
-inline /*constexpr*/ OptionFlags operator|(OptionFlags f, StopParsing    v) { f.stop_parsing    = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum Required       v) { f.required        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum Multiple       v) { f.multiple        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum Arg            v) { f.arg             = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum MayJoin        v) { f.may_join        = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum MayGroup       v) { f.may_group       = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum Positional     v) { f.positional      = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum CommaSeparated v) { f.comma_separated = v; return f; }
+inline /*constexpr*/ OptionFlags operator|(OptionFlags f, enum StopParsing    v) { f.stop_parsing    = v; return f; }
 
 // Provides information about the argument and the command line parser which
 // is currently parsing the arguments.
@@ -448,14 +448,14 @@ public:
     string_view Descr() const { return descr_; }
 
     // Returns the flags controlling how the option may/must be specified.
-    bool HasFlag(Required       f) const { return flags_.required        == f; }
-    bool HasFlag(Multiple       f) const { return flags_.multiple        == f; }
-    bool HasFlag(Arg            f) const { return flags_.arg             == f; }
-    bool HasFlag(MayJoin        f) const { return flags_.may_join        == f; }
-    bool HasFlag(MayGroup       f) const { return flags_.may_group       == f; }
-    bool HasFlag(Positional     f) const { return flags_.positional      == f; }
-    bool HasFlag(CommaSeparated f) const { return flags_.comma_separated == f; }
-    bool HasFlag(StopParsing    f) const { return flags_.stop_parsing    == f; }
+    bool HasFlag(enum Required       f) const { return flags_.required        == f; }
+    bool HasFlag(enum Multiple       f) const { return flags_.multiple        == f; }
+    bool HasFlag(enum Arg            f) const { return flags_.arg             == f; }
+    bool HasFlag(enum MayJoin        f) const { return flags_.may_join        == f; }
+    bool HasFlag(enum MayGroup       f) const { return flags_.may_group       == f; }
+    bool HasFlag(enum Positional     f) const { return flags_.positional      == f; }
+    bool HasFlag(enum CommaSeparated f) const { return flags_.comma_separated == f; }
+    bool HasFlag(enum StopParsing    f) const { return flags_.stop_parsing    == f; }
 
     // Returns the number of times this option was specified on the command line
     int Count() const { return count_; }
