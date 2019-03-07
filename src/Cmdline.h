@@ -909,11 +909,11 @@ template <typename It>
 std::string ToUTF8_dispatch(It next, It last, char const* /*tag*/, std::input_iterator_tag /*cat*/) {
     std::string s;
 
-    ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
+    cl::impl::ForEachUTF8EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        cl::impl::EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
 
@@ -952,11 +952,11 @@ template <typename It>
 std::string ToUTF8_dispatch(It next, It last, char16_t const* /*tag*/) {
     std::string s;
 
-    ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
+    cl::impl::ForEachUTF16EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        cl::impl::EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
 
@@ -967,11 +967,11 @@ template <typename It>
 std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/) {
     std::string s;
 
-    ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
+    cl::impl::ForEachUTF32EncodedCodepoint(next, last, [&](char32_t U) {
         if (U == kInvalidCodepoint) {
             U = kReplacementCharacter;
         }
-        EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
+        cl::impl::EncodeUTF8(U, [&](char ch) { s.push_back(ch); });
         return true;
     });
 
@@ -981,9 +981,9 @@ std::string ToUTF8_dispatch(It next, It last, char32_t const* /*tag*/) {
 template <typename It>
 CL_FORCE_INLINE std::string ToUTF8_dispatch(It next, It last, wchar_t const* /*tag*/) {
 #if _WIN32
-    return ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
+    return cl::impl::ToUTF8_dispatch(next, last, static_cast<char16_t const*>(nullptr));
 #else
-    return ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
+    return cl::impl::ToUTF8_dispatch(next, last, static_cast<char32_t const*>(nullptr));
 #endif
 }
 
