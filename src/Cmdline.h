@@ -27,13 +27,6 @@ static_assert(sizeof(wchar_t) == 2, "Invalid configuration");
 static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #endif
 
-#if !defined(CL_WINDOWS_CONSOLE_COLORS) && defined(_WIN32)
-#define CL_WINDOWS_CONSOLE_COLORS 1
-#endif
-#if !defined(CL_ANSI_CONSOLE_COLORS) && !defined(_WIN32)
-#define CL_ANSI_CONSOLE_COLORS 1
-#endif
-
 #include <cassert>
 #include <cerrno>
 #include <climits>
