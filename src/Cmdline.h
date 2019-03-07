@@ -1472,65 +1472,6 @@ inline ParseNumberResult StrToI64(char const* next, char const* last, int64_t& v
     return res;
 }
 
-struct ParseSISuffixResult {
-    char const* next;
-    int exp;
-};
-
-inline ParseSISuffixResult ParseSISuffix(char const* next, char const* last) {
-    if (next == last) {
-        return {next, 0}; // Ok. No SI-suffix.
-    }
-
-    if (*next == ' ' || *next == '_') {
-        ++next;
-        if (next == last) {
-            return {next, INT_MIN}; // syntax error.
-        }
-    }
-
-    int exp;
-    switch (*next) {
-    case 'E':
-    case 'e':
-        exp = 6;
-        break;
-    case 'P':
-    case 'p':
-        exp = 5;
-        break;
-    case 'T':
-    case 't':
-        exp = 4;
-        break;
-    case 'G':
-    case 'g':
-        exp = 3;
-        break;
-    case 'M':
-    case 'm':
-        exp = 2;
-        break;
-    case 'K':
-    case 'k':
-        exp = 1;
-        break;
-    case 'B':
-    case 'b':
-        exp = 0;
-        break;
-    default:
-        return {next, INT_MIN}; // syntax error
-    }
-
-    if (exp != 0)
-        ++next;
-    if (next != last && (*next == 'B' || *next == 'b'))
-        ++next;
-
-    return {next, exp};
-}
-
 struct ConvertToInt {
     template <typename T>
     bool operator()(ParseContext const& ctx, T& value) const {
@@ -1905,54 +1846,6 @@ auto Flag(T& var, char const* inverse_prefix = "no-") {
             var = !var;
         }
         return true;
-    };
-}
-
-inline auto Size(uint64_t& var) {
-    //
-    // XXX:
-    //
-    // Should this allow values like "1.5MB"?
-    // But disallow values like "1.555555555KB"!
-    //
-
-    return [&var](ParseContext const& ctx) {
-        auto next = ctx.arg.data();
-        auto const last = next + ctx.arg.size();
-
-        uint64_t v = 0;
-
-        // Parse an unsigned integer.
-        auto const r1 = cl::impl::StrToU64(next, last, v);
-        next = r1.ptr;
-
-        if (r1.ec != cl::impl::ParseNumberStatus::success) {
-            return false;
-        }
-
-        // Optionally parse the SI-suffix.
-        if (next != last) {
-            auto const r2 = cl::impl::ParseSISuffix(next, last);
-            next = r2.next;
-
-            if (r2.exp == INT_MIN) {
-                return false;
-            }
-
-            // Binary exponent: v *= 2^(10 * n)
-            int const exp = 10 * r2.exp;
-            if (v > (UINT64_MAX >> exp)) {
-                return false;
-            }
-            v <<= exp;
-        }
-
-        if (next == last) {
-            var = v;
-            return true;
-        }
-
-        return false;
     };
 }
 
