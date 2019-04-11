@@ -58,6 +58,11 @@ static_assert(sizeof(wchar_t) == 4, "Invalid configuration");
 #define CL_HAS_FOLD_EXPRESSIONS 1
 #endif
 
+//#if __cpp_lib_to_chars >= 201611 || (_MSC_VER >= 1920 && defined(_HAS_CXX17))
+//#define CL_HAS_STD_CHARCONV 1
+//#include <charconv>
+//#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define CL_FORCE_INLINE __attribute__((always_inline)) inline
 #define CL_NEVER_INLINE __attribute__((noinline)) inline
@@ -1346,6 +1351,10 @@ inline uint8_t HexDigitValue(char ch)
     return kMap[static_cast<uint8_t>(ch)];
 }
 
+inline bool IsHexDigit(char ch) {
+    return HexDigitValue(ch) != UINT8_MAX;
+}
+
 inline ParseNumberResult ParseU64(char const* next, char const* last, uint64_t& value) {
     CL_ASSERT(next != last);
 
@@ -1452,14 +1461,14 @@ inline ParseNumberResult StrToI64(char const* next, char const* last, int64_t& v
         // The number fits into an uint64_t. Check if it fits into an int64_t, too.
         // Assuming 2's complement.
 
-        constexpr uint64_t const Limit = 9223372036854775808ull; // -INT64_MIN
+        constexpr uint64_t Limit = 9223372036854775808ull; // -INT64_MIN
 
         if (is_negative && v == Limit) {
             value = INT64_MIN;
         } else if (v >= Limit) {
             return {next, ParseNumberStatus::overflow};
         } else {
-            value = is_negative ? -static_cast<int64_t>(v) : static_cast<int64_t>(v);
+            value = static_cast<int64_t>(is_negative ? (0 - v) : v);
         }
     }
 
@@ -1513,55 +1522,119 @@ template <> struct ConvertTo< unsigned int       > : cl::impl::ConvertToUnsigned
 template <> struct ConvertTo< unsigned long      > : cl::impl::ConvertToUnsignedInt {};
 template <> struct ConvertTo< unsigned long long > : cl::impl::ConvertToUnsignedInt {};
 
-template <typename T, typename Fn>
-bool StrToX(string_view sv, T& value, Fn fn) {
-    if (sv.empty()) {
-        return false;
+#if CL_HAS_STD_CHARCONV
+template <typename T>
+inline ParseNumberResult StrToFloatingPoint(char const* next, char const* last, T& value) {
+    std::chars_format fmt;
+
+    // std::from_chars does not automatically determine the base (and does not skip any prefixes).
+    bool const is_hex = (last - next >= 2) && (next[0] == '0') && (next[1] == 'x' || next[1] == 'X');
+    if (is_hex) {
+        fmt = std::chars_format::hex;
+        next += 2; // Skip prefix ('0x' or '0X')
+    } else {
+        fmt = std::chars_format::general;
     }
 
-    std::string str(sv);
+    if (next == last) {
+        return {next, ParseNumberStatus::syntax_error};
+    }
 
-    auto const next = str.c_str();
-    auto const last = next + str.size();
+    auto const res = std::from_chars(next, last, value, fmt);
+    switch (res.ec) {
+    case std::errc{}:
+        return {res.ptr, ParseNumberStatus::success};
+    case std::errc::result_out_of_range:
+        // XXX:
+        // Is result_out_of_range actually ever returned from from_chars for floating-point?!?!
+#if 1
+        return {res.ptr, ParseNumberStatus::success};
+#else
+        return {res.ptr, ParseNumberStatus::overflow};
+#endif
+    default:
+        return {res.ptr, ParseNumberStatus::syntax_error};
+    }
+}
+
+//template <typename T>
+//inline ParseNumberResult StrToFloatingPoint(string_view sv, T& value) {
+//    return cl::impl::StrToFloatingPoint(sv.data(), sv.data() + sv.size(), value);
+//}
+#else // ^^^ CL_HAS_STD_CHARCONV ^^^
+template <typename T, typename Fn>
+inline ParseNumberResult StrToFloatingPoint(char const* next, char const* last, T& value, Fn fn) {
+    if (next == last) {
+        return {next, ParseNumberStatus::syntax_error};
+    }
+
+    std::string str(next, last);
+
+    char const* begin = str.c_str();
     char* end = nullptr;
 
+#if 0
+    // Seems that std::from_chars doesn't return std::errc::result_out_of_range even
+    // if finite non-zero numbers round to infinity or 0.0.
+    // So we ignore errno here... :-/
+    auto const val = fn(begin, &end);
+    next += end - begin;
+#else
     int& ec = errno;
 
     auto const ec0 = std::exchange(ec, 0);
-    auto const val = fn(next, &end);
+    auto const val = fn(begin, &end);
     auto const ec1 = std::exchange(ec, ec0);
+    next += end - begin;
 
     if (ec1 == ERANGE) {
-        return false;
+        return {next, ParseNumberStatus::overflow};
     }
-    if (end != last) {
-        return false; // not all characters extracted
-    }
+#endif
 
     value = val;
-    return true;
+    return {next, ParseNumberStatus::success};
 }
 
-template <>
-struct ConvertTo<float> {
-    bool operator()(ParseContext const& ctx, float& value) const {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtof(p, end); });
+inline ParseNumberResult StrToFloatingPoint(char const* next, char const* last, float& value) {
+    return cl::impl::StrToFloatingPoint(next, last, value, [](char const* p, char** end) { return std::strtof(p, end); });
+}
+
+inline ParseNumberResult StrToFloatingPoint(char const* next, char const* last, double& value) {
+    return cl::impl::StrToFloatingPoint(next, last, value, [](char const* p, char** end) { return std::strtod(p, end); });
+}
+
+inline ParseNumberResult StrToFloatingPoint(char const* next, char const* last, long double& value) {
+    return cl::impl::StrToFloatingPoint(next, last, value, [](char const* p, char** end) { return std::strtold(p, end); });
+}
+
+//template <typename T>
+//inline ParseNumberResult StrToFloatingPoint(string_view sv, T& value) {
+//    return cl::impl::StrToFloatingPoint(sv.data(), sv.data() + sv.size(), value);
+//}
+#endif // ^^^ !CL_HAS_STD_CHARCONV ^^^
+
+struct ConvertToFloatingPoint {
+    template <typename T>
+    bool operator()(ParseContext const& ctx, T& value) {
+        auto const next = ctx.arg.data();
+        auto const last = ctx.arg.data() + ctx.arg.size();
+
+        T v = 0;
+        auto const res = StrToFloatingPoint(next, last, v);
+
+        if (res && res.ptr == last) {
+            value = v;
+            return true;
+        }
+
+        return false;
     }
 };
 
-template <>
-struct ConvertTo<double> {
-    bool operator()(ParseContext const& ctx, double& value) const {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtod(p, end); });
-    }
-};
-
-template <>
-struct ConvertTo<long double> {
-    bool operator()(ParseContext const& ctx, long double& value) const {
-        return cl::impl::StrToX(ctx.arg, value, [](char const* p, char** end) { return std::strtold(p, end); });
-    }
-};
+template <> struct ConvertTo< float       > : cl::impl::ConvertToFloatingPoint {};
+template <> struct ConvertTo< double      > : cl::impl::ConvertToFloatingPoint {};
+template <> struct ConvertTo< long double > : cl::impl::ConvertToFloatingPoint {};
 
 template <typename Traits, typename Alloc>
 struct ConvertTo<std::basic_string<char, Traits, Alloc>> {

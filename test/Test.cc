@@ -843,28 +843,91 @@ TEST_CASE("binary unsigned 16-bit")
     CHECK(false == ParseArgs(cl, {"-a", "0b10000000000000000000000000000000000000000000000000000000000000000"})); // overflow
 }
 
+#if 0
+#if 1//CL_HAS_STD_CHARCONV
 TEST_CASE("Floats")
 {
+    cl::impl::ParseNumberResult res;
+
+    double value;
+
+    res = cl::impl::StrToFloatingPoint("", value);
+    CHECK(res.ec == cl::impl::ParseNumberStatus::syntax_error);
+
     SUBCASE("fixed")
     {
+        res = cl::impl::StrToFloatingPoint("1.0", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 1.0);
+        res = cl::impl::StrToFloatingPoint("2.0", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 2.0);
     }
 
     SUBCASE("exponential")
     {
+        res = cl::impl::StrToFloatingPoint("1.0e-1", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 0.1);
+        res = cl::impl::StrToFloatingPoint("2.0e1", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 20.0);
+        res = cl::impl::StrToFloatingPoint("1.234e+400", value);
+#if 0
+        CHECK(res.ec == cl::impl::ParseNumberStatus::overflow);
+#else
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isinf(value));
+#endif
+        res = cl::impl::StrToFloatingPoint("-1.234e+400", value);
+#if 0
+        CHECK(res.ec == cl::impl::ParseNumberStatus::overflow);
+#else
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isinf(value));
+        CHECK(value < 0);
+#endif
     }
 
     SUBCASE("hexadecimal")
     {
+#if 0
+        res = cl::impl::StrToFloatingPoint("0x", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::syntax_error);
+#endif
+        res = cl::impl::StrToFloatingPoint("0x1.0p0", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 1.0);
+        res = cl::impl::StrToFloatingPoint("0x.Fp+1", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 1.875);
+        res = cl::impl::StrToFloatingPoint("0x1.Fp+1", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(value == 3.875);
     }
 
     SUBCASE("inf")
     {
+        res = cl::impl::StrToFloatingPoint("inf", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isinf(value));
+        res = cl::impl::StrToFloatingPoint("Infinity", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isinf(value));
     }
 
     SUBCASE("nan")
     {
+        res = cl::impl::StrToFloatingPoint("nan", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isnan(value));
+        res = cl::impl::StrToFloatingPoint("NaN", value);
+        CHECK(res.ec == cl::impl::ParseNumberStatus::success);
+        CHECK(std::isnan(value));
     }
 }
+#endif // ^^^ CL_HAS_STD_CHARCONV ^^^
+#endif
 
 TEST_CASE("Map")
 {
