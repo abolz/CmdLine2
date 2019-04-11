@@ -273,6 +273,11 @@ inline bool operator>(string_view s1, string_view s2) noexcept {
 inline bool operator>=(string_view s1, string_view s2) noexcept {
     return !(s1 < s2);
 }
+
+inline std::ostream& operator<<(std::ostream& os, string_view sv) {
+    os << std::string(sv);
+    return os;
+}
 #endif
 
 //==================================================================================================
