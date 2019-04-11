@@ -1,6 +1,7 @@
 /.vscode/
 /backups/
 /build/
+/examples/
 /scratch/
 /test_external/
-
+/vs/
