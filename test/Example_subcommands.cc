@@ -7,7 +7,6 @@
 // https://github.com/muellan/clipp
 
 enum class mode {make, find, help};
-static mode selected = mode::help;
 static std::vector<std::string> input;
 static std::string dict;
 static std::string out;
@@ -52,6 +51,9 @@ static ParseResult ParseFindCommand(ArgIterator next, ArgIterator last)
 
 static bool ParseCommandLine(ArgIterator next, ArgIterator last)
 {
+    using Command = ParseResult (*)(ArgIterator, ArgIterator);
+    Command mode = nullptr;
+
     cl::Cmdline cli("finder", "");
 
     cli.Add("v|version", "show version", cl::Arg::no, [](cl::ParseContext const& /*ctx*/) { printf("version 1.0\n"); });
@@ -61,20 +63,16 @@ static bool ParseCommandLine(ArgIterator next, ArgIterator last)
         "  <find>  \tFind an existing finder.\n"
         "  <help>  \tShow help menu",
         cl::Required::yes | cl::Positional::yes | cl::StopParsing::yes,
-        cl::Map(selected, { {"make", mode::make},
-                            {"find", mode::find},
-                            {"help", mode::help} }));
+        cl::Map(mode, { {"make", ParseMakeCommand},
+                        {"find", ParseFindCommand},
+                        {"help", nullptr} }));
 
     if (auto const res = Parse(cli, next, last))
     {
-        switch (selected) {
-        case mode::make:
-            return (bool)ParseMakeCommand(res.next, last);
-        case mode::find:
-            return (bool)ParseFindCommand(res.next, last);
-        case mode::help:
-            return 0;
-        }
+        if (mode)
+            mode(res.next, last);
+        else
+            cli.PrintHelp();
     }
 
     return false;
