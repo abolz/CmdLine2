@@ -119,6 +119,8 @@ project "Test"
     }
     files {
         "src/**.*",
+        "test/doctest.cc",
+        "test/doctest.h",
         "test/Test.cc",
     }
 

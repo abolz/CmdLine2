@@ -1,14 +1,13 @@
-//#define CL_WINDOWS_CONSOLE_COLORS 1
 //#define CL_ANSI_CONSOLE_COLORS 1
+//#define CL_WINDOWS_CONSOLE_COLORS 1
 #include "Cmdline.h"
 
 #include <cstdint>
 #include <climits>
+#include <sstream>
+#include <string>
 
-#define CATCH_CONFIG_MAIN
-#undef min
-#undef max
-#include "catch.hpp"
+#include "doctest.h"
 
 template <typename CharT>
 struct fancy_iterator
@@ -89,7 +88,7 @@ static bool ParseArgs(cl::Cmdline& cl, std::initializer_list<CharT const*> args)
 
 TEST_CASE("Opt")
 {
-    SECTION("optional")
+    SUBCASE("optional")
     {
         bool a = false;
 
@@ -105,7 +104,7 @@ TEST_CASE("Opt")
         CHECK(false == ParseArgs(cl, {"-a", "-a"}));
     }
 
-    SECTION("required")
+    SUBCASE("required")
     {
         bool a = false;
 
@@ -120,7 +119,7 @@ TEST_CASE("Opt")
         CHECK(false == ParseArgs(cl, {"-a", "-a"}));
     }
 
-    SECTION("zero_or_more")
+    SUBCASE("zero_or_more")
     {
         bool a = false;
 
@@ -137,7 +136,7 @@ TEST_CASE("Opt")
         CHECK(a == true);
     }
 
-    SECTION("one_or_more")
+    SUBCASE("one_or_more")
     {
         bool a = false;
 
@@ -161,7 +160,7 @@ TEST_CASE("Opt")
 
 TEST_CASE("Arg")
 {
-    SECTION("no")
+    SUBCASE("no")
     {
         bool a = false;
 
@@ -176,7 +175,7 @@ TEST_CASE("Arg")
         CHECK(false == ParseArgs(cl, {"-a", "true"})); // unknown positional argument 'true'
     }
 
-    SECTION("optional")
+    SUBCASE("optional")
     {
         bool a = false;
 
@@ -209,7 +208,7 @@ TEST_CASE("Arg")
         CHECK(false == ParseArgs(cl, {"-a=hello"}));
     }
 
-    SECTION("required")
+    SUBCASE("required")
     {
         bool a = false;
 
@@ -365,7 +364,7 @@ TEST_CASE("MayGroup")
 
 TEST_CASE("Positional")
 {
-    SECTION("strings")
+    SUBCASE("strings")
     {
         std::vector<std::string> strings;
 
@@ -384,7 +383,7 @@ TEST_CASE("Positional")
         CHECK(strings[2] == "drei");
     }
 
-    SECTION("ints")
+    SUBCASE("ints")
     {
         std::vector<int> ints;
 
@@ -440,7 +439,7 @@ TEST_CASE("StopParsing")
     cli.Add("a", "", cl::Arg::optional, cl::Var(a));
     cli.Add("command", "", cl::Positional::yes | cl::Arg::yes | cl::StopParsing::yes | cl::Required::yes, cl::Var(command));
 
-    SECTION("1")
+    SUBCASE("1")
     {
         a = -1;
 
@@ -452,7 +451,7 @@ TEST_CASE("StopParsing")
         CHECK(a == 123);
         CHECK(command == "command");
     }
-    SECTION("2")
+    SUBCASE("2")
     {
         a = -1;
 
@@ -489,7 +488,7 @@ static_assert(INT_MIN == -INT_MAX - 1, "Tests assume two's complement");
 
 TEST_CASE("Ints")
 {
-    SECTION("decimal signed 8-bit")
+    SUBCASE("decimal signed 8-bit")
     {
         int8_t a = 0;
 
@@ -506,7 +505,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "-129"})); // overflow
     }
 
-    SECTION("decimal unsigned 8-bit")
+    SUBCASE("decimal unsigned 8-bit")
     {
         uint8_t a = 0;
 
@@ -533,7 +532,7 @@ TEST_CASE("Ints")
         CHECK(a == 0);
     }
 
-    SECTION("decimal signed 32-bit")
+    SUBCASE("decimal signed 32-bit")
     {
         int32_t a = 0;
 
@@ -598,7 +597,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "18446744073709551616"})); // overflow
     }
 
-    SECTION("decimal unsigned 32-bit")
+    SUBCASE("decimal unsigned 32-bit")
     {
         uint32_t a = 0;
 
@@ -656,7 +655,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "18446744073709551616"})); // overflow
     }
 
-    SECTION("decimal signed 64-bit")
+    SUBCASE("decimal signed 64-bit")
     {
         int64_t a = 0;
 
@@ -690,7 +689,7 @@ TEST_CASE("Ints")
         CHECK(a == 0);
     }
 
-    SECTION("decimal unsigned 64-bit")
+    SUBCASE("decimal unsigned 64-bit")
     {
         uint64_t a = 0;
 
@@ -719,7 +718,7 @@ TEST_CASE("Ints")
     // Implement two's complement parser for integers?!?!
     //
 
-    SECTION("hexadecimal signed 32-bit")
+    SUBCASE("hexadecimal signed 32-bit")
     {
         int32_t a = 0;
 
@@ -746,7 +745,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "0x10000000000000000"})); // overflow
     }
 
-    SECTION("octal signed 8-bit")
+    SUBCASE("octal signed 8-bit")
     {
         int8_t a = -1;
 
@@ -789,7 +788,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "02000000000000000000000"})); // overflow
     }
 
-    SECTION("binary signed 16-bit")
+    SUBCASE("binary signed 16-bit")
     {
         int16_t a = 0;
 
@@ -817,7 +816,7 @@ TEST_CASE("Ints")
         CHECK(false == ParseArgs(cl, {"-a", "+0b1000000000000000"}));
     }
 
-    SECTION("binary unsigned 16-bit")
+    SUBCASE("binary unsigned 16-bit")
     {
         uint16_t a = 0;
 
@@ -849,23 +848,23 @@ TEST_CASE("Ints")
 
 TEST_CASE("Floats")
 {
-    SECTION("fixed")
+    SUBCASE("fixed")
     {
     }
 
-    SECTION("exponential")
+    SUBCASE("exponential")
     {
     }
 
-    SECTION("hexadecimal")
+    SUBCASE("hexadecimal")
     {
     }
 
-    SECTION("inf")
+    SUBCASE("inf")
     {
     }
 
-    SECTION("nan")
+    SUBCASE("nan")
     {
     }
 }
@@ -910,7 +909,7 @@ TEST_CASE("Map")
 
 TEST_CASE("Checks")
 {
-    SECTION("InRange")
+    SUBCASE("InRange")
     {
         int32_t a = 0;
         int32_t b = 0;
@@ -936,7 +935,7 @@ TEST_CASE("Checks")
         CHECK(b == INT32_MIN);
     }
 
-    SECTION("GreaterThan")
+    SUBCASE("GreaterThan")
     {
         int32_t a = 0;
 
@@ -953,7 +952,7 @@ TEST_CASE("Checks")
         CHECK(false == ParseArgs(cl, {"-a=-4"}));
     }
 
-    SECTION("GreaterEqual")
+    SUBCASE("GreaterEqual")
     {
         int32_t a = 0;
 
@@ -967,7 +966,7 @@ TEST_CASE("Checks")
         CHECK(false == ParseArgs(cl, {"-a=6"}));
     }
 
-    SECTION("LessThan")
+    SUBCASE("LessThan")
     {
         int32_t a = 0;
 
@@ -982,7 +981,7 @@ TEST_CASE("Checks")
         CHECK(false == ParseArgs(cl, {"-a=-2"}));
     }
 
-    SECTION("LessEqual")
+    SUBCASE("LessEqual")
     {
         int32_t a = 0;
 
