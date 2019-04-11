@@ -2147,6 +2147,8 @@ inline OptionBase* Cmdline::Add(std::unique_ptr<OptionBase> opt) {
 
 inline OptionBase* Cmdline::Add(OptionBase* opt) {
     CL_ASSERT(opt != nullptr);
+    CL_ASSERT(cl::impl::IsUTF8(opt->name_.begin(), opt->name_.end()));
+    CL_ASSERT(cl::impl::IsUTF8(opt->descr_.begin(), opt->descr_.end()));
 
     cl::impl::Split(opt->Name(), cl::impl::ByChar('|'), [&](string_view name) {
         CL_ASSERT(!name.empty() && "Empty option names are not allowed");
